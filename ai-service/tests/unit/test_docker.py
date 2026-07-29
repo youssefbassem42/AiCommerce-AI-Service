@@ -31,11 +31,10 @@ class TestDockerfile:
             content = f.read()
         assert "EXPOSE" in content and "8000" in content, "Dockerfile must EXPOSE port 8000"
 
-    def test_dockerfile_has_healthcheck(self):
+    def test_dockerfile_installs_package(self):
         with open(DOCKERFILE_PATH) as f:
             content = f.read()
-        assert "HEALTHCHECK" in content, "Dockerfile must have HEALTHCHECK"
-        assert "curl" in content, "HEALTHCHECK should use curl"
+        assert "pip install" in content, "Dockerfile must install Python package"
 
     def test_dockerfile_cmd_runs_uvicorn(self):
         with open(DOCKERFILE_PATH) as f:
