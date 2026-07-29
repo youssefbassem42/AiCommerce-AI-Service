@@ -3,6 +3,7 @@ from pydantic import Field
 from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 from app.domain.ticket.entities.ticket_analysis import TicketAnalysis
 
+
 class TicketAnalysisDocument(BaseMongoDocument):
     """MongoDB document model representing a TicketAnalysis."""
     ticket_id: str = Field(..., index=True)
@@ -14,6 +15,7 @@ class TicketAnalysisDocument(BaseMongoDocument):
     priority: str = Field(...)
     status: str = Field(default="open")
     suggested_response: str = Field(...)
+    resolution_type: str = Field(default="unresolved")
     analyzed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def to_entity(self) -> TicketAnalysis:
@@ -29,6 +31,7 @@ class TicketAnalysisDocument(BaseMongoDocument):
             priority=self.priority,
             status=self.status,
             suggested_response=self.suggested_response,
+            resolution_type=self.resolution_type,
             analyzed_at=self.analyzed_at
         )
 
@@ -45,5 +48,6 @@ class TicketAnalysisDocument(BaseMongoDocument):
             priority=entity.priority,
             status=entity.status,
             suggested_response=entity.suggested_response,
+            resolution_type=entity.resolution_type,
             analyzed_at=entity.analyzed_at
         )

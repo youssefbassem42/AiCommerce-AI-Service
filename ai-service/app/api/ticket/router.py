@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.api.ticket.dependencies import get_ticket_service
 from app.api.ticket.schemas import (
     DeleteResponseSchema,
+    ResolutionMetricsResponseSchema,
     TicketCreateSchema,
     TicketListResponseSchema,
     TicketResponseSchema,
@@ -72,6 +73,18 @@ async def list_tickets(
             page=page,
             page_size=page_size,
         )
+    except Exception as exc:
+        _handle_exception(exc)
+
+
+@router.get("/metrics/resolution", response_model=ResolutionMetricsResponseSchema)
+async def get_resolution_metrics(
+    store_id: str = Query(...),
+    service: TicketService = Depends(get_ticket_service),
+) -> ResolutionMetricsResponseSchema:
+    try:
+        result = await service.get_resolution_metrics(store_id)
+        return ResolutionMetricsResponseSchema(**result.model_dump())
     except Exception as exc:
         _handle_exception(exc)
 

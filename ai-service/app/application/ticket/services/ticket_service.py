@@ -10,6 +10,7 @@ from app.application.ticket.dto.ticket_dto import (
     CustomerProfileDTO,
     LineItemDTO,
     OrderDTO,
+    ResolutionMetricsDTO,
     TicketCreateDTO,
     TicketDTO,
     TicketStatusUpdateDTO,
@@ -109,6 +110,7 @@ class TicketService:
             priority=sentiment_result.priority,
             status="open",
             suggested_response=sentiment_result.suggested_response,
+            resolution_type="unresolved",
             analyzed_at=now,
         )
 
@@ -171,8 +173,32 @@ class TicketService:
             return None
 
         entity.status = dto.status
+        if dto.resolution_type is not None:
+            entity.resolution_type = dto.resolution_type
+        elif dto.status in ("resolved", "closed") and entity.resolution_type == "unresolved":
+            entity.resolution_type = "ai"
+
         updated = await self._ticket_repo.update(entity)
         return self._to_dto(updated)
+
+    async def get_resolution_metrics(self, store_id: str) -> ResolutionMetricsDTO:
+        all_tickets = await self._ticket_repo.find_many({"store_id": store_id})
+        total = len(all_tickets)
+        ai_resolved = sum(1 for t in all_tickets if t.resolution_type == "ai")
+        human_resolved = sum(1 for t in all_tickets if t.resolution_type == "human")
+        unresolved = sum(1 for t in all_tickets if t.resolution_type == "unresolved")
+        escalated = sum(1 for t in all_tickets if t.resolution_type == "escalated")
+        resolution_rate = (ai_resolved / total * 100) if total > 0 else 0.0
+
+        return ResolutionMetricsDTO(
+            store_id=store_id,
+            total_tickets=total,
+            ai_resolved=ai_resolved,
+            human_resolved=human_resolved,
+            unresolved=unresolved,
+            escalated=escalated,
+            resolution_rate=round(resolution_rate, 2),
+        )
 
     @staticmethod
     def _to_dto(
@@ -192,6 +218,7 @@ class TicketService:
             priority=entity.priority,
             status=entity.status,
             suggested_response=entity.suggested_response,
+            resolution_type=entity.resolution_type,
             analyzed_at=entity.analyzed_at,
             created_at=entity.created_at if hasattr(entity, "created_at") else entity.analyzed_at,
             updated_at=entity.updated_at if hasattr(entity, "updated_at") else entity.analyzed_at,

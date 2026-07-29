@@ -50,6 +50,7 @@ class TicketResponseSchema(BaseModel):
     priority: str
     status: str
     suggested_response: str
+    resolution_type: str = "unresolved"
     analyzed_at: datetime
     created_at: datetime
     updated_at: datetime
@@ -67,7 +68,18 @@ class TicketListResponseSchema(BaseModel):
 
 class TicketStatusUpdateSchema(BaseModel):
     status: str = Field(..., pattern=r"^(open|in_progress|resolved|closed)$")
+    resolution_type: Optional[str] = Field(default=None, pattern=r"^(ai|human|unresolved|escalated)$")
 
 
 class DeleteResponseSchema(BaseModel):
     success: bool
+
+
+class ResolutionMetricsResponseSchema(BaseModel):
+    store_id: str
+    total_tickets: int
+    ai_resolved: int
+    human_resolved: int
+    unresolved: int
+    escalated: int
+    resolution_rate: float

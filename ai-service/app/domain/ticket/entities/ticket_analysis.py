@@ -2,6 +2,9 @@ from datetime import datetime, UTC
 from pydantic import Field
 from app.shared.kernel.aggregate_root import AggregateRoot
 
+RESOLUTION_TYPES = {"ai", "human", "unresolved", "escalated"}
+
+
 class TicketAnalysis(AggregateRoot[str]):
     """Domain Aggregate Root representing an AI-based customer support ticket analysis."""
     ticket_id: str = Field(..., description="External or database ID of the customer support ticket")
@@ -13,4 +16,8 @@ class TicketAnalysis(AggregateRoot[str]):
     priority: str = Field(..., description="Calculated urgency priority (low, medium, high, urgent)")
     status: str = Field(default="open", description="Ticket status (open, in_progress, resolved, closed)")
     suggested_response: str = Field(..., description="AI suggested answer draft")
+    resolution_type: str = Field(
+        default="unresolved",
+        description="How the ticket was resolved (ai, human, unresolved, escalated)"
+    )
     analyzed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

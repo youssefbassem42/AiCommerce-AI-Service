@@ -50,6 +50,7 @@ class TicketDTO(BaseModel):
     priority: str
     status: str
     suggested_response: str
+    resolution_type: str = "unresolved"
     analyzed_at: datetime
     created_at: datetime
     updated_at: datetime
@@ -61,3 +62,14 @@ class TicketDTO(BaseModel):
 
 class TicketStatusUpdateDTO(BaseModel):
     status: str
+    resolution_type: Optional[str] = None
+
+
+class ResolutionMetricsDTO(BaseModel):
+    store_id: str
+    total_tickets: int
+    ai_resolved: int
+    human_resolved: int
+    unresolved: int
+    escalated: int
+    resolution_rate: float
