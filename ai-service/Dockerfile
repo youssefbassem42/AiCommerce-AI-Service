@@ -4,7 +4,9 @@ RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 COPY pyproject.toml ./
-RUN uv pip install --system -r <(uv pip compile pyproject.toml --quiet 2>/dev/null || cat pyproject.toml | grep -A999 'dependencies =' | grep -E '^\s+' | sed 's/[",]//g' > requirements.txt && pip install --no-cache-dir -r requirements.txt)
+SHELL ["/bin/bash", "-c"]
+RUN uv pip compile pyproject.toml -o requirements.txt && \
+    pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.12-slim AS runtime
 

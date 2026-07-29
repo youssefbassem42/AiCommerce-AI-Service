@@ -86,6 +86,10 @@ quote-style = "double"
 indent-style = "space"
 line-ending = "lf"
 
+[tool.setuptools.packages.find]
+where = ["app"]
+include = ["app*"]
+
 [build-system]
 requires = ["setuptools>=75.0.0"]
 build-backend = "setuptools.build_meta"

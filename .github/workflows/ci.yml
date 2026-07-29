@@ -17,13 +17,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Debug workspace
-        run: |
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "PWD=$(pwd)"
-          ls -la "$GITHUB_WORKSPACE"
-          echo "--- find ai-service ---"
-          find "$GITHUB_WORKSPACE" -maxdepth 2 -name "pyproject.toml" -o -name "Dockerfile" 2>/dev/null
       - name: Lint with ruff
         run: |
           cd "$GITHUB_WORKSPACE/ai-service"
@@ -47,11 +40,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Debug workspace
-        run: |
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "PWD=$(pwd)"
-          ls -la "$GITHUB_WORKSPACE"
       - name: Install dependencies
         run: |
           cd "$GITHUB_WORKSPACE/ai-service"
@@ -75,11 +63,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Debug workspace
-        run: |
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "PWD=$(pwd)"
-          ls -la "$GITHUB_WORKSPACE"
       - name: Build Docker image
         run: |
           cd "$GITHUB_WORKSPACE/ai-service"
