@@ -1,6 +1,7 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -69,17 +70,21 @@ def mock_upload_service():
 
 @pytest.fixture(autouse=True)
 def override_deps(
-    mock_doc_service, mock_chunk_service, mock_summary_service,
-    mock_retriever, mock_job_repo, mock_upload_service,
+    mock_doc_service,
+    mock_chunk_service,
+    mock_summary_service,
+    mock_retriever,
+    mock_job_repo,
+    mock_upload_service,
 ):
-    from app.main import app
     from app.api.knowledge.dependencies import (
-        get_knowledge_document_service,
-        get_knowledge_chunk_service,
         get_business_summary_service,
         get_document_upload_service,
+        get_knowledge_chunk_service,
+        get_knowledge_document_service,
     )
     from app.api.knowledge.retrieval_dependencies import get_retriever_service
+    from app.main import app
 
     overrides = {
         get_knowledge_document_service: lambda: mock_doc_service,
@@ -91,8 +96,9 @@ def override_deps(
     app.dependency_overrides.clear()
     app.dependency_overrides.update(overrides)
 
-    if not any(getattr(r, 'path', None) and "/api/v1/knowledge-base" in str(r.path) for r in app.routes):
+    if not any(getattr(r, "path", None) and "/api/v1/knowledge-base" in str(r.path) for r in app.routes):
         from app.api.knowledge.unified_router import router as unified_router
+
         app.include_router(unified_router)
 
     yield
@@ -102,17 +108,29 @@ def override_deps(
 @pytest.fixture
 def client():
     from fastapi.testclient import TestClient
+
     from app.main import app
+
     return TestClient(app)
 
 
 def make_doc_dto(**overrides):
-    from app.application.knowledge.dto import KnowledgeDocumentDTO, DocumentMetadataDTO
-    defaults = dict(
-        id="doc-1", store_id="store-1", title="Test Doc", status="draft", language="en",
-        metadata=DocumentMetadataDTO(), versions=[], current_version=1, chunks=[],
-        chunking_strategy="manual", created_at=datetime.now(), updated_at=datetime.now(),
-    )
+    from app.application.knowledge.dto import DocumentMetadataDTO, KnowledgeDocumentDTO
+
+    defaults = {
+        "id": "doc-1",
+        "store_id": "store-1",
+        "title": "Test Doc",
+        "status": "draft",
+        "language": "en",
+        "metadata": DocumentMetadataDTO(),
+        "versions": [],
+        "current_version": 1,
+        "chunks": [],
+        "chunking_strategy": "manual",
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
+    }
     defaults.update(overrides)
     return KnowledgeDocumentDTO(**defaults)
 
@@ -120,6 +138,7 @@ def make_doc_dto(**overrides):
 class TestUnifiedDocumentEndpoints:
     def test_list_documents(self, client, mock_doc_service):
         from app.application.knowledge.dto import PaginatedResultDTO
+
         mock_doc_service.list.return_value = PaginatedResultDTO(items=[], total=0, page=1, page_size=20)
 
         resp = client.get("/api/v1/knowledge-base/documents")
@@ -135,6 +154,7 @@ class TestUnifiedDocumentEndpoints:
 
     def test_get_document_not_found(self, client, mock_doc_service):
         from app.domain.knowledge.exceptions import KnowledgeDocumentNotFoundException
+
         mock_doc_service.get_by_id.side_effect = KnowledgeDocumentNotFoundException("Not found")
 
         resp = client.get("/api/v1/knowledge-base/documents/nonexistent")
@@ -149,6 +169,7 @@ class TestUnifiedDocumentEndpoints:
 
     def test_delete_document_not_found(self, client, mock_doc_service):
         from app.domain.knowledge.exceptions import KnowledgeDocumentNotFoundException
+
         mock_doc_service.delete.side_effect = KnowledgeDocumentNotFoundException("Not found")
 
         resp = client.delete("/api/v1/knowledge-base/documents/nonexistent")
@@ -165,11 +186,14 @@ class TestUnifiedAsyncEndpoints:
         mock_create_job.return_value = mock_job
         mock_task.delay.return_value = MagicMock(id="celery-1")
 
-        resp = client.post("/api/v1/knowledge-base/process", json={
-            "document_id": "doc-1",
-            "file_path": "/tmp/test.pdf",
-            "also_chunk": False,
-        })
+        resp = client.post(
+            "/api/v1/knowledge-base/process",
+            json={
+                "document_id": "doc-1",
+                "file_path": "/tmp/test.pdf",
+                "also_chunk": False,
+            },
+        )
         assert resp.status_code == 202
         data = resp.json()
         assert data["job_id"] == "job-1"
@@ -184,12 +208,15 @@ class TestUnifiedAsyncEndpoints:
         mock_create_job.return_value = mock_job
         mock_task.delay.return_value = MagicMock(id="celery-1")
 
-        resp = client.post("/api/v1/knowledge-base/chunk", json={
-            "document_id": "doc-1",
-            "strategy": "recursive_character",
-            "chunk_size": 1000,
-            "overlap": 200,
-        })
+        resp = client.post(
+            "/api/v1/knowledge-base/chunk",
+            json={
+                "document_id": "doc-1",
+                "strategy": "recursive_character",
+                "chunk_size": 1000,
+                "overlap": 200,
+            },
+        )
         assert resp.status_code == 202
         data = resp.json()
         assert data["job_id"] == "job-1"
@@ -208,10 +235,13 @@ class TestUnifiedAsyncEndpoints:
             mock_create_job.return_value = mock_job
             mock_task.delay.return_value = MagicMock(id="celery-1")
 
-            resp = client.post("/api/v1/knowledge-base/embed", json={
-                "document_id": "doc-1",
-                "sync_to_vector_store": False,
-            })
+            resp = client.post(
+                "/api/v1/knowledge-base/embed",
+                json={
+                    "document_id": "doc-1",
+                    "sync_to_vector_store": False,
+                },
+            )
             assert resp.status_code == 202
 
     def test_embed_document_no_chunks(self, client):
@@ -220,19 +250,27 @@ class TestUnifiedAsyncEndpoints:
             mock_repo.find_by_document_id = AsyncMock(return_value=[])
             mock_repo_cls.return_value = mock_repo
 
-            resp = client.post("/api/v1/knowledge-base/embed", json={
-                "document_id": "doc-1",
-                "sync_to_vector_store": False,
-            })
+            resp = client.post(
+                "/api/v1/knowledge-base/embed",
+                json={
+                    "document_id": "doc-1",
+                    "sync_to_vector_store": False,
+                },
+            )
             assert resp.status_code == 404
 
 
 class TestUnifiedSearchEndpoints:
     def test_search_semantic(self, client, mock_retriever):
         from app.application.knowledge.retrieval.dto import UnifiedRetrievalResult
+
         mock_retriever.search.return_value = UnifiedRetrievalResult(
-            query="test", results=[], total_count=0, strategy="semantic",
-            latency_ms=10.0, filters_applied={},
+            query="test",
+            results=[],
+            total_count=0,
+            strategy="semantic",
+            latency_ms=10.0,
+            filters_applied={},
         )
 
         resp = client.post("/api/v1/knowledge-base/search", json={"query": "test"})
@@ -243,9 +281,14 @@ class TestUnifiedSearchEndpoints:
 
     def test_search_hybrid(self, client, mock_retriever):
         from app.application.knowledge.retrieval.dto import UnifiedRetrievalResult
+
         mock_retriever.search.return_value = UnifiedRetrievalResult(
-            query="test", results=[], total_count=0, strategy="hybrid",
-            latency_ms=10.0, filters_applied={},
+            query="test",
+            results=[],
+            total_count=0,
+            strategy="hybrid",
+            latency_ms=10.0,
+            filters_applied={},
         )
 
         resp = client.post("/api/v1/knowledge-base/search/hybrid", json={"query": "test"})
@@ -257,15 +300,18 @@ class TestUnifiedSearchEndpoints:
 class TestUnifiedJobEndpoint:
     def _override_job_repo(self, client, mock_job_repo):
         from app.api.knowledge.unified_router import _get_job_repository
+
         client.app.dependency_overrides[_get_job_repository] = lambda: mock_job_repo
 
     def _restore_job_repo(self, client):
         from app.api.knowledge.unified_router import _get_job_repository
+
         client.app.dependency_overrides.pop(_get_job_repository, None)
 
     def test_get_job_found(self, client, mock_job_repo):
         from app.domain.job.entities.knowledge_job import KnowledgeJob
-        from app.domain.job.value_objects import JobType, JobStatus
+        from app.domain.job.value_objects import JobStatus, JobType
+
         job = KnowledgeJob(id="job-1", job_type=JobType.DOCUMENT_PROCESSING, status=JobStatus.COMPLETED)
         mock_job_repo.find_by_id.return_value = job
 

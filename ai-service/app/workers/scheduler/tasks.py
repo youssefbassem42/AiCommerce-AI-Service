@@ -2,9 +2,9 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from app.core.celery_app import celery_app
-from app.domain.job.value_objects import JobStatus, JobType
+from app.domain.job.value_objects import JobStatus
 from app.infrastructure.mongodb.collections import get_knowledge_jobs_collection
-from app.infrastructure.tasks.helpers import _run_async, requeue_dead_letter
+from app.infrastructure.tasks.helpers import _run_async
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +19,12 @@ def retry_failed_jobs_task() -> dict:
         async def _async_run():
             collection = get_knowledge_jobs_collection()
 
-            stale_running = await collection.find({
-                "status": JobStatus.RUNNING.value,
-                "started_at": {"$lt": datetime.now(UTC) - timedelta(hours=2)},
-            }).to_list(length=100)
+            stale_running = await collection.find(
+                {
+                    "status": JobStatus.RUNNING.value,
+                    "started_at": {"$lt": datetime.now(UTC) - timedelta(hours=2)},
+                }
+            ).to_list(length=100)
 
             requeued_running = 0
             for job in stale_running:
@@ -38,10 +40,12 @@ def retry_failed_jobs_task() -> dict:
                 )
                 requeued_running += 1
 
-            retryable = await collection.find({
-                "status": JobStatus.RETRYING.value,
-                "retry_count": {"$lt": 3},
-            }).to_list(length=100)
+            retryable = await collection.find(
+                {
+                    "status": JobStatus.RETRYING.value,
+                    "retry_count": {"$lt": 3},
+                }
+            ).to_list(length=100)
 
             requeued_retries = 0
             for job in retryable:
@@ -81,10 +85,12 @@ def cleanup_dead_letters_task(dry_run: bool = True) -> dict:
             collection = get_knowledge_jobs_collection()
 
             cutoff = datetime.now(UTC) - timedelta(days=7)
-            old_dead = await collection.find({
-                "status": JobStatus.DEAD_LETTER.value,
-                "completed_at": {"$lt": cutoff},
-            }).to_list(length=200)
+            old_dead = await collection.find(
+                {
+                    "status": JobStatus.DEAD_LETTER.value,
+                    "completed_at": {"$lt": cutoff},
+                }
+            ).to_list(length=200)
 
             if not dry_run:
                 ids = [j["_id"] for j in old_dead]

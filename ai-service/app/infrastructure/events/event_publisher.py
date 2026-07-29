@@ -1,9 +1,8 @@
 import logging
-from typing import List
 
+from app.shared.events.event_bus import EventBus
 from app.shared.kernel.aggregate_root import AggregateRoot
 from app.shared.kernel.domain_event import DomainEvent
-from app.shared.events.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +12,7 @@ class DomainEventPublisher:
         self._event_bus = event_bus
 
     async def flush_events(self, aggregate: AggregateRoot) -> None:
-        events: List[DomainEvent] = aggregate.get_domain_events()
+        events: list[DomainEvent] = aggregate.get_domain_events()
         if not events:
             return
 

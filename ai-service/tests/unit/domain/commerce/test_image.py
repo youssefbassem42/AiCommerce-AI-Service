@@ -4,7 +4,6 @@ from app.domain.commerce.value_objects.image import Image
 
 
 class TestImage:
-
     def test_valid_image(self):
         img = Image(url="https://example.com/img.jpg")
         assert img.url == "https://example.com/img.jpg"

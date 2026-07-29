@@ -1,14 +1,14 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.application.integration.sync.knowledge_bridge import CommerceKnowledgeBridge
-from app.application.integration.sync.orchestrator import SyncOrchestrator, EntitySyncResult, SyncResult
+import pytest
+
+from app.application.integration.sync.orchestrator import EntitySyncResult, SyncOrchestrator, SyncResult
 from app.application.integration.sync.writers import (
-    ProductWriter,
-    OrderWriter,
-    CustomerWriter,
     CategoryWriter,
+    CustomerWriter,
     InventoryWriter,
+    OrderWriter,
+    ProductWriter,
     get_writer,
 )
 from app.domain.integration.entities.integration_connection import (
@@ -34,7 +34,9 @@ class TestEntityWriters:
         with patch("app.application.integration.sync.writers.get_products_collection", return_value=mock_collection):
             writer = ProductWriter()
             result = await writer.upsert(
-                store_id="s1", org_id="o1", external_id="ext1",
+                store_id="s1",
+                org_id="o1",
+                external_id="ext1",
                 data={"title": "Test Product", "price": 19.99, "sku": "SKU001", "status": "active"},
             )
             assert result is True
@@ -47,7 +49,9 @@ class TestEntityWriters:
         with patch("app.application.integration.sync.writers.get_orders_collection", return_value=mock_collection):
             writer = OrderWriter()
             result = await writer.upsert(
-                store_id="s1", org_id="o1", external_id="ext2",
+                store_id="s1",
+                org_id="o1",
+                external_id="ext2",
                 data={"email": "test@test.com", "total": 100.0, "currency": "USD"},
             )
             assert result is True
@@ -58,7 +62,9 @@ class TestEntityWriters:
         with patch("app.application.integration.sync.writers.get_customers_collection", return_value=mock_collection):
             writer = CustomerWriter()
             result = await writer.upsert(
-                store_id="s1", org_id="o1", external_id="ext3",
+                store_id="s1",
+                org_id="o1",
+                external_id="ext3",
                 data={"email": "cust@test.com", "first_name": "John", "last_name": "Doe"},
             )
             assert result is True
@@ -69,7 +75,9 @@ class TestEntityWriters:
         with patch("app.application.integration.sync.writers.get_categories_collection", return_value=mock_collection):
             writer = CategoryWriter()
             result = await writer.upsert(
-                store_id="s1", org_id="o1", external_id="ext4",
+                store_id="s1",
+                org_id="o1",
+                external_id="ext4",
                 data={"name": "Electronics", "description": "Gadgets"},
             )
             assert result is True
@@ -79,7 +87,9 @@ class TestEntityWriters:
         with patch("app.application.integration.sync.writers.get_inventory_collection", return_value=mock_collection):
             writer = InventoryWriter()
             result = await writer.upsert(
-                store_id="s1", org_id="o1", external_id="ext5",
+                store_id="s1",
+                org_id="o1",
+                external_id="ext5",
                 data={"inventory_quantity": 50, "product_id": "p1", "variant_id": "v1"},
             )
             assert result is True
@@ -93,6 +103,7 @@ class TestEntityWriters:
 
     def test_get_writer_unknown_type(self):
         from app.application.integration.sync.writers import DynamicEntityWriter
+
         writer = get_writer("unknown")
         assert writer is not None
         assert isinstance(writer, DynamicEntityWriter)

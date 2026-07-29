@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.application.dto.ai_dto import ChatResponse, MessageDTO, UsageDTO
-from app.application.rag.dto import RAGRequest, RAGResponse
+from app.application.rag.dto import RAGRequest
 from app.application.rag.service import ESCALATION_CONFIDENCE_THRESHOLD, RagOrchestrationService
 
 
@@ -18,9 +18,12 @@ def retriever():
 def chat_service():
     c = AsyncMock()
     c.chat.return_value = ChatResponse(
-        id="test", model="gpt-4o-mini", provider="openai",
+        id="test",
+        model="gpt-4o-mini",
+        provider="openai",
         message=MessageDTO(role="assistant", content="Test response"),
-        usage=UsageDTO(), latency_ms=0,
+        usage=UsageDTO(),
+        latency_ms=0,
     )
     return c
 
@@ -42,6 +45,7 @@ class TestRAGServiceEdgeCases:
 
     async def test_llm_unavailable(self, rag_service, chat_service):
         from app.core.ai_exceptions import ProviderUnavailableException
+
         chat_service.chat.side_effect = ProviderUnavailableException("openai", "LLM unavailable")
         result = await rag_service.answer(RAGRequest(message="test query", store_id="s1"))
         assert "unable to generate" in result.response.lower() or "found" in result.response.lower()
@@ -89,13 +93,20 @@ class TestRAGServiceEdgeCases:
     async def test_no_escalation_when_ticket_service_not_injected(self, rag_service, retriever, chat_service):
         retriever.search.return_value = MagicMock(results=[], total_count=0)
         chat_service.chat.return_value = ChatResponse(
-            id="test", model="gpt-4o-mini", provider="openai",
+            id="test",
+            model="gpt-4o-mini",
+            provider="openai",
             message=MessageDTO(role="assistant", content="response"),
-            usage=UsageDTO(), latency_ms=0,
+            usage=UsageDTO(),
+            latency_ms=0,
         )
-        result = await rag_service.answer(RAGRequest(
-            message="test", store_id="s1", customer_id="c1",
-        ))
+        result = await rag_service.answer(
+            RAGRequest(
+                message="test",
+                store_id="s1",
+                customer_id="c1",
+            )
+        )
         assert result is not None
 
     async def test_escalation_skipped_when_confidence_high(self, rag_service, retriever, chat_service):
@@ -104,17 +115,26 @@ class TestRAGServiceEdgeCases:
         rag_service._conversation_service = AsyncMock()
         rag_service._conversation_service.get_conversation_history = AsyncMock(return_value=[])
 
-        mock_chunk = MagicMock(content="some content", chunk_id="c1", rank=1, score=0.95, document_id="doc1", document_title="Doc1")
+        mock_chunk = MagicMock(
+            content="some content", chunk_id="c1", rank=1, score=0.95, document_id="doc1", document_title="Doc1"
+        )
         retriever.search = AsyncMock(return_value=MagicMock(results=[mock_chunk], total_count=1))
         chat_service.chat.return_value = ChatResponse(
-            id="test", model="gpt-4o-mini", provider="openai",
+            id="test",
+            model="gpt-4o-mini",
+            provider="openai",
             message=MessageDTO(role="assistant", content="Great response"),
-            usage=UsageDTO(), latency_ms=0,
+            usage=UsageDTO(),
+            latency_ms=0,
         )
 
-        result = await rag_service.answer(RAGRequest(
-            message="test", store_id="s1", customer_id="c1",
-        ))
+        result = await rag_service.answer(
+            RAGRequest(
+                message="test",
+                store_id="s1",
+                customer_id="c1",
+            )
+        )
         assert result.confidence_score >= ESCALATION_CONFIDENCE_THRESHOLD
         ticket_service.create_ticket.assert_not_called()
 
@@ -128,14 +148,21 @@ class TestRAGServiceEdgeCases:
 
         retriever.search.return_value = MagicMock(results=[], total_count=0)
         chat_service.chat.return_value = ChatResponse(
-            id="test", model="gpt-4o-mini", provider="openai",
+            id="test",
+            model="gpt-4o-mini",
+            provider="openai",
             message=MessageDTO(role="assistant", content="not confident"),
-            usage=UsageDTO(), latency_ms=0,
+            usage=UsageDTO(),
+            latency_ms=0,
         )
 
-        result = await rag_service.answer(RAGRequest(
-            message="help", store_id="s1", customer_id="c1",
-        ))
+        result = await rag_service.answer(
+            RAGRequest(
+                message="help",
+                store_id="s1",
+                customer_id="c1",
+            )
+        )
         assert result.confidence_score < ESCALATION_CONFIDENCE_THRESHOLD
         ticket_service.create_ticket.assert_called_once()
 
@@ -143,9 +170,12 @@ class TestRAGServiceEdgeCases:
         ticket_service = AsyncMock()
         rag_service._ticket_service = ticket_service
 
-        result = await rag_service.answer(RAGRequest(
-            message="help", store_id="s1",
-        ))
+        await rag_service.answer(
+            RAGRequest(
+                message="help",
+                store_id="s1",
+            )
+        )
         ticket_service.create_ticket.assert_not_called()
 
     async def test_escalation_failure_does_not_break_main_flow(self, rag_service, retriever, chat_service):
@@ -156,8 +186,12 @@ class TestRAGServiceEdgeCases:
         rag_service._ticket_service = ticket_service
         rag_service._conversation_service = conv_service
 
-        result = await rag_service.answer(RAGRequest(
-            message="help", store_id="s1", customer_id="c1",
-        ))
+        result = await rag_service.answer(
+            RAGRequest(
+                message="help",
+                store_id="s1",
+                customer_id="c1",
+            )
+        )
         assert result is not None
         assert result.response is not None

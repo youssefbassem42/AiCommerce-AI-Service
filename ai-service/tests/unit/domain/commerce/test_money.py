@@ -6,7 +6,6 @@ from app.domain.commerce.value_objects.money import Money
 
 
 class TestMoneyCreation:
-
     def test_valid_money(self):
         m = Money(amount=Decimal("10.50"), currency="USD")
         assert m.amount == Decimal("10.50")
@@ -42,7 +41,6 @@ class TestMoneyCreation:
 
 
 class TestMoneyArithmetic:
-
     def test_addition_same_currency(self):
         a = Money(amount=Decimal("10"), currency="USD")
         b = Money(amount=Decimal("20"), currency="USD")
@@ -92,7 +90,6 @@ class TestMoneyArithmetic:
 
 
 class TestMoneyEquality:
-
     def test_equal(self):
         a = Money(amount=Decimal("10"), currency="USD")
         b = Money(amount=Decimal("10"), currency="USD")
@@ -114,7 +111,6 @@ class TestMoneyEquality:
 
 
 class TestMoneyRepresentation:
-
     def test_repr(self):
         m = Money(amount=Decimal("10.50"), currency="USD")
         assert repr(m) == "10.50 USD"

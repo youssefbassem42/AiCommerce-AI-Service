@@ -15,8 +15,7 @@ CHUNK_HEADER = "\n\n### Retrieved Knowledge Chunk [{index}]\n**Source:** {title}
 USER_MESSAGE_TEMPLATE = "{message}"
 
 CONTEXT_PLACEHOLDER = (
-    "\n\n---\nNote: If you cannot answer based on the provided context, "
-    "clearly state that. Do not speculate."
+    "\n\n---\nNote: If you cannot answer based on the provided context, clearly state that. Do not speculate."
 )
 
 

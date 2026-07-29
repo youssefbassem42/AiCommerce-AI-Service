@@ -1,11 +1,14 @@
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+
 from pydantic import Field
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+
 from app.domain.ticket.entities.ticket_analysis import TicketAnalysis
+from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 
 
 class TicketAnalysisDocument(BaseMongoDocument):
     """MongoDB document model representing a TicketAnalysis."""
+
     ticket_id: str = Field(..., index=True)
     store_id: str = Field(..., index=True)
     customer_id: str = Field(..., index=True)
@@ -32,7 +35,7 @@ class TicketAnalysisDocument(BaseMongoDocument):
             status=self.status,
             suggested_response=self.suggested_response,
             resolution_type=self.resolution_type,
-            analyzed_at=self.analyzed_at
+            analyzed_at=self.analyzed_at,
         )
 
     @classmethod
@@ -49,5 +52,5 @@ class TicketAnalysisDocument(BaseMongoDocument):
             status=entity.status,
             suggested_response=entity.suggested_response,
             resolution_type=entity.resolution_type,
-            analyzed_at=entity.analyzed_at
+            analyzed_at=entity.analyzed_at,
         )

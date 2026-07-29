@@ -1,13 +1,13 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field
 
 T = TypeVar("T")
 
 
-class PaginatedResultDTO(BaseModel, Generic[T]):
+class PaginatedResultDTO[T](BaseModel):
     items: list[T]
     total: int
     page: int
@@ -21,22 +21,22 @@ class MoneyDTO(BaseModel):
 
 class ImageDTO(BaseModel):
     url: str
-    alt_text: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
-    position: Optional[int] = None
+    alt_text: str | None = None
+    width: int | None = None
+    height: int | None = None
+    position: int | None = None
 
 
 class SEODTO(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    url_slug: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    url_slug: str | None = None
 
 
 class AuditInfoDTO(BaseModel):
     created_at: datetime
     updated_at: datetime
-    updated_by: Optional[str] = None
+    updated_by: str | None = None
 
 
 class VariantDTO(BaseModel):
@@ -44,10 +44,10 @@ class VariantDTO(BaseModel):
     sku: str
     title: str
     price: MoneyDTO
-    compare_at_price: Optional[MoneyDTO] = None
+    compare_at_price: MoneyDTO | None = None
     inventory_quantity: int = 0
-    weight: Optional[Decimal] = None
-    dimensions: Optional[str] = None
+    weight: Decimal | None = None
+    dimensions: str | None = None
 
 
 class ProductOptionDTO(BaseModel):
@@ -59,55 +59,55 @@ class ProductOptionDTO(BaseModel):
 class ProductCreateDTO(BaseModel):
     store_id: str
     organization_id: str
-    external_id: Optional[str] = None
+    external_id: str | None = None
     title: str
-    description: Optional[str] = None
-    handle: Optional[str] = None
+    description: str | None = None
+    handle: str | None = None
     status: str = "draft"
-    product_type: Optional[str] = None
-    vendor: Optional[str] = None
+    product_type: str | None = None
+    vendor: str | None = None
     tags: list[str] = Field(default_factory=list)
     images: list[ImageDTO] = Field(default_factory=list)
     variants: list[VariantDTO] = Field(default_factory=list)
     options: list[ProductOptionDTO] = Field(default_factory=list)
     seo: SEODTO = Field(default_factory=SEODTO)
-    category_id: Optional[str] = None
+    category_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProductUpdateDTO(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    handle: Optional[str] = None
-    status: Optional[str] = None
-    product_type: Optional[str] = None
-    vendor: Optional[str] = None
-    tags: Optional[list[str]] = None
-    images: Optional[list[ImageDTO]] = None
-    variants: Optional[list[VariantDTO]] = None
-    options: Optional[list[ProductOptionDTO]] = None
-    seo: Optional[SEODTO] = None
-    category_id: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
+    title: str | None = None
+    description: str | None = None
+    handle: str | None = None
+    status: str | None = None
+    product_type: str | None = None
+    vendor: str | None = None
+    tags: list[str] | None = None
+    images: list[ImageDTO] | None = None
+    variants: list[VariantDTO] | None = None
+    options: list[ProductOptionDTO] | None = None
+    seo: SEODTO | None = None
+    category_id: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class ProductDTO(BaseModel):
     id: str
     store_id: str
     organization_id: str
-    external_id: Optional[str] = None
+    external_id: str | None = None
     title: str
-    description: Optional[str] = None
-    handle: Optional[str] = None
+    description: str | None = None
+    handle: str | None = None
     status: str
-    product_type: Optional[str] = None
-    vendor: Optional[str] = None
+    product_type: str | None = None
+    vendor: str | None = None
     tags: list[str]
     images: list[ImageDTO]
     variants: list[VariantDTO]
     options: list[ProductOptionDTO]
     seo: SEODTO
-    category_id: Optional[str] = None
+    category_id: str | None = None
     audit: AuditInfoDTO
     metadata: dict[str, Any]
     created_at: datetime
@@ -117,36 +117,36 @@ class ProductDTO(BaseModel):
 class CategoryCreateDTO(BaseModel):
     store_id: str
     org_id: str
-    external_id: Optional[str] = None
+    external_id: str | None = None
     name: str
-    description: Optional[str] = None
-    handle: Optional[str] = None
-    parent_id: Optional[str] = None
-    image_url: Optional[str] = None
+    description: str | None = None
+    handle: str | None = None
+    parent_id: str | None = None
+    image_url: str | None = None
     sort_order: int = 0
     product_count: int = 0
 
 
 class CategoryUpdateDTO(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    handle: Optional[str] = None
-    parent_id: Optional[str] = None
-    image_url: Optional[str] = None
-    sort_order: Optional[int] = None
-    product_count: Optional[int] = None
+    name: str | None = None
+    description: str | None = None
+    handle: str | None = None
+    parent_id: str | None = None
+    image_url: str | None = None
+    sort_order: int | None = None
+    product_count: int | None = None
 
 
 class CategoryDTO(BaseModel):
     id: str
     store_id: str
     org_id: str
-    external_id: Optional[str] = None
+    external_id: str | None = None
     name: str
-    description: Optional[str] = None
-    handle: Optional[str] = None
-    parent_id: Optional[str] = None
-    image_url: Optional[str] = None
+    description: str | None = None
+    handle: str | None = None
+    parent_id: str | None = None
+    image_url: str | None = None
     sort_order: int
     product_count: int
     audit: AuditInfoDTO
@@ -157,37 +157,37 @@ class CategoryDTO(BaseModel):
 class OrderCreateDTO(BaseModel):
     store_id: str
     org_id: str
-    external_id: Optional[str] = None
-    customer_id: Optional[str] = None
-    customer_email: Optional[str] = None
+    external_id: str | None = None
+    customer_id: str | None = None
+    customer_email: str | None = None
     line_items: list[Any] = Field(default_factory=list)
-    shipping_address: Optional[Any] = None
-    billing_address: Optional[Any] = None
-    subtotal_price: Optional[MoneyDTO] = None
-    total_price: Optional[MoneyDTO] = None
-    total_tax: Optional[MoneyDTO] = None
-    total_discount: Optional[MoneyDTO] = None
-    shipping_price: Optional[MoneyDTO] = None
+    shipping_address: Any | None = None
+    billing_address: Any | None = None
+    subtotal_price: MoneyDTO | None = None
+    total_price: MoneyDTO | None = None
+    total_tax: MoneyDTO | None = None
+    total_discount: MoneyDTO | None = None
+    shipping_price: MoneyDTO | None = None
     financial_status: str = "pending"
-    fulfillment_status: Optional[str] = None
+    fulfillment_status: str | None = None
     currency: str = "USD"
-    notes: Optional[str] = None
+    notes: str | None = None
     tags: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class OrderUpdateDTO(BaseModel):
-    financial_status: Optional[str] = None
-    fulfillment_status: Optional[str] = None
-    notes: Optional[str] = None
-    tags: Optional[list[str]] = None
-    metadata: Optional[dict[str, Any]] = None
+    financial_status: str | None = None
+    fulfillment_status: str | None = None
+    notes: str | None = None
+    tags: list[str] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class LineItemDTO(BaseModel):
     id: str
-    variant_id: Optional[str] = None
-    product_id: Optional[str] = None
+    variant_id: str | None = None
+    product_id: str | None = None
     title: str
     quantity: int
     price: MoneyDTO
@@ -199,16 +199,16 @@ class OrderDTO(BaseModel):
     id: str
     store_id: str
     org_id: str
-    external_id: Optional[str] = None
-    customer_id: Optional[str] = None
-    customer_email: Optional[str] = None
+    external_id: str | None = None
+    customer_id: str | None = None
+    customer_email: str | None = None
     line_items: list[LineItemDTO]
     financial_status: str
-    fulfillment_status: Optional[str] = None
+    fulfillment_status: str | None = None
     currency: str
-    notes: Optional[str] = None
+    notes: str | None = None
     tags: list[str]
-    cancelled_at: Optional[datetime] = None
+    cancelled_at: datetime | None = None
     audit: AuditInfoDTO
     metadata: dict[str, Any]
     created_at: datetime
@@ -220,24 +220,24 @@ class InventoryCreateDTO(BaseModel):
     variant_id: str
     store_id: str
     org_id: str
-    external_id: Optional[str] = None
+    external_id: str | None = None
     quantity: int = 0
     available: int = 0
     committed: int = 0
     incoming: int = 0
-    location_id: Optional[str] = None
-    location_name: Optional[str] = None
-    low_stock_threshold: Optional[int] = None
+    location_id: str | None = None
+    location_name: str | None = None
+    low_stock_threshold: int | None = None
 
 
 class InventoryUpdateDTO(BaseModel):
-    quantity: Optional[int] = None
-    available: Optional[int] = None
-    committed: Optional[int] = None
-    incoming: Optional[int] = None
-    location_id: Optional[str] = None
-    location_name: Optional[str] = None
-    low_stock_threshold: Optional[int] = None
+    quantity: int | None = None
+    available: int | None = None
+    committed: int | None = None
+    incoming: int | None = None
+    location_id: str | None = None
+    location_name: str | None = None
+    low_stock_threshold: int | None = None
 
 
 class InventoryDTO(BaseModel):
@@ -246,14 +246,14 @@ class InventoryDTO(BaseModel):
     variant_id: str
     store_id: str
     org_id: str
-    external_id: Optional[str] = None
+    external_id: str | None = None
     quantity: int
     available: int
     committed: int
     incoming: int
-    location_id: Optional[str] = None
-    location_name: Optional[str] = None
-    low_stock_threshold: Optional[int] = None
+    location_id: str | None = None
+    location_name: str | None = None
+    low_stock_threshold: int | None = None
     audit: AuditInfoDTO
     created_at: datetime
     updated_at: datetime

@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -8,7 +7,7 @@ class ApiKeyCreateRequest(BaseModel):
     store_id: str
     name: str
     scopes: list[str] = []
-    expires_at: Optional[datetime] = None
+    expires_at: datetime | None = None
 
 
 class ApiKeyResponse(BaseModel):
@@ -16,7 +15,7 @@ class ApiKeyResponse(BaseModel):
     name: str
     scopes: list[str]
     is_active: bool
-    expires_at: Optional[datetime] = None
+    expires_at: datetime | None = None
     created_at: datetime
 
 

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -9,10 +9,10 @@ from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 
 class DocumentMetadataModel(BaseModel):
     source_type: str = Field(default="manual")
-    source_uri: Optional[str] = None
-    mime_type: Optional[str] = None
+    source_uri: str | None = None
+    mime_type: str | None = None
     language: str = Field(default="en")
-    category: Optional[str] = None
+    category: str | None = None
     tags: list[str] = Field(default_factory=list)
     attributes: dict[str, Any] = Field(default_factory=dict)
 
@@ -26,9 +26,9 @@ class DocumentMetadataModel(BaseModel):
 
 class DocumentVersionModel(BaseModel):
     version_number: int = Field(..., ge=1)
-    checksum: Optional[str] = None
-    created_by: Optional[str] = None
-    notes: Optional[str] = None
+    checksum: str | None = None
+    created_by: str | None = None
+    notes: str | None = None
     is_current: bool = False
     created_at: Any
 
@@ -45,19 +45,19 @@ class KnowledgeDocumentModel(BaseMongoDocument):
 
     store_id: str = Field(..., index=True)
     title: str = Field(...)
-    description: Optional[str] = None
-    source_url: Optional[str] = Field(None)
+    description: str | None = None
+    source_url: str | None = Field(None)
     status: str = Field(default="draft", index=True)
     language: str = Field(default="en")
     metadata: DocumentMetadataModel = Field(default_factory=DocumentMetadataModel)
     versions: list[DocumentVersionModel] = Field(default_factory=list)
     current_version: int = Field(default=1, ge=1)
     chunking_strategy: str = Field(default="manual")
-    processed_text: Optional[str] = None
-    page_count: Optional[int] = None
-    word_count: Optional[int] = None
-    char_count: Optional[int] = None
-    estimated_tokens: Optional[int] = None
+    processed_text: str | None = None
+    page_count: int | None = None
+    word_count: int | None = None
+    char_count: int | None = None
+    estimated_tokens: int | None = None
 
     def to_entity(self) -> KnowledgeDocument:
         return KnowledgeDocument(

@@ -1,11 +1,19 @@
 """Tests for JWT security utilities."""
-from datetime import datetime, timedelta, UTC
+
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import jwt as pyjwt
 import pytest
 
-from app.core.security import decode_jwt, verify_jwt, get_tenant_id_from_token, get_user_id_from_token, get_roles_from_token, get_scopes_from_token
+from app.core.security import (
+    decode_jwt,
+    get_roles_from_token,
+    get_scopes_from_token,
+    get_tenant_id_from_token,
+    get_user_id_from_token,
+    verify_jwt,
+)
 
 
 class TestJwtSecurity:

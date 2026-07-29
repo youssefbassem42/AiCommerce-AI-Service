@@ -1,7 +1,6 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 
-from app.application.integration.discovery.endpoint_classifier import EndpointClassifier
 from app.application.integration.openapi.parser import EndpointSchema
 from app.application.integration.openapi.resolver import RefResolver, ResolvedField, ResolvedSchema
 
@@ -39,9 +38,7 @@ class SchemaDiscovery:
     def __init__(self, resolver: RefResolver):
         self._resolver = resolver
 
-    def discover(
-        self, endpoints: list[EndpointSchema]
-    ) -> list[DiscoveredSchema]:
+    def discover(self, endpoints: list[EndpointSchema]) -> list[DiscoveredSchema]:
         result: list[DiscoveredSchema] = []
         for ep in endpoints:
             discovered = self._discover_for_endpoint(ep)
@@ -49,9 +46,7 @@ class SchemaDiscovery:
                 result.append(discovered)
         return result
 
-    def _discover_for_endpoint(
-        self, endpoint: EndpointSchema
-    ) -> Optional[DiscoveredSchema]:
+    def _discover_for_endpoint(self, endpoint: EndpointSchema) -> DiscoveredSchema | None:
         if not endpoint.response_schema_ref:
             return None
 
@@ -67,7 +62,7 @@ class SchemaDiscovery:
             resolved=resolved,
         )
 
-    def _resolve_schema_ref(self, ref: str) -> Optional[ResolvedSchema]:
+    def _resolve_schema_ref(self, ref: str) -> ResolvedSchema | None:
         schema_stub: dict[str, Any] = {"$ref": ref}
         resolved = self._resolver.resolve(schema_stub)
         if not resolved.fields and not resolved.raw_schema.get("properties"):
@@ -78,9 +73,7 @@ class SchemaDiscovery:
     def _best_response_info(endpoint: EndpointSchema) -> tuple[str, str]:
         return "200", "application/json"
 
-    def build_field_map(
-        self, discovered: list[DiscoveredSchema]
-    ) -> dict[str, set[str]]:
+    def build_field_map(self, discovered: list[DiscoveredSchema]) -> dict[str, set[str]]:
         field_map: dict[str, set[str]] = {}
         for ds in discovered:
             fields = ds.field_names

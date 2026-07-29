@@ -1,8 +1,7 @@
 import logging
-from typing import Optional
 
-from app.domain.integration.value_objects.field_mapping import FieldMapping
 from app.application.integration.discovery.field_suggester import FieldSuggester, SuggestedMapping
+from app.domain.integration.value_objects.field_mapping import FieldMapping
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +11,7 @@ class MappingSuggestor:
 
     MIN_CONFIDENCE = 0.3
 
-    def __init__(self, suggester: Optional[FieldSuggester] = None):
+    def __init__(self, suggester: FieldSuggester | None = None):
         self._suggester = suggester or FieldSuggester()
 
     def suggest_mappings(

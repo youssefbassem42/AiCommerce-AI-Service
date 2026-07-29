@@ -1,11 +1,9 @@
 from datetime import UTC, datetime
-from typing import Any, Optional
 
 from pydantic import Field, field_validator
 
 from app.domain.knowledge.value_objects.document_metadata import DocumentMetadata
 from app.shared.kernel.entity import Entity
-
 
 ALLOWED_EXTENSIONS: set[str] = {".pdf", ".docx", ".txt", ".csv"}
 ALLOWED_MIME_TYPES: set[str] = {
@@ -37,7 +35,7 @@ class DocumentUpload(Entity[str]):
     virus_scan_status: str = Field(default="pending", description="Virus scan result")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    deleted_at: Optional[datetime] = Field(default=None)
+    deleted_at: datetime | None = Field(default=None)
 
     @field_validator("extension")
     @classmethod

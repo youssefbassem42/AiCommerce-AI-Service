@@ -49,18 +49,23 @@ class DocumentProcessor:
             document.char_count = stats.char_count
             document.estimated_tokens = stats.estimated_tokens
             document.language = detected or document.language
-            document.metadata.attributes.update({
-                "detected_language": detected or document.language,
-                "processing_timestamp": datetime.now(UTC).isoformat(),
-                "line_count": stats.line_count,
-            })
+            document.metadata.attributes.update(
+                {
+                    "detected_language": detected or document.language,
+                    "processing_timestamp": datetime.now(UTC).isoformat(),
+                    "line_count": stats.line_count,
+                }
+            )
             document.status = "active"
             document.updated_at = datetime.now(UTC)
 
             updated = await self.repository.update(document)
             logger.info(
                 "Document '%s' processed: %d words, %d chars, %d tokens",
-                document.id, stats.word_count, stats.char_count, stats.estimated_tokens,
+                document.id,
+                stats.word_count,
+                stats.char_count,
+                stats.estimated_tokens,
             )
             return updated
         except Exception:

@@ -1,8 +1,7 @@
-from app.domain.conversation.entities.conversation import Conversation
-from app.domain.conversation.entities.message import Message
-from app.infrastructure.mongodb.documents.conversation_document import ConversationDocument
-from app.infrastructure.mongodb.documents.message_document import MessageDocument
 from app.application.conversation.dto.conversation_dto import ConversationDTO, MessageDTO
+from app.domain.conversation.entities.conversation import Conversation
+from app.infrastructure.mongodb.documents.conversation_document import ConversationDocument
+
 
 class ConversationMapper:
     """Maps Conversation Aggregate between Mongo Documents, Domain Entities, and DTOs."""
@@ -35,10 +34,10 @@ class ConversationMapper:
                     sentiment=msg.sentiment,
                     intent=msg.intent,
                     timestamp=msg.timestamp,
-                    metadata=msg.metadata
+                    metadata=msg.metadata,
                 )
                 for msg in entity.messages
             ],
             created_at=entity.created_at,
-            updated_at=entity.updated_at
+            updated_at=entity.updated_at,
         )

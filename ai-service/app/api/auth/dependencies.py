@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import HTTPException, Request, status
 
 from app.infrastructure.mongodb.repositories.api_key_repository import ApiKeyRepository
 from app.infrastructure.mongodb.repositories.audit_log_repository import AuditLogRepository
@@ -24,6 +24,7 @@ def require_role(role: str):
         roles = getattr(request.state, "roles", [])
         if role not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Missing required role: {role}")
+
     return _require_role
 
 
@@ -32,4 +33,5 @@ def require_scope(scope: str):
         scopes = getattr(request.state, "scopes", [])
         if scope not in scopes:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Missing required scope: {scope}")
+
     return _require_scope

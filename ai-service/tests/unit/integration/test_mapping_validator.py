@@ -3,7 +3,6 @@ import pytest
 from app.application.integration.mapping.validation import MappingValidator
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.field_mapping import FieldMapping
-from app.domain.integration.value_objects.pagination_config import PaginationConfig
 
 
 @pytest.fixture

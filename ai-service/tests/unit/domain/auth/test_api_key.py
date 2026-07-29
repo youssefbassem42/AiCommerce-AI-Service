@@ -1,7 +1,6 @@
 """Tests for the ApiKey domain entity."""
-from datetime import datetime, timedelta, UTC
 
-import pytest
+from datetime import UTC, datetime, timedelta
 
 from app.domain.auth.entities.api_key import ApiKey
 
@@ -33,8 +32,12 @@ class TestApiKeyEntity:
     def test_api_key_has_scope(self):
         """Preconditions: Key with scopes. Input: Check scope. Execution: has_scope(). Expected: True for matching scope."""
         key = ApiKey(
-            id="test-id", key_hash="hash", key_prefix="ak_abc", name="Key",
-            store_id="s1", scopes=["read", "write"],
+            id="test-id",
+            key_hash="hash",
+            key_prefix="ak_abc",
+            name="Key",
+            store_id="s1",
+            scopes=["read", "write"],
         )
         assert key.has_scope("read") is True
         assert key.has_scope("write") is True
@@ -43,55 +46,82 @@ class TestApiKeyEntity:
     def test_api_key_wildcard_scope(self):
         """Preconditions: Key with wildcard scope. Input: Check any scope. Execution: has_scope(). Expected: True."""
         key = ApiKey(
-            id="test-id", key_hash="hash", key_prefix="ak_abc", name="Key",
-            store_id="s1", scopes=["*"],
+            id="test-id",
+            key_hash="hash",
+            key_prefix="ak_abc",
+            name="Key",
+            store_id="s1",
+            scopes=["*"],
         )
         assert key.has_scope("anything") is True
 
     def test_api_key_is_expired(self):
         """Preconditions: Key with past expiration. Input: None. Execution: is_expired. Expected: True."""
         key = ApiKey(
-            id="test-id", key_hash="hash", key_prefix="ak_abc", name="Key",
-            store_id="s1", expires_at=datetime.now(UTC) - timedelta(hours=1),
+            id="test-id",
+            key_hash="hash",
+            key_prefix="ak_abc",
+            name="Key",
+            store_id="s1",
+            expires_at=datetime.now(UTC) - timedelta(hours=1),
         )
         assert key.is_expired is True
 
     def test_api_key_is_not_expired(self):
         """Preconditions: Key with future expiration. Input: None. Execution: is_expired. Expected: False."""
         key = ApiKey(
-            id="test-id", key_hash="hash", key_prefix="ak_abc", name="Key",
-            store_id="s1", expires_at=datetime.now(UTC) + timedelta(hours=1),
+            id="test-id",
+            key_hash="hash",
+            key_prefix="ak_abc",
+            name="Key",
+            store_id="s1",
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
         )
         assert key.is_expired is False
 
     def test_api_key_no_expiration(self):
         """Preconditions: Key without expiration. Input: None. Execution: is_expired. Expected: False."""
         key = ApiKey(
-            id="test-id", key_hash="hash", key_prefix="ak_abc", name="Key",
-            store_id="s1", expires_at=None,
+            id="test-id",
+            key_hash="hash",
+            key_prefix="ak_abc",
+            name="Key",
+            store_id="s1",
+            expires_at=None,
         )
         assert key.is_expired is False
 
     def test_api_key_inactive(self):
         """Preconditions: Key marked inactive. Input: None. Execution: Check is_active. Expected: False."""
         key = ApiKey(
-            id="test-id", key_hash="hash", key_prefix="ak_abc", name="Key",
-            store_id="s1", is_active=False,
+            id="test-id",
+            key_hash="hash",
+            key_prefix="ak_abc",
+            name="Key",
+            store_id="s1",
+            is_active=False,
         )
         assert key.is_active is False
 
     def test_api_key_empty_scopes(self):
         """Preconditions: Key with empty scopes. Input: Check scope. Execution: has_scope(). Expected: False."""
         key = ApiKey(
-            id="test-id", key_hash="hash", key_prefix="ak_abc", name="Key",
-            store_id="s1", scopes=[],
+            id="test-id",
+            key_hash="hash",
+            key_prefix="ak_abc",
+            name="Key",
+            store_id="s1",
+            scopes=[],
         )
         assert key.has_scope("anything") is False
 
     def test_api_key_id_empty(self):
         """Preconditions: Empty ID. Input: Empty string ID. Execution: Create entity. Expected: Entity with empty ID."""
         key = ApiKey(
-            id="", key_hash="hash", key_prefix="ak_abc", name="Key",
+            id="",
+            key_hash="hash",
+            key_prefix="ak_abc",
+            name="Key",
             store_id="s1",
         )
         assert key.id == ""

@@ -29,7 +29,6 @@ def service(mock_repo):
 
 
 class TestInventoryService:
-
     async def test_create_inventory(self, service, mock_repo):
         data = InventoryCreateDTO(
             product_id="p1",
@@ -65,9 +64,7 @@ class TestInventoryService:
             await service.get_by_variant("s1", "v99")
 
     async def test_update_inventory(self, service, mock_repo):
-        existing = Inventory(
-            id="i1", product_id="p1", variant_id="v1", store_id="s1", org_id="o1", quantity=50
-        )
+        existing = Inventory(id="i1", product_id="p1", variant_id="v1", store_id="s1", org_id="o1", quantity=50)
         mock_repo.find_many.return_value = [existing]
         mock_repo.update.return_value = Inventory(
             id="i1", product_id="p1", variant_id="v1", store_id="s1", org_id="o1", quantity=100

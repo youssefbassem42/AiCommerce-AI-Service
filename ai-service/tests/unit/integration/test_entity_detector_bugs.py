@@ -1,9 +1,9 @@
 import pytest
 
 from app.application.integration.discovery.entity_detector import (
-    EntityDetector, CANONICAL_FIELDS,
+    CANONICAL_FIELDS,
+    EntityDetector,
 )
-from app.application.integration.discovery.synonyms import COMMON_SYNONYMS
 
 
 @pytest.fixture
@@ -12,7 +12,6 @@ def detector() -> EntityDetector:
 
 
 class TestEntityDetectorBugs:
-
     def test_non_commerce_fields_not_matched(self, detector: EntityDetector) -> None:
         fields = {"subtitle", "diagnosis_code"}
         result = detector.detect(fields)
@@ -41,35 +40,36 @@ class TestEntityDetectorBugs:
 
     def test_inventory_is_supported(self, detector: EntityDetector) -> None:
         assert "inventory" in CANONICAL_FIELDS, (
-            f"inventory entity type must be in CANONICAL_FIELDS. "
-            f"Available types: {list(CANONICAL_FIELDS.keys())}"
+            f"inventory entity type must be in CANONICAL_FIELDS. Available types: {list(CANONICAL_FIELDS.keys())}"
         )
 
     def test_inventory_detected_with_stock_fields(self, detector: EntityDetector) -> None:
         fields = {"product_id", "variant_id", "quantity", "available"}
         result = detector.detect(fields)
-        assert result.entity_type == "inventory", (
-            f"Expected 'inventory' for stock fields, got '{result.entity_type}'"
-        )
+        assert result.entity_type == "inventory", f"Expected 'inventory' for stock fields, got '{result.entity_type}'"
 
     def test_confidence_bounded(self, detector: EntityDetector) -> None:
         fields = {
-            "title", "price", "sku", "description", "vendor",
-            "product_type", "tags", "status", "weight", "handle",
+            "title",
+            "price",
+            "sku",
+            "description",
+            "vendor",
+            "product_type",
+            "tags",
+            "status",
+            "weight",
+            "handle",
         }
         result = detector.detect(fields, entity_type_hint="product")
-        assert result.confidence <= 1.0, (
-            f"Confidence should be bounded by 1.0, got {result.confidence}"
-        )
+        assert result.confidence <= 1.0, f"Confidence should be bounded by 1.0, got {result.confidence}"
 
     def test_synonyms_unified_with_field_suggester(self, detector: EntityDetector) -> None:
-        from app.application.integration.discovery.field_suggester import SYNONYM_MAP
         from app.application.integration.discovery.entity_detector import FIELD_SYNONYMS
+        from app.application.integration.discovery.field_suggester import SYNONYM_MAP
 
         for canon_field, entity_syns in FIELD_SYNONYMS.items():
-            assert canon_field in SYNONYM_MAP, (
-                f"Canonical field '{canon_field}' missing from suggester SYNONYM_MAP"
-            )
+            assert canon_field in SYNONYM_MAP, f"Canonical field '{canon_field}' missing from suggester SYNONYM_MAP"
             suggester_syns = set(SYNONYM_MAP[canon_field])
             assert entity_syns == suggester_syns, (
                 f"Synonym mismatch for '{canon_field}': "
@@ -94,9 +94,7 @@ class TestEntityDetectorBugs:
     def test_category_detected_with_minimal_fields(self, detector: EntityDetector) -> None:
         fields = {"name", "description", "parent_id", "image", "sort_order"}
         result = detector.detect(fields)
-        assert result.entity_type == "category", (
-            f"Expected 'category' for category fields, got '{result.entity_type}'"
-        )
+        assert result.entity_type == "category", f"Expected 'category' for category fields, got '{result.entity_type}'"
 
     def test_exact_match_field(self, detector: EntityDetector) -> None:
         fields = {"title", "price"}

@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from app.shared.events.event_handler import IEventHandler
 from app.shared.kernel.domain_event import DomainEvent

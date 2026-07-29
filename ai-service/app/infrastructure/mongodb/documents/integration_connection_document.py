@@ -1,8 +1,8 @@
-from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.domain.commerce.value_objects.audit import AuditInfo
 from app.domain.integration.entities.integration_connection import (
     ConnectionStatus,
     IntegrationConnection,
@@ -11,17 +11,16 @@ from app.domain.integration.value_objects.auth_config import AuthConfig, AuthTyp
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.field_mapping import FieldMapping
 from app.domain.integration.value_objects.pagination_config import PaginationConfig, PaginationStyle
-from app.domain.commerce.value_objects.audit import AuditInfo
 from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 
 
 class AuthConfigModel(BaseModel):
     type: str = "apiKey"
     credentials_location: str = "header"
-    scheme: Optional[str] = None
-    name: Optional[str] = None
-    token_url: Optional[str] = None
-    flow: Optional[str] = None
+    scheme: str | None = None
+    name: str | None = None
+    token_url: str | None = None
+    flow: str | None = None
 
     def to_vo(self) -> AuthConfig:
         return AuthConfig(
@@ -48,7 +47,7 @@ class AuthConfigModel(BaseModel):
 class FieldMappingModel(BaseModel):
     source: str
     target: str
-    transformer: Optional[str] = None
+    transformer: str | None = None
     default_value: Any = None
     required: bool = False
 
@@ -74,12 +73,12 @@ class FieldMappingModel(BaseModel):
 
 class PaginationConfigModel(BaseModel):
     style: str = "none"
-    page_param: Optional[str] = None
-    limit_param: Optional[str] = None
+    page_param: str | None = None
+    limit_param: str | None = None
     default_limit: int = 20
-    cursor_field: Optional[str] = None
-    total_field: Optional[str] = None
-    next_link_field: Optional[str] = None
+    cursor_field: str | None = None
+    total_field: str | None = None
+    next_link_field: str | None = None
 
     def to_vo(self) -> PaginationConfig:
         return PaginationConfig(
@@ -107,9 +106,9 @@ class PaginationConfigModel(BaseModel):
 
 class EntityMappingModel(BaseModel):
     entity_type: str
-    list_path: Optional[str] = None
+    list_path: str | None = None
     list_method: str = "GET"
-    detail_path: Optional[str] = None
+    detail_path: str | None = None
     detail_method: str = "GET"
     id_field: str
     pagination: PaginationConfigModel = Field(default_factory=PaginationConfigModel)
@@ -144,7 +143,7 @@ class EntityMappingModel(BaseModel):
 class AuditInfoModel(BaseModel):
     created_at: Any
     updated_at: Any
-    updated_by: Optional[str] = None
+    updated_by: str | None = None
 
     def to_vo(self) -> AuditInfo:
         return AuditInfo(
@@ -171,13 +170,13 @@ class IntegrationConnectionDocument(BaseMongoDocument):
     spec_version: str = "3.0"
     raw_spec: dict = Field(default_factory=dict)
     auth_config: AuthConfigModel = Field(default_factory=AuthConfigModel)
-    encrypted_credentials: Optional[str] = None
+    encrypted_credentials: str | None = None
     entity_mappings: list[EntityMappingModel] = Field(default_factory=list)
     discovered_endpoints: list[dict] = Field(default_factory=list)
     discovered_schemas: dict = Field(default_factory=dict)
     last_sync_at: Any = None
-    last_sync_status: Optional[str] = None
-    error_message: Optional[str] = None
+    last_sync_status: str | None = None
+    error_message: str | None = None
     audit: AuditInfoModel = Field(default_factory=AuditInfoModel)
 
     def to_entity(self) -> IntegrationConnection:

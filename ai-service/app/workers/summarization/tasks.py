@@ -1,14 +1,13 @@
 import logging
-from typing import Optional
 
+from app.application.knowledge.generation.config import GenerationConfig
+from app.application.knowledge.generation.service import BusinessSummaryGenerationService
 from app.core.celery_app import celery_app
-from app.domain.job.value_objects import JobStatus, JobType
-from app.infrastructure.mongodb.repositories.knowledge_repository import KnowledgeRepository
+from app.domain.job.value_objects import JobStatus
 from app.infrastructure.mongodb.repositories.business_summary_repository import BusinessSummaryRepository
+from app.infrastructure.mongodb.repositories.knowledge_repository import KnowledgeRepository
 from app.infrastructure.providers.factory import LLMProviderFactory
 from app.infrastructure.tasks.helpers import _run_async, complete_job, fail_job, update_job_progress
-from app.application.knowledge.generation.service import BusinessSummaryGenerationService
-from app.application.knowledge.generation.config import GenerationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +22,10 @@ logger = logging.getLogger(__name__)
 def generate_summary_task(
     self,
     store_id: str,
-    model: Optional[str] = None,
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    job_id: Optional[str] = None,
+    model: str | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    job_id: str | None = None,
 ) -> dict:
     def _run():
         async def _async_run():
@@ -77,4 +76,4 @@ def generate_summary_task(
     except Exception as exc:
         if job_id:
             _run_async(fail_job(job_id, str(exc), self.request.retries, self.max_retries))
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries * 60)
+        raise self.retry(exc=exc, countdown=2**self.request.retries * 60)

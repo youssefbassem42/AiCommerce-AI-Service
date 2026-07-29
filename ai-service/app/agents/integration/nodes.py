@@ -1,13 +1,10 @@
-import json
 import logging
-import yaml
-from typing import Any, Dict
+from typing import Any
 
 from app.agents.integration.state import IntegrationMappingState
 from app.agents.integration.tools import (
     _ensure_dict,
     _extract_spec_format,
-    _select_best_provider,
     analyze_spec_with_llm,
     create_user_friendly_error,
     detect_store_capabilities,
@@ -17,7 +14,7 @@ from app.infrastructure.providers.base import BaseLLMProvider
 logger = logging.getLogger(__name__)
 
 
-async def parse_spec_node(state: IntegrationMappingState, llm: BaseLLMProvider) -> Dict[str, Any]:
+async def parse_spec_node(state: IntegrationMappingState, llm: BaseLLMProvider) -> dict[str, Any]:
     try:
         raw = state["raw_spec"]
         spec_format = _extract_spec_format(raw)
@@ -60,7 +57,7 @@ async def parse_spec_node(state: IntegrationMappingState, llm: BaseLLMProvider) 
         return {"error": str(e), "user_friendly_error": friendly}
 
 
-async def analyze_entities_node(state: IntegrationMappingState, llm: BaseLLMProvider, model: str) -> Dict[str, Any]:
+async def analyze_entities_node(state: IntegrationMappingState, llm: BaseLLMProvider, model: str) -> dict[str, Any]:
     try:
         spec = state.get("parsed_spec")
         if not spec:
@@ -85,7 +82,7 @@ async def analyze_entities_node(state: IntegrationMappingState, llm: BaseLLMProv
         return {"error": str(e), "user_friendly_error": friendly}
 
 
-async def detect_capabilities_node(state: IntegrationMappingState) -> Dict[str, Any]:
+async def detect_capabilities_node(state: IntegrationMappingState) -> dict[str, Any]:
     report = state.get("report")
     if not report:
         return {"capabilities": {}}
@@ -98,7 +95,7 @@ async def detect_capabilities_node(state: IntegrationMappingState) -> Dict[str, 
         return {"capabilities": {}}
 
 
-async def format_error_node(state: IntegrationMappingState) -> Dict[str, Any]:
+async def format_error_node(state: IntegrationMappingState) -> dict[str, Any]:
     error = state.get("error", "Unknown error occurred.")
     friendly = state.get("user_friendly_error") or (
         "We couldn't process your API specification. Please check that the file is a valid OpenAPI or Swagger specification "

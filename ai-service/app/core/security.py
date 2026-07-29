@@ -1,4 +1,5 @@
 import jwt as pyjwt
+
 from app.core.auth_settings import auth_settings
 
 

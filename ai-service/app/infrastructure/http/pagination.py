@@ -1,5 +1,6 @@
 import logging
-from typing import Any, AsyncIterator, Callable, Optional
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 
 import httpx
 
@@ -33,9 +34,9 @@ class PaginationIterator:
         method: str,
         path: str,
         config: PaginationConfig,
-        extractor: Optional[Callable[[dict], list]] = None,
-        params: Optional[dict[str, Any]] = None,
-        headers: Optional[dict[str, str]] = None,
+        extractor: Callable[[dict], list] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
         max_pages: int = DEFAULT_MAX_PAGES,
     ):
         self._client = client
@@ -104,9 +105,8 @@ class PaginationIterator:
                 break
             yield payload
             page_data = payload.data
-            if isinstance(page_data, list):
-                if len(page_data) < limit:
-                    break
+            if isinstance(page_data, list) and len(page_data) < limit:
+                break
             total = self._extract_total(payload.raw_response)
             if total is not None and (current_page * limit) >= total:
                 break
@@ -129,7 +129,7 @@ class PaginationIterator:
                 break
             page_num += 1
 
-    async def _fetch_page(self, params: dict) -> Optional[PagePayload]:
+    async def _fetch_page(self, params: dict) -> PagePayload | None:
         try:
             response = await self._client.request(
                 method=self._method,
@@ -138,9 +138,7 @@ class PaginationIterator:
                 headers=self._headers,
             )
             if response.status_code >= 400:
-                logger.warning(
-                    "Pagination HTTP error %s for %s", response.status_code, self._path
-                )
+                logger.warning("Pagination HTTP error %s for %s", response.status_code, self._path)
                 return None
             data = response.json()
         except httpx.HTTPStatusError as e:
@@ -165,7 +163,7 @@ class PaginationIterator:
                     return val
         return data
 
-    def _extract_total(self, response: dict) -> Optional[int]:
+    def _extract_total(self, response: dict) -> int | None:
         if self._config.total_field:
             total = self._resolve_dot_notation(response, self._config.total_field)
             if total is not None:

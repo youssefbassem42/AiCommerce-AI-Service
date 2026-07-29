@@ -1,6 +1,7 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from app.domain.job.entities.knowledge_job import KnowledgeJob
 from app.domain.job.value_objects import JobStatus, JobType
@@ -8,7 +9,7 @@ from app.domain.job.value_objects import JobStatus, JobType
 
 @pytest.fixture(autouse=True)
 def mongo_patch():
-    with patch("app.infrastructure.mongodb.client.MongoClientManager.get_database") as mock:
+    with patch("app.infrastructure.mongodb.client.MongoClientManager.get_database"):
         yield
 
 
@@ -35,14 +36,15 @@ def mock_job_repo():
 
 @pytest.fixture(autouse=True)
 def override_deps(mock_job_repo):
-    from app.main import app
     from app.api.knowledge.job_router import get_job_repository
+    from app.main import app
 
     app.dependency_overrides.clear()
     app.dependency_overrides[get_job_repository] = lambda: mock_job_repo
 
-    if not any(getattr(r, 'path', None) and "/knowledge/jobs" in str(r.path) for r in app.routes):
+    if not any(getattr(r, "path", None) and "/knowledge/jobs" in str(r.path) for r in app.routes):
         from app.api.knowledge.job_router import router as job_router
+
         app.include_router(job_router)
 
     yield
@@ -52,30 +54,32 @@ def override_deps(mock_job_repo):
 @pytest.fixture
 def client():
     from fastapi.testclient import TestClient
+
     from app.main import app
+
     return TestClient(app)
 
 
 def make_knowledge_job(job_id: str = "507f1f77bcf86cd799439011", **overrides) -> KnowledgeJob:
-    defaults = dict(
-        id=job_id,
-        job_type=JobType.DOCUMENT_PROCESSING,
-        status=JobStatus.PENDING,
-        progress=0.0,
-        payload={},
-        result=None,
-        error_message=None,
-        retry_count=0,
-        max_retries=3,
-        store_id="store-1",
-        organization_id="org-1",
-        triggered_by=None,
-        celery_task_id=None,
-        started_at=None,
-        completed_at=None,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-    )
+    defaults = {
+        "id": job_id,
+        "job_type": JobType.DOCUMENT_PROCESSING,
+        "status": JobStatus.PENDING,
+        "progress": 0.0,
+        "payload": {},
+        "result": None,
+        "error_message": None,
+        "retry_count": 0,
+        "max_retries": 3,
+        "store_id": "store-1",
+        "organization_id": "org-1",
+        "triggered_by": None,
+        "celery_task_id": None,
+        "started_at": None,
+        "completed_at": None,
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
+    }
     defaults.update(overrides)
     return KnowledgeJob(**defaults)
 

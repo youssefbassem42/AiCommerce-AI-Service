@@ -12,7 +12,6 @@ from app.application.commerce.dto.commerce_dto import (
 from app.application.commerce.services import ProductService
 from app.domain.commerce.aggregates.product import Product
 from app.domain.commerce.exceptions import ProductNotFoundException
-from app.domain.commerce.value_objects.money import Money
 
 
 @pytest.fixture
@@ -32,7 +31,6 @@ def service(mock_repo):
 
 
 class TestProductService:
-
     async def test_create_product(self, service, mock_repo):
         data = ProductCreateDTO(
             store_id="store1",
@@ -93,9 +91,7 @@ class TestProductService:
     async def test_update_product(self, service, mock_repo):
         existing = Product(id="p1", store_id="s1", organization_id="o1", title="Old")
         mock_repo.find_by_id.return_value = existing
-        mock_repo.update.return_value = Product(
-            id="p1", store_id="s1", organization_id="o1", title="Updated"
-        )
+        mock_repo.update.return_value = Product(id="p1", store_id="s1", organization_id="o1", title="Updated")
         data = ProductUpdateDTO(title="Updated")
         result = await service.update("p1", data)
         assert result.title == "Updated"

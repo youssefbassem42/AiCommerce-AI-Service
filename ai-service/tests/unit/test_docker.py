@@ -1,6 +1,6 @@
 import os
-import pytest
 
+import pytest
 
 DOCKERFILE_PATH = "Dockerfile"
 COMPOSE_PATH = "docker-compose.yml"
@@ -30,8 +30,7 @@ class TestDockerfile:
     def test_dockerfile_exposes_port(self):
         with open(DOCKERFILE_PATH) as f:
             content = f.read()
-        assert "EXPOSE" in content and "8000" in content, \
-            "Dockerfile must EXPOSE port 8000"
+        assert "EXPOSE" in content and "8000" in content, "Dockerfile must EXPOSE port 8000"
 
     def test_dockerfile_has_healthcheck(self):
         with open(DOCKERFILE_PATH) as f:
@@ -57,16 +56,17 @@ class TestDockerCompose:
 
     def test_required_services(self):
         import yaml
+
         with open(COMPOSE_PATH) as f:
             config = yaml.safe_load(f)
         services = config.get("services", {})
-        required = ["ai-service", "celery-worker", "celery-beat",
-                     "mongodb", "redis", "qdrant"]
+        required = ["ai-service", "celery-worker", "celery-beat", "mongodb", "redis", "qdrant"]
         for svc in required:
             assert svc in services, f"Missing required service: {svc}"
 
     def test_ai_service_has_build(self):
         import yaml
+
         with open(COMPOSE_PATH) as f:
             config = yaml.safe_load(f)
         ai = config["services"]["ai-service"]
@@ -75,6 +75,7 @@ class TestDockerCompose:
 
     def test_ai_service_exposes_port(self):
         import yaml
+
         with open(COMPOSE_PATH) as f:
             config = yaml.safe_load(f)
         ports = config["services"]["ai-service"].get("ports", [])
@@ -82,16 +83,17 @@ class TestDockerCompose:
 
     def test_shared_env_variables(self):
         import yaml
+
         with open(COMPOSE_PATH) as f:
             config = yaml.safe_load(f)
         x_shared = config.get("x-shared-env", {})
-        critical = ["MONGO_URI", "REDIS_URL", "QDRANT_URL",
-                     "JWT_SECRET_KEY", "OPENAI_API_KEY"]
+        critical = ["MONGO_URI", "REDIS_URL", "QDRANT_URL", "JWT_SECRET_KEY", "OPENAI_API_KEY"]
         for var in critical:
             assert var in x_shared, f"Missing shared env var: {var}"
 
     def test_volumes_defined(self):
         import yaml
+
         with open(COMPOSE_PATH) as f:
             config = yaml.safe_load(f)
         volumes = config.get("volumes", {})
@@ -101,6 +103,7 @@ class TestDockerCompose:
 
     def test_mongodb_has_healthcheck(self):
         import yaml
+
         with open(COMPOSE_PATH) as f:
             config = yaml.safe_load(f)
         mongo = config["services"]["mongodb"]

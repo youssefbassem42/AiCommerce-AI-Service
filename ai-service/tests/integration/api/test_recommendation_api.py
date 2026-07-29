@@ -1,15 +1,13 @@
-from unittest.mock import AsyncMock, MagicMock
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.api.recommendation.dependencies import get_recommendation_service
-from app.api.recommendation.schemas import RecommendationResponseSchema
 from app.application.recommendation.dto.recommendation_dto import (
     ProductCard,
     RecommendationResponse,
-    ScoredProduct,
 )
 from app.main import app
 

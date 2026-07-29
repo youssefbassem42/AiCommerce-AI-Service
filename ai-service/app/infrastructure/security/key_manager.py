@@ -3,7 +3,6 @@ import os
 from typing import Optional
 
 from app.infrastructure.security.encryption import EncryptionService, generate_encryption_key
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ class KeyManager:
 
     def __init__(self):
         if not hasattr(self, "_initialized"):
-            self._encryption_service: Optional[EncryptionService] = None
+            self._encryption_service: EncryptionService | None = None
             self._initialized = True
 
     def _get_encryption_service(self) -> EncryptionService:
@@ -39,7 +38,7 @@ class KeyManager:
     def decrypt_secret(self, encrypted_data: str) -> str:
         return self._get_encryption_service().decrypt(encrypted_data)
 
-    def get_provider_api_key(self, provider_name: str, env_var: Optional[str] = None) -> Optional[str]:
+    def get_provider_api_key(self, provider_name: str, env_var: str | None = None) -> str | None:
         env_var = env_var or f"{provider_name.upper()}_API_KEY"
         return os.getenv(env_var)
 

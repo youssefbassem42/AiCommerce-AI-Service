@@ -1,6 +1,5 @@
-from decimal import Decimal
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, UTC
 
 import pytest
 from fastapi.testclient import TestClient
@@ -77,7 +76,6 @@ def _clear_overrides():
 
 
 class TestProductAPI:
-
     def test_create_product(self, client, mock_product_service):
         _clear_overrides()
         app.dependency_overrides[get_product_service] = lambda: mock_product_service
@@ -100,11 +98,14 @@ class TestProductAPI:
             updated_at=now,
         )
 
-        response = client.post("/api/v1/commerce/products", json={
-            "store_id": "store1",
-            "organization_id": "org1",
-            "title": "Test Product",
-        })
+        response = client.post(
+            "/api/v1/commerce/products",
+            json={
+                "store_id": "store1",
+                "organization_id": "org1",
+                "title": "Test Product",
+            },
+        )
         assert response.status_code == 201
         data = response.json()
         assert data["title"] == "Test Product"
@@ -141,6 +142,7 @@ class TestProductAPI:
         _clear_overrides()
         app.dependency_overrides[get_product_service] = lambda: mock_product_service
         from app.domain.commerce.exceptions import ProductNotFoundException
+
         mock_product_service.get_by_id.side_effect = ProductNotFoundException("not found")
         response = client.get("/api/v1/commerce/products/nonexistent")
         assert response.status_code == 404
@@ -151,6 +153,7 @@ class TestProductAPI:
         app.dependency_overrides[get_product_service] = lambda: mock_product_service
 
         from app.application.commerce.dto.commerce_dto import PaginatedResultDTO
+
         mock_product_service.list.return_value = PaginatedResultDTO(items=[], total=0, page=1, page_size=20)
         response = client.get("/api/v1/commerce/products?store_id=store1")
         assert response.status_code == 200
@@ -169,7 +172,6 @@ class TestProductAPI:
 
 
 class TestCategoryAPI:
-
     def test_create_category(self, client, mock_category_service):
         _clear_overrides()
         app.dependency_overrides[get_category_service] = lambda: mock_category_service
@@ -186,11 +188,14 @@ class TestCategoryAPI:
             created_at=now,
             updated_at=now,
         )
-        response = client.post("/api/v1/commerce/categories", json={
-            "store_id": "store1",
-            "org_id": "org1",
-            "name": "Electronics",
-        })
+        response = client.post(
+            "/api/v1/commerce/categories",
+            json={
+                "store_id": "store1",
+                "org_id": "org1",
+                "name": "Electronics",
+            },
+        )
         assert response.status_code == 201
         assert response.json()["name"] == "Electronics"
         _clear_overrides()
@@ -200,6 +205,7 @@ class TestCategoryAPI:
         app.dependency_overrides[get_category_service] = lambda: mock_category_service
 
         from app.application.commerce.dto.commerce_dto import PaginatedResultDTO
+
         mock_category_service.list.return_value = PaginatedResultDTO(items=[], total=0, page=1, page_size=20)
         response = client.get("/api/v1/commerce/categories")
         assert response.status_code == 200
@@ -224,7 +230,6 @@ class TestCategoryAPI:
 
 
 class TestOrderAPI:
-
     def test_create_order(self, client, mock_order_service):
         _clear_overrides()
         app.dependency_overrides[get_order_service] = lambda: mock_order_service
@@ -246,10 +251,13 @@ class TestOrderAPI:
             updated_at=now,
             line_items=[],
         )
-        response = client.post("/api/v1/commerce/orders", json={
-            "store_id": "store1",
-            "org_id": "org1",
-        })
+        response = client.post(
+            "/api/v1/commerce/orders",
+            json={
+                "store_id": "store1",
+                "org_id": "org1",
+            },
+        )
         assert response.status_code == 201
         assert response.json()["financial_status"] == "pending"
         _clear_overrides()
@@ -300,10 +308,13 @@ class TestOrderAPI:
             updated_at=now,
             line_items=[],
         )
-        response = client.put("/api/v1/commerce/orders/o1/status", json={
-            "financial_status": "paid",
-            "fulfillment_status": "fulfilled",
-        })
+        response = client.put(
+            "/api/v1/commerce/orders/o1/status",
+            json={
+                "financial_status": "paid",
+                "fulfillment_status": "fulfilled",
+            },
+        )
         assert response.status_code == 200
         assert response.json()["financial_status"] == "paid"
         _clear_overrides()
@@ -313,6 +324,7 @@ class TestOrderAPI:
         app.dependency_overrides[get_order_service] = lambda: mock_order_service
 
         from app.application.commerce.dto.commerce_dto import PaginatedResultDTO
+
         mock_order_service.list.return_value = PaginatedResultDTO(items=[], total=0, page=1, page_size=20)
         response = client.get("/api/v1/commerce/orders")
         assert response.status_code == 200
@@ -320,7 +332,6 @@ class TestOrderAPI:
 
 
 class TestInventoryAPI:
-
     def test_create_inventory(self, client, mock_inventory_service):
         _clear_overrides()
         app.dependency_overrides[get_inventory_service] = lambda: mock_inventory_service
@@ -343,15 +354,18 @@ class TestInventoryAPI:
             created_at=now,
             updated_at=now,
         )
-        response = client.post("/api/v1/commerce/inventory", json={
-            "product_id": "p1",
-            "variant_id": "v1",
-            "store_id": "store1",
-            "org_id": "org1",
-            "quantity": 100,
-            "available": 80,
-            "committed": 20,
-        })
+        response = client.post(
+            "/api/v1/commerce/inventory",
+            json={
+                "product_id": "p1",
+                "variant_id": "v1",
+                "store_id": "store1",
+                "org_id": "org1",
+                "quantity": 100,
+                "available": 80,
+                "committed": 20,
+            },
+        )
         assert response.status_code == 201
         assert response.json()["quantity"] == 100
         _clear_overrides()

@@ -1,7 +1,4 @@
 """Tests for ApiKeyRepository."""
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 from app.infrastructure.mongodb.repositories.api_key_repository import ApiKeyRepository
 

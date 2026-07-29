@@ -1,6 +1,5 @@
 from datetime import UTC, datetime
-from enum import Enum
-from typing import Any, Optional
+from enum import StrEnum
 
 from pydantic import Field, model_validator
 
@@ -11,7 +10,7 @@ from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.shared.kernel.aggregate_root import AggregateRoot
 
 
-class ConnectionStatus(str, Enum):
+class ConnectionStatus(StrEnum):
     ACTIVE = "active"
     INACTIVE = "inactive"
     ERROR = "error"
@@ -33,20 +32,20 @@ class IntegrationConnection(AggregateRoot[str]):
     spec_version: str = "3.0"
     raw_spec: dict = Field(default_factory=dict)
     auth_config: AuthConfig = Field(default_factory=lambda: AuthConfig(type="apiKey", name="X-API-Key"))
-    encrypted_credentials: Optional[str] = None
+    encrypted_credentials: str | None = None
     entity_mappings: list[EntityMapping] = Field(default_factory=list)
     discovered_endpoints: list[dict] = Field(default_factory=list)
     discovered_schemas: dict = Field(default_factory=dict)
-    last_sync_at: Optional[datetime] = None
-    last_sync_status: Optional[str] = None
-    last_vector_sync_at: Optional[datetime] = None
-    last_vector_sync_status: Optional[str] = None
-    vector_sync_error: Optional[str] = None
-    error_message: Optional[str] = None
+    last_sync_at: datetime | None = None
+    last_sync_status: str | None = None
+    last_vector_sync_at: datetime | None = None
+    last_vector_sync_status: str | None = None
+    vector_sync_error: str | None = None
+    error_message: str | None = None
     audit: AuditInfo = Field(default_factory=AuditInfo)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    deleted_at: Optional[datetime] = None
+    deleted_at: datetime | None = None
 
     @model_validator(mode="after")
     def validate_name(self) -> "IntegrationConnection":
@@ -86,20 +85,16 @@ class IntegrationConnection(AggregateRoot[str]):
 
     def remove_entity_mapping(self, entity_type: str) -> None:
         before = len(self.entity_mappings)
-        self.entity_mappings = [
-            em for em in self.entity_mappings if em.entity_type != entity_type
-        ]
+        self.entity_mappings = [em for em in self.entity_mappings if em.entity_type != entity_type]
         if len(self.entity_mappings) == before:
-            raise IntegrationValidationException(
-                f"No entity mapping found for '{entity_type}'."
-            )
+            raise IntegrationValidationException(f"No entity mapping found for '{entity_type}'.")
         self.updated_at = datetime.now(UTC)
 
     def update_mappings(self, mappings: list[EntityMapping]) -> None:
         self.entity_mappings = mappings
         self.updated_at = datetime.now(UTC)
 
-    def mark_synced(self, status: Optional[str] = None) -> None:
+    def mark_synced(self, status: str | None = None) -> None:
         if self.status == ConnectionStatus.INACTIVE:
             raise IntegrationValidationException("Cannot mark a sync on an inactive connection.")
         self.last_sync_at = datetime.now(UTC)
@@ -107,7 +102,7 @@ class IntegrationConnection(AggregateRoot[str]):
         self.error_message = None
         self.updated_at = datetime.now(UTC)
 
-    def mark_vector_synced(self, status: Optional[str] = None) -> None:
+    def mark_vector_synced(self, status: str | None = None) -> None:
         if self.status == ConnectionStatus.INACTIVE:
             raise IntegrationValidationException("Cannot mark vector sync on an inactive connection.")
         self.last_vector_sync_at = datetime.now(UTC)

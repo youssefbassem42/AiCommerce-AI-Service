@@ -1,9 +1,8 @@
-from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime
+from unittest.mock import AsyncMock
 
 import pytest
 
-from app.application.dto.ai_dto import MessageDTO, UsageDTO, ChatResponse
+from app.application.dto.ai_dto import MessageDTO, UsageDTO
 from app.application.services.conversation_service import ConversationService
 
 
@@ -22,7 +21,6 @@ def conversation_service(conversation_repo):
 
 
 class TestConversationService:
-
     async def test_get_conversation_history_returns_messages(self, conversation_service, conversation_repo):
         conversation_repo.get_conversation.return_value = {
             "messages": [
@@ -76,7 +74,9 @@ class TestConversationService:
         assistant_msg = MessageDTO(
             role="assistant",
             content="",
-            tool_calls=[ToolCallDTO(id="call-1", type="function", function_name="get_weather", arguments='{"city":"NYC"}')],
+            tool_calls=[
+                ToolCallDTO(id="call-1", type="function", function_name="get_weather", arguments='{"city":"NYC"}')
+            ],
         )
         usage = UsageDTO(prompt_tokens=5, completion_tokens=30, total_tokens=35)
 

@@ -24,8 +24,11 @@ def sentiment_service():
     svc = AsyncMock()
     svc.analyze = AsyncMock()
     svc.analyze.return_value = MagicMock(
-        sentiment="neutral", category="general",
-        summary="test", priority="low", suggested_response="ok",
+        sentiment="neutral",
+        category="general",
+        summary="test",
+        priority="low",
+        suggested_response="ok",
     )
     return svc
 
@@ -49,7 +52,6 @@ def ticket_service(ticket_repo, sentiment_service, conversation_service):
 
 
 class TestTicketServiceBugs:
-
     async def test_get_ticket_by_ticket_id_finds_via_ticket_id_field(self, ticket_service, ticket_repo):
         internal_id = str(uuid.uuid4())
         external_ticket_id = str(uuid.uuid4())
@@ -91,12 +93,17 @@ class TestTicketServiceBugs:
 
     async def test_create_ticket_generates_separate_ids(self, ticket_service, ticket_repo, sentiment_service):
         sentiment_service.analyze.return_value = MagicMock(
-            sentiment="positive", category="billing",
-            summary="test", priority="low", suggested_response="ok",
+            sentiment="positive",
+            category="billing",
+            summary="test",
+            priority="low",
+            suggested_response="ok",
         )
         dto = TicketCreateDTO(
-            store_id="s1", customer_id="c1",
-            messages=["help"], conversation_id="conv1",
+            store_id="s1",
+            customer_id="c1",
+            messages=["help"],
+            conversation_id="conv1",
         )
 
         ticket_repo.create.side_effect = lambda e: e
@@ -104,15 +111,21 @@ class TestTicketServiceBugs:
 
         actual_entity = ticket_repo.create.call_args[0][0]
         assert actual_entity.id != actual_entity.ticket_id, (
-            f"id='{actual_entity.id}' and ticket_id='{actual_entity.ticket_id}' "
-            f"should be different identifiers"
+            f"id='{actual_entity.id}' and ticket_id='{actual_entity.ticket_id}' should be different identifiers"
         )
 
     async def test_get_ticket_enriches_with_customer_and_orders(self, ticket_service, ticket_repo):
         entity = TicketAnalysis(
-            id="abc", ticket_id="tkt-123", store_id="s1", customer_id="c1",
-            sentiment="positive", category="billing", summary="test",
-            priority="high", status="open", suggested_response="ok",
+            id="abc",
+            ticket_id="tkt-123",
+            store_id="s1",
+            customer_id="c1",
+            sentiment="positive",
+            category="billing",
+            summary="test",
+            priority="high",
+            status="open",
+            suggested_response="ok",
         )
         ticket_repo.find_by_ticket_id.return_value = entity
 

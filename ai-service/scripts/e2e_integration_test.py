@@ -15,7 +15,6 @@ import json
 import logging
 import os
 import sys
-import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -80,7 +79,12 @@ SAMPLE_PRODUCTS = [
         "category": "Audio",
         "brand": "Sony",
         "inventory_quantity": 78,
-        "specs": {"type": "Over-ear", "battery": "30 hours", "noise_cancelling": "Adaptive", "connectivity": "Bluetooth 5.2"},
+        "specs": {
+            "type": "Over-ear",
+            "battery": "30 hours",
+            "noise_cancelling": "Adaptive",
+            "connectivity": "Bluetooth 5.2",
+        },
     },
     {
         "external_id": "prod_005",
@@ -91,7 +95,12 @@ SAMPLE_PRODUCTS = [
         "category": "Accessories",
         "brand": "Logitech",
         "inventory_quantity": 120,
-        "specs": {"type": "Mechanical", "switches": "Tactile", "layout": "Full-size", "connectivity": "Bluetooth + USB-C"},
+        "specs": {
+            "type": "Mechanical",
+            "switches": "Tactile",
+            "layout": "Full-size",
+            "connectivity": "Bluetooth + USB-C",
+        },
     },
     {
         "external_id": "prod_006",
@@ -140,6 +149,7 @@ SAMPLE_CATEGORIES = [
 
 async def parse_spec(platform_name: str, spec_path: Path) -> dict:
     import httpx
+
     spec_data = _load_spec(spec_path)
     payload = {"platform_name": platform_name, "raw_spec": spec_data}
     logger.info("  POST /api/v1/integration/schemas/parse — %s (%s)", platform_name, spec_path.name)
@@ -152,7 +162,13 @@ async def parse_spec(platform_name: str, spec_path: Path) -> dict:
         errors = data.get("errors", [])
         logger.info("  → entities: %d, warnings: %d, errors: %d", entities_count, len(warnings), len(errors))
         for e in data.get("discovered_entities", []):
-            logger.info("    • %s (confidence=%.4f) — %s %s", e["entity_type"], e["confidence"], e["endpoint_method"], e["endpoint_path"])
+            logger.info(
+                "    • %s (confidence=%.4f) — %s %s",
+                e["entity_type"],
+                e["confidence"],
+                e["endpoint_method"],
+                e["endpoint_path"],
+            )
         if errors:
             logger.warning("  Errors: %s", errors[:3])
         return data
@@ -160,6 +176,7 @@ async def parse_spec(platform_name: str, spec_path: Path) -> dict:
 
 async def create_connection(store_id: str, name: str, platform_name: str, spec_path: Path) -> dict:
     import httpx
+
     spec_data = _load_spec(spec_path)
     payload = {
         "store_id": store_id,
@@ -180,11 +197,8 @@ async def create_connection(store_id: str, name: str, platform_name: str, spec_p
 
 
 async def seed_entities():
-    from motor.motor_asyncio import AsyncIOMotorClient
-    from app.infrastructure.mongodb.collections import get_entities_collection
-    from app.core.config import settings
-    import app.infrastructure.mongodb.client as mongo_client_mod
     from app.infrastructure.mongodb.client import MongoClientManager
+    from app.infrastructure.mongodb.collections import get_entities_collection
 
     await MongoClientManager.connect()
 
@@ -196,15 +210,18 @@ async def seed_entities():
     for p in SAMPLE_PRODUCTS:
         await collection.update_one(
             {"store_id": STORE_ID, "external_id": p["external_id"]},
-            {"$set": {
-                "store_id": STORE_ID,
-                "organization_id": ORG_ID,
-                "entity_type": "product",
-                "external_id": p["external_id"],
-                "data": p,
-                "synced_at": now,
-                "updated_at": now,
-            }, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {
+                    "store_id": STORE_ID,
+                    "organization_id": ORG_ID,
+                    "entity_type": "product",
+                    "external_id": p["external_id"],
+                    "data": p,
+                    "synced_at": now,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"created_at": now},
+            },
             upsert=True,
         )
         prod_count += 1
@@ -215,15 +232,18 @@ async def seed_entities():
     for c in SAMPLE_CATEGORIES:
         await collection.update_one(
             {"store_id": STORE_ID, "external_id": c["external_id"]},
-            {"$set": {
-                "store_id": STORE_ID,
-                "organization_id": ORG_ID,
-                "entity_type": "category",
-                "external_id": c["external_id"],
-                "data": c,
-                "synced_at": now,
-                "updated_at": now,
-            }, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {
+                    "store_id": STORE_ID,
+                    "organization_id": ORG_ID,
+                    "entity_type": "category",
+                    "external_id": c["external_id"],
+                    "data": c,
+                    "synced_at": now,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"created_at": now},
+            },
             upsert=True,
         )
         cat_count += 1
@@ -239,8 +259,8 @@ async def run_knowledge_bridge():
     from app.application.integration.sync.formatters import format_record
     from app.infrastructure.mongodb.client import MongoClientManager
     from app.infrastructure.mongodb.collections import get_entities_collection
-    from app.infrastructure.qdrant.provider import QdrantProvider
     from app.infrastructure.providers.factory import LLMProviderFactory
+    from app.infrastructure.qdrant.provider import QdrantProvider
     from app.infrastructure.vectorstore.base import VectorRecord
 
     await MongoClientManager.connect()
@@ -293,8 +313,8 @@ async def run_knowledge_bridge():
         BATCH_SIZE = 50
         all_points = []
         for i in range(0, len(formatted), BATCH_SIZE):
-            batch = formatted[i:i + BATCH_SIZE]
-            batch_records = records[i:i + BATCH_SIZE]
+            batch = formatted[i : i + BATCH_SIZE]
+            batch_records = records[i : i + BATCH_SIZE]
             try:
                 request = EmbeddingRequest(input=batch, model="gemini-embedding-001")
                 response = await provider.embeddings(request)
@@ -336,6 +356,7 @@ async def run_knowledge_bridge():
 async def test_rag_query(query: str, store_id: str = STORE_ID, org_id: str = ORG_ID):
     """Test RAG via the /rag/chat endpoint."""
     import httpx
+
     payload = {
         "message": query,
         "store_id": store_id,
@@ -363,6 +384,7 @@ def _load_spec(path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     elif path.suffix in (".yaml", ".yml"):
         import yaml
+
         return yaml.safe_load(path.read_text(encoding="utf-8"))
     raise ValueError(f"Unsupported spec format: {path.suffix}")
 

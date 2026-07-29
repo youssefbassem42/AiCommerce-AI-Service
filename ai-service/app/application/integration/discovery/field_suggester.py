@@ -1,7 +1,6 @@
 import logging
 import re
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 from app.application.integration.discovery.synonyms import COMMON_SYNONYMS
 
@@ -15,7 +14,7 @@ class SuggestedMapping:
     source: str
     target: str
     confidence: float
-    transformer: Optional[str] = None
+    transformer: str | None = None
 
     def __hash__(self):
         return hash((self.source, self.target))
@@ -39,9 +38,7 @@ class FieldSuggester:
         tokens_b = FieldSuggester._field_tokens(b)
         return bool(tokens_a & tokens_b)
 
-    def suggest(
-        self, external_fields: set[str], entity_type: str
-    ) -> list[SuggestedMapping]:
+    def suggest(self, external_fields: set[str], entity_type: str) -> list[SuggestedMapping]:
         from app.application.integration.discovery.entity_detector import CANONICAL_FIELDS
 
         canonical = CANONICAL_FIELDS.get(entity_type, set())
@@ -53,13 +50,13 @@ class FieldSuggester:
         for ext_field in external_fields:
             ext_clean = ext_field.lower().replace("-", "_").strip()
 
-            best_match: Optional[str] = None
+            best_match: str | None = None
             best_confidence = 0.0
-            transformer_hint: Optional[str] = None
+            transformer_hint: str | None = None
 
             for canon in canonical:
                 if ext_clean == canon:
-                    if self.EXACT_SCORE > best_confidence:
+                    if best_confidence < self.EXACT_SCORE:
                         best_confidence = self.EXACT_SCORE
                         best_match = canon
                     continue
@@ -72,7 +69,7 @@ class FieldSuggester:
                     continue
 
                 if self._has_common_token(canon, ext_clean):
-                    if self.SUBSTRING_SCORE > best_confidence:
+                    if best_confidence < self.SUBSTRING_SCORE:
                         best_confidence = self.SUBSTRING_SCORE
                         best_match = canon
                     continue
@@ -98,7 +95,9 @@ class FieldSuggester:
         """For unknown entity types create identity mappings so raw data is preserved."""
         id_field = None
         for candidate in ("id", "external_id", "source_id", "remote_id"):
-            if candidate in external_fields or candidate.replace("_", "") in {f.replace("_", "") for f in external_fields}:
+            if candidate in external_fields or candidate.replace("_", "") in {
+                f.replace("_", "") for f in external_fields
+            }:
                 id_field = candidate
                 break
         results: list[SuggestedMapping] = []

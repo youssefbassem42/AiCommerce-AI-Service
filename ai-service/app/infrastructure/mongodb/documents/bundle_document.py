@@ -1,14 +1,15 @@
-from datetime import datetime, UTC
-from typing import List
 from pydantic import Field
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+
 from app.domain.recommendation.entities.bundle_suggestion import BundleSuggestion
+from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+
 
 class BundleSuggestionDocument(BaseMongoDocument):
     """MongoDB document model representing a BundleSuggestion."""
+
     store_id: str = Field(..., index=True)
     title: str = Field(...)
-    product_ids: List[str] = Field(...)
+    product_ids: list[str] = Field(...)
     total_price: float = Field(...)
     discount_percentage: float = Field(...)
     status: str = Field(default="active")
@@ -24,7 +25,7 @@ class BundleSuggestionDocument(BaseMongoDocument):
             discount_percentage=self.discount_percentage,
             status=self.status,
             created_at=self.created_at,
-            updated_at=self.updated_at
+            updated_at=self.updated_at,
         )
 
     @classmethod
@@ -39,5 +40,5 @@ class BundleSuggestionDocument(BaseMongoDocument):
             discount_percentage=entity.discount_percentage,
             status=entity.status,
             created_at=entity.created_at,
-            updated_at=entity.updated_at
+            updated_at=entity.updated_at,
         )

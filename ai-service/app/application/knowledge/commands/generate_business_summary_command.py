@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Optional
 
 from app.application.knowledge.generation.config import GenerationConfig
 
@@ -7,7 +6,7 @@ from app.application.knowledge.generation.config import GenerationConfig
 @dataclass
 class GenerateBusinessSummaryCommand:
     store_id: str
-    config: Optional[GenerationConfig] = None
+    config: GenerationConfig | None = None
     _config: GenerationConfig = field(default_factory=GenerationConfig, repr=False)
 
     def __post_init__(self):
@@ -18,7 +17,7 @@ class GenerateBusinessSummaryCommand:
 @dataclass
 class RegenerateBusinessSummaryCommand:
     store_id: str
-    config: Optional[GenerationConfig] = None
+    config: GenerationConfig | None = None
     _config: GenerationConfig = field(default_factory=GenerationConfig, repr=False)
 
     def __post_init__(self):

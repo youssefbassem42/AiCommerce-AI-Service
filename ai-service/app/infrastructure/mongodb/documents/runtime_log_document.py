@@ -1,20 +1,24 @@
-from datetime import datetime, UTC
-from typing import List, Dict, Any, Optional
+from datetime import UTC, datetime
+from typing import Any
+
 from pydantic import Field
+
+from app.domain.analytics.entities.runtime_log import AIRuntimeLog
 from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 from app.infrastructure.mongodb.documents.prompt_history_document import PromptHistoryDocument
-from app.domain.analytics.entities.runtime_log import AIRuntimeLog
+
 
 class AIRuntimeLogDocument(BaseMongoDocument):
     """MongoDB document model representing AIRuntimeLog."""
+
     conversation_id: str = Field(..., index=True)
     model: str = Field(...)
     prompt_tokens: str = Field(...)
     latency: float = Field(...)
     level: str = Field(default="INFO")
     message: str = Field(...)
-    details: Dict[str, Any] = Field(default_factory=dict)
-    prompt_histories: Optional[List[PromptHistoryDocument]] = Field(default=None, exclude=True)
+    details: dict[str, Any] = Field(default_factory=dict)
+    prompt_histories: list[PromptHistoryDocument] | None = Field(default=None, exclude=True)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def to_entity(self) -> AIRuntimeLog:
@@ -29,7 +33,7 @@ class AIRuntimeLogDocument(BaseMongoDocument):
             message=self.message,
             details=self.details,
             prompt_histories=[ph.to_entity() for ph in self.prompt_histories] if self.prompt_histories else [],
-            timestamp=self.timestamp
+            timestamp=self.timestamp,
         )
 
     @classmethod
@@ -44,6 +48,8 @@ class AIRuntimeLogDocument(BaseMongoDocument):
             level=entity.level,
             message=entity.message,
             details=entity.details,
-            prompt_histories=[PromptHistoryDocument.from_entity(ph) for ph in entity.prompt_histories] if entity.prompt_histories else [],
-            timestamp=entity.timestamp
+            prompt_histories=[PromptHistoryDocument.from_entity(ph) for ph in entity.prompt_histories]
+            if entity.prompt_histories
+            else [],
+            timestamp=entity.timestamp,
         )

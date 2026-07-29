@@ -1,13 +1,14 @@
-from typing import List, Optional, Any
 import logging
+from typing import Any
 
 from app.domain.ticket.entities.ticket_analysis import TicketAnalysis
 from app.domain.ticket.repositories.ticket_repository import TicketRepository as ITicketRepository
-from app.infrastructure.mongodb.repositories.base_repository import BaseMongoRepository
-from app.infrastructure.mongodb.documents.ticket_document import TicketAnalysisDocument
 from app.infrastructure.mongodb.collections import get_ticket_analysis_collection
+from app.infrastructure.mongodb.documents.ticket_document import TicketAnalysisDocument
+from app.infrastructure.mongodb.repositories.base_repository import BaseMongoRepository
 
 logger = logging.getLogger(__name__)
+
 
 class TicketRepository(BaseMongoRepository[TicketAnalysisDocument, TicketAnalysis], ITicketRepository):
     """MongoDB implementation of the TicketRepository with session and transaction support."""
@@ -15,7 +16,7 @@ class TicketRepository(BaseMongoRepository[TicketAnalysisDocument, TicketAnalysi
     def __init__(self):
         super().__init__(get_ticket_analysis_collection(), TicketAnalysisDocument)
 
-    async def find_by_ticket_id(self, ticket_id: str, session: Any = None) -> Optional[TicketAnalysis]:
+    async def find_by_ticket_id(self, ticket_id: str, session: Any = None) -> TicketAnalysis | None:
         """Fetch analysis report by ticket ID."""
         try:
             results = await self.find_many({"ticket_id": ticket_id}, limit=1, session=session)
@@ -25,8 +26,8 @@ class TicketRepository(BaseMongoRepository[TicketAnalysisDocument, TicketAnalysi
             raise
 
     async def find_by_store(
-        self, store_id: str, priority: Optional[str] = None, session: Any = None
-    ) -> List[TicketAnalysis]:
+        self, store_id: str, priority: str | None = None, session: Any = None
+    ) -> list[TicketAnalysis]:
         """Fetch ticket analysis records for a store, optionally filtered by priority."""
         try:
             filters = {"store_id": store_id}

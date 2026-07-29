@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,8 +15,8 @@ class SyncResultDTO(BaseModel):
     connection_id: str
     store_id: str
     started_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     status: str = "running"
     entity_results: list[EntitySyncResultDTO] = Field(default_factory=list)
-    total_duration_seconds: Optional[float] = None
-    error: Optional[str] = None
+    total_duration_seconds: float | None = None
+    error: str | None = None

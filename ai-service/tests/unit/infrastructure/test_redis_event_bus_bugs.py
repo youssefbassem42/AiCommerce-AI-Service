@@ -1,10 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from pydantic import BaseModel
 
-from app.shared.events.event_handler import IEventHandler
 from app.infrastructure.events.redis_event_bus import RedisEventBus
+from app.shared.events.event_handler import IEventHandler
 
 
 class SampleEvent(BaseModel):
@@ -12,7 +11,6 @@ class SampleEvent(BaseModel):
 
 
 class TestRedisEventBusBugs:
-
     async def test_publish_invokes_local_handlers(self):
         bus = RedisEventBus(redis_client=AsyncMock(), prefix="test:")
         handler = MagicMock(spec=IEventHandler)

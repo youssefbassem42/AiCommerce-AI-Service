@@ -1,4 +1,5 @@
 from app.application.commerce.dto.commerce_dto import (
+    SEODTO,
     AuditInfoDTO,
     CategoryCreateDTO,
     CategoryDTO,
@@ -16,7 +17,6 @@ from app.application.commerce.dto.commerce_dto import (
     ProductDTO,
     ProductOptionDTO,
     ProductUpdateDTO,
-    SEODTO,
     VariantDTO,
 )
 

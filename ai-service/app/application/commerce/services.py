@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from bson import ObjectId
 
 from app.application.commerce.dto.commerce_dto import (
+    SEODTO,
     AuditInfoDTO,
     CategoryCreateDTO,
     CategoryDTO,
@@ -23,7 +24,6 @@ from app.application.commerce.dto.commerce_dto import (
     ProductDTO,
     ProductOptionDTO,
     ProductUpdateDTO,
-    SEODTO,
     VariantDTO,
 )
 from app.domain.commerce.aggregates.category import Category
@@ -42,7 +42,6 @@ from app.domain.commerce.repositories import (
     OrderRepository,
     ProductRepository,
 )
-from app.domain.commerce.value_objects.audit import AuditInfo
 from app.domain.commerce.value_objects.image import Image
 from app.domain.commerce.value_objects.money import Money
 from app.domain.commerce.value_objects.seo import SEO
@@ -53,7 +52,6 @@ def _new_id() -> str:
 
 
 class ProductService:
-
     def __init__(self, repository: ProductRepository):
         self.repository = repository
 
@@ -129,7 +127,9 @@ class ProductService:
                         if o_id and o_id in existing_ids:
                             new_options.append(ProductOption(id=o_id, **{k: vv for k, vv in o.items() if k != "id"}))
                         else:
-                            new_options.append(ProductOption(id=_new_id(), **{k: vv for k, vv in o.items() if k != "id"}))
+                            new_options.append(
+                                ProductOption(id=_new_id(), **{k: vv for k, vv in o.items() if k != "id"})
+                            )
                     setattr(entity, field, new_options)
                 elif field == "seo" and value is not None:
                     setattr(entity, field, SEO(**value))
@@ -160,7 +160,19 @@ class ProductService:
             vendor=entity.vendor,
             tags=entity.tags,
             images=[ImageDTO(**img.model_dump()) for img in entity.images],
-            variants=[VariantDTO(id=v.id, sku=v.sku, title=v.title, price=MoneyDTO(**v.price.model_dump()), compare_at_price=MoneyDTO(**v.compare_at_price.model_dump()) if v.compare_at_price else None, inventory_quantity=v.inventory_quantity, weight=v.weight, dimensions=v.dimensions) for v in entity.variants],
+            variants=[
+                VariantDTO(
+                    id=v.id,
+                    sku=v.sku,
+                    title=v.title,
+                    price=MoneyDTO(**v.price.model_dump()),
+                    compare_at_price=MoneyDTO(**v.compare_at_price.model_dump()) if v.compare_at_price else None,
+                    inventory_quantity=v.inventory_quantity,
+                    weight=v.weight,
+                    dimensions=v.dimensions,
+                )
+                for v in entity.variants
+            ],
             options=[ProductOptionDTO(id=o.id, name=o.name, values=o.values) for o in entity.options],
             seo=SEODTO(**entity.seo.model_dump()),
             category_id=entity.category_id,
@@ -172,7 +184,6 @@ class ProductService:
 
 
 class CategoryService:
-
     def __init__(self, repository: CategoryRepository):
         self.repository = repository
 
@@ -260,7 +271,6 @@ class CategoryService:
 
 
 class OrderService:
-
     def __init__(self, repository: OrderRepository):
         self.repository = repository
 
@@ -342,14 +352,19 @@ class OrderService:
             external_id=entity.external_id,
             customer_id=entity.customer_id,
             customer_email=entity.customer_email,
-            line_items=[LineItemDTO(
-                id=li.id,
-                variant_id=li.variant_id,
-                product_id=li.product_id,
-                title=li.title,
-                quantity=li.quantity,
-                price=MoneyDTO(amount=str(li.price.amount), currency=li.price.currency) if hasattr(li.price, "amount") else MoneyDTO(amount="0", currency="USD"),
-            ) for li in (entity.line_items or [])],
+            line_items=[
+                LineItemDTO(
+                    id=li.id,
+                    variant_id=li.variant_id,
+                    product_id=li.product_id,
+                    title=li.title,
+                    quantity=li.quantity,
+                    price=MoneyDTO(amount=str(li.price.amount), currency=li.price.currency)
+                    if hasattr(li.price, "amount")
+                    else MoneyDTO(amount="0", currency="USD"),
+                )
+                for li in (entity.line_items or [])
+            ],
             financial_status=entity.financial_status,
             fulfillment_status=entity.fulfillment_status,
             currency=entity.currency,
@@ -364,7 +379,6 @@ class OrderService:
 
 
 class InventoryService:
-
     def __init__(self, repository: InventoryRepository):
         self.repository = repository
 

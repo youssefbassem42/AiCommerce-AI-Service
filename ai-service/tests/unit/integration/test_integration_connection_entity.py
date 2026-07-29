@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 import pydantic
 import pytest
 
@@ -8,20 +6,20 @@ from app.domain.integration.entities.integration_connection import (
     IntegrationConnection,
 )
 from app.domain.integration.exceptions import IntegrationValidationException
-from app.domain.integration.value_objects.auth_config import AuthConfig, AuthType, CredentialsLocation
+from app.domain.integration.value_objects.auth_config import AuthConfig, AuthType
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.field_mapping import FieldMapping
 from app.domain.integration.value_objects.pagination_config import PaginationConfig, PaginationStyle
 
 
 def _make_connection(**overrides) -> IntegrationConnection:
-    base = dict(
-        id="conn1",
-        store_id="store_1",
-        organization_id="org_1",
-        name="My Shopify Store",
-        platform_name="shopify",
-    )
+    base = {
+        "id": "conn1",
+        "store_id": "store_1",
+        "organization_id": "org_1",
+        "name": "My Shopify Store",
+        "platform_name": "shopify",
+    }
     base.update(overrides)
     return IntegrationConnection(**base)
 
@@ -106,9 +104,7 @@ class TestIntegrationConnectionMethods:
 
     def test_remove_entity_mapping(self) -> None:
         conn = _make_connection()
-        conn.replace_entity_mapping(
-            EntityMapping(entity_type="product", list_path="/products", id_field="id")
-        )
+        conn.replace_entity_mapping(EntityMapping(entity_type="product", list_path="/products", id_field="id"))
         conn.remove_entity_mapping("product")
         assert len(conn.entity_mappings) == 0
 

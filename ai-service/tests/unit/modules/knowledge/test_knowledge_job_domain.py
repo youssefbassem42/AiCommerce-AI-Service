@@ -1,9 +1,8 @@
-import pytest
 from datetime import UTC, datetime
 
 from app.domain.job.entities.knowledge_job import KnowledgeJob
+from app.domain.job.exceptions import JobAlreadyCompletedException, JobMaxRetriesExceededException, JobNotFoundException
 from app.domain.job.value_objects import JobStatus, JobType
-from app.domain.job.exceptions import JobNotFoundException, JobAlreadyCompletedException, JobMaxRetriesExceededException
 
 
 class TestJobType:

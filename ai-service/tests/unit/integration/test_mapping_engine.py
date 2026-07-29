@@ -1,13 +1,10 @@
 from decimal import Decimal
-from datetime import datetime
 
 import pytest
 
 from app.application.integration.mapping.engine import MappingEngine
-from app.application.integration.mapping.transformers import TransformerRegistry
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.field_mapping import FieldMapping
-from app.domain.integration.value_objects.pagination_config import PaginationConfig
 
 
 @pytest.fixture
@@ -105,9 +102,7 @@ class TestMappingEngine:
         assert result.data["inventory_quantity"] == 0  # default_value used
 
     def test_empty_field_mappings(self, engine: MappingEngine) -> None:
-        mapping = EntityMapping(
-            entity_type="product", list_path="/products", id_field="id"
-        )
+        mapping = EntityMapping(entity_type="product", list_path="/products", id_field="id")
         item = {"name": "Test"}
         result = engine.apply(item, mapping)
         assert result.data == {"name": "Test"}

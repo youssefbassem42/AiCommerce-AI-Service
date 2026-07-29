@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -17,13 +17,13 @@ class TaxLine(AggregateRoot[str]):
 
 class Fulfillment(AggregateRoot[str]):
     status: str = Field(default="pending")
-    tracking_company: Optional[str] = None
-    tracking_number: Optional[str] = None
+    tracking_company: str | None = None
+    tracking_number: str | None = None
 
 
 class LineItem(AggregateRoot[str]):
-    variant_id: Optional[str] = None
-    product_id: Optional[str] = None
+    variant_id: str | None = None
+    product_id: str | None = None
     title: str = Field(..., min_length=1)
     quantity: int = Field(..., ge=1)
     price: Money
@@ -34,25 +34,25 @@ class LineItem(AggregateRoot[str]):
 class Order(AggregateRoot[str]):
     store_id: str = Field(..., min_length=1)
     org_id: str = Field(..., min_length=1)
-    external_id: Optional[str] = None
-    customer_id: Optional[str] = None
-    customer_email: Optional[str] = None
+    external_id: str | None = None
+    customer_id: str | None = None
+    customer_email: str | None = None
     line_items: list[LineItem] = Field(default_factory=list)
-    shipping_address: Optional[Address] = None
-    billing_address: Optional[Address] = None
-    subtotal_price: Optional[Money] = None
-    total_price: Optional[Money] = None
-    total_tax: Optional[Money] = None
-    total_discount: Optional[Money] = None
-    shipping_price: Optional[Money] = None
+    shipping_address: Address | None = None
+    billing_address: Address | None = None
+    subtotal_price: Money | None = None
+    total_price: Money | None = None
+    total_tax: Money | None = None
+    total_discount: Money | None = None
+    shipping_price: Money | None = None
     financial_status: str = Field(default="pending")
-    fulfillment_status: Optional[str] = None
+    fulfillment_status: str | None = None
     currency: str = Field(default="USD", min_length=3, max_length=3)
-    notes: Optional[str] = None
+    notes: str | None = None
     tags: list[str] = Field(default_factory=list)
-    cancelled_at: Optional[datetime] = None
+    cancelled_at: datetime | None = None
     audit: AuditInfo = Field(default_factory=AuditInfo)
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    deleted_at: Optional[datetime] = Field(default=None)
+    deleted_at: datetime | None = Field(default=None)

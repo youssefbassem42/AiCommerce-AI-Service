@@ -1,5 +1,3 @@
-from typing import Any, Optional
-
 from app.domain.integration.entities.integration_connection import IntegrationConnection
 from app.domain.integration.repositories.integration_connection_repository import (
     IntegrationConnectionRepository as IIntegrationConnectionRepository,
@@ -15,7 +13,6 @@ class IntegrationConnectionMongoRepository(
     BaseMongoRepository[IntegrationConnectionDocument, IntegrationConnection],
     IIntegrationConnectionRepository,
 ):
-
     def __init__(self):
         super().__init__(get_integration_connections_collection(), IntegrationConnectionDocument)
 
@@ -24,8 +21,6 @@ class IntegrationConnectionMongoRepository(
     ) -> tuple[list[IntegrationConnection], int]:
         return await self.paginate({"store_id": store_id}, page=page, page_size=page_size)
 
-    async def find_by_store_and_name(
-        self, store_id: str, name: str
-    ) -> Optional[IntegrationConnection]:
+    async def find_by_store_and_name(self, store_id: str, name: str) -> IntegrationConnection | None:
         items = await self.find_many({"store_id": store_id, "name": name}, limit=1)
         return items[0] if items else None

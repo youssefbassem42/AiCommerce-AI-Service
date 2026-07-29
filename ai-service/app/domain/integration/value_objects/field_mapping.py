@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +8,6 @@ class FieldMapping(BaseModel):
 
     source: str = Field(..., min_length=1, max_length=256)
     target: str = Field(..., min_length=1, max_length=128)
-    transformer: Optional[str] = Field(default=None, max_length=64)
+    transformer: str | None = Field(default=None, max_length=64)
     default_value: Any = None
     required: bool = False

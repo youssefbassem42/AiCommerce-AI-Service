@@ -1,4 +1,13 @@
-from app.domain.commerce.aggregates import Category, Fulfillment, LineItem, Order, Product, ProductOption, TaxLine, Variant
+from app.domain.commerce.aggregates import (
+    Category,
+    Fulfillment,
+    LineItem,
+    Order,
+    Product,
+    ProductOption,
+    TaxLine,
+    Variant,
+)
 from app.domain.commerce.entities import Inventory
 from app.domain.commerce.exceptions import (
     CategoryNotFoundException,
@@ -14,7 +23,7 @@ from app.domain.commerce.repositories import (
     OrderRepository,
     ProductRepository,
 )
-from app.domain.commerce.value_objects import Address, AuditInfo, Image, Money, SEO
+from app.domain.commerce.value_objects import SEO, Address, AuditInfo, Image, Money
 
 __all__ = [
     "Address",

@@ -1,11 +1,11 @@
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from app.shared.cqrs.command import Command
-from app.shared.cqrs.query import Query
 from app.shared.cqrs.command_handler import CommandHandler
+from app.shared.cqrs.query import Query
 from app.shared.cqrs.query_handler import QueryHandler
-from app.shared.cqrs.result import CommandResult, QueryResult
 from app.shared.mediator.mediator import Mediator
 from app.shared.mediator.pipeline import PipelineBehavior
 
@@ -112,12 +112,14 @@ class TestMediator:
     async def test_multiple_behaviors_execute_in_order(self):
         class FirstBehavior(PipelineBehavior):
             order: int = 0
+
             async def handle(self, request, next_handler):
                 result = await next_handler()
                 return f"first({result})"
 
         class SecondBehavior(PipelineBehavior):
             order: int = 1
+
             async def handle(self, request, next_handler):
                 result = await next_handler()
                 return f"second({result})"
@@ -147,6 +149,7 @@ class TestMediator:
     async def test_behavior_exception_propagates(self):
         class FailingBehavior(PipelineBehavior):
             order: int = 0
+
             async def handle(self, request, next_handler):
                 raise RuntimeError("behavior error")
 

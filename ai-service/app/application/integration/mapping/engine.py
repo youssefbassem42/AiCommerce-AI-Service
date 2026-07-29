@@ -1,9 +1,9 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 
+from app.application.integration.mapping.transformers import TransformerRegistry, get_default_registry
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.field_mapping import FieldMapping
-from app.application.integration.mapping.transformers import get_default_registry, TransformerRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +14,9 @@ class MappedField:
         source: str,
         target: str,
         value: Any,
-        applied_transformer: Optional[str] = None,
+        applied_transformer: str | None = None,
         success: bool = True,
-        error: Optional[str] = None,
+        error: str | None = None,
     ):
         self.source = source
         self.target = target
@@ -56,7 +56,7 @@ class MappedRecord:
 class MappingEngine:
     """Applies an EntityMapping to an external API item and returns a canonical record."""
 
-    def __init__(self, registry: Optional[TransformerRegistry] = None):
+    def __init__(self, registry: TransformerRegistry | None = None):
         self._registry = registry or get_default_registry()
 
     def apply(

@@ -1,10 +1,10 @@
 import pytest
 from bson import ObjectId
+
 from app.domain.recommendation.entities.store_capabilities import StoreCapabilities
 from app.infrastructure.mongodb.documents.store_capabilities_document import (
     StoreCapabilitiesDocument,
 )
-
 
 VALID_OID = str(ObjectId())
 

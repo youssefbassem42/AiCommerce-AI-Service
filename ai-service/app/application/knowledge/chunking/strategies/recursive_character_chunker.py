@@ -16,7 +16,9 @@ class RecursiveCharacterChunker(BaseChunker):
     def chunk(self, text: str, config: ChunkingConfig) -> list[str]:
         return self._chunk_recursive(text, config.chunk_size, config.overlap)
 
-    def _chunk_recursive(self, text: str, chunk_size: int, overlap: int, separators: list[str] | None = None) -> list[str]:
+    def _chunk_recursive(
+        self, text: str, chunk_size: int, overlap: int, separators: list[str] | None = None
+    ) -> list[str]:
         if separators is None:
             separators = list(self.SEPARATORS)
 
@@ -47,7 +49,9 @@ class RecursiveCharacterChunker(BaseChunker):
                         if len(part) <= chunk_size:
                             current = part
                         else:
-                            sub = self._chunk_recursive(part, chunk_size, overlap, separators[separators.index(sep) + 1:])
+                            sub = self._chunk_recursive(
+                                part, chunk_size, overlap, separators[separators.index(sep) + 1 :]
+                            )
                             chunks.extend(sub)
                             current = ""
                 if current:

@@ -8,17 +8,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 
 from app.application.knowledge.dto import (
     BusinessSummaryCreateDTO,
-    BusinessSummaryDTO,
-    BusinessSummaryUpdateDTO,
     DocumentMetadataDTO,
     DocumentVersionDTO,
     KnowledgeChunkCreateDTO,
-    KnowledgeChunkDTO,
-    KnowledgeChunkUpdateDTO,
     KnowledgeDocumentCreateDTO,
     KnowledgeDocumentDTO,
-    KnowledgeDocumentUpdateDTO,
-    PaginatedResultDTO,
 )
 from app.domain.knowledge.entities import BusinessSummary, KnowledgeChunk, KnowledgeDocument
 from app.domain.knowledge.value_objects import DocumentMetadata, DocumentVersion
@@ -50,12 +44,16 @@ def sample_metadata_dto():
 
 @pytest.fixture
 def sample_version():
-    return DocumentVersion(version_number=1, checksum="abc123", created_by="user-1", notes="Initial version", is_current=True)
+    return DocumentVersion(
+        version_number=1, checksum="abc123", created_by="user-1", notes="Initial version", is_current=True
+    )
 
 
 @pytest.fixture
 def sample_version_dto():
-    return DocumentVersionDTO(version_number=1, checksum="abc123", created_by="user-1", notes="Initial version", is_current=True)
+    return DocumentVersionDTO(
+        version_number=1, checksum="abc123", created_by="user-1", notes="Initial version", is_current=True
+    )
 
 
 @pytest.fixture

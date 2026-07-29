@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -12,8 +12,8 @@ class RetrievedChunkSchema(BaseModel):
     score: float
     rank: int
     metadata: dict[str, Any] = Field(default_factory=dict)
-    language: Optional[str] = None
-    source_type: Optional[str] = None
+    language: str | None = None
+    source_type: str | None = None
 
 
 class RetrievalRequestSchema(BaseModel):
@@ -26,12 +26,12 @@ class RetrievalRequestSchema(BaseModel):
     rerank: bool = Field(default=False, description="Enable LLM cross-encoder re-ranking")
     rerank_top_k: int = Field(default=5, ge=1, le=50)
     embedding_model: str = Field(default="gemini-embedding-001")
-    organization_id: Optional[str] = None
-    store_id: Optional[str] = None
-    language: Optional[str] = None
-    document_type: Optional[str] = None
-    knowledge_scope: Optional[str] = None
-    business_version: Optional[int] = Field(default=None, ge=1)
+    organization_id: str | None = None
+    store_id: str | None = None
+    language: str | None = None
+    document_type: str | None = None
+    knowledge_scope: str | None = None
+    business_version: int | None = Field(default=None, ge=1)
 
 
 class RetrievalResponseSchema(BaseModel):

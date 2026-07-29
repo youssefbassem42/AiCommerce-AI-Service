@@ -1,6 +1,8 @@
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 from pydantic import BaseModel
+
 
 class MessageDTO(BaseModel):
     id: str
@@ -8,16 +10,17 @@ class MessageDTO(BaseModel):
     role: str
     content: str
     sender: str
-    sentiment: Optional[str] = None
-    intent: Optional[str] = None
+    sentiment: str | None = None
+    intent: str | None = None
     timestamp: datetime
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
+
 
 class ConversationDTO(BaseModel):
     id: str
     customer_id: str
     store_id: str
     status: str
-    messages: List[MessageDTO]
+    messages: list[MessageDTO]
     created_at: datetime
     updated_at: datetime

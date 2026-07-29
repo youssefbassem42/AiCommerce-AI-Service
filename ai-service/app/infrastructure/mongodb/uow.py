@@ -1,10 +1,13 @@
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorClientSession
-from app.infrastructure.mongodb.client import MongoClientManager
 import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorClientSession
+
+from app.infrastructure.mongodb.client import MongoClientManager
 
 logger = logging.getLogger(__name__)
+
 
 class MongoUnitOfWork:
     """

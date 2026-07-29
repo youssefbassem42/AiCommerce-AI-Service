@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from app.domain.commerce.aggregates.order import Order
 from app.domain.commerce.repositories.order_repository import OrderRepository as IOrderRepository
@@ -8,7 +8,6 @@ from app.infrastructure.mongodb.repositories.base_repository import BaseMongoRep
 
 
 class CommerceOrderRepository(BaseMongoRepository[OrderDocument, Order], IOrderRepository):
-
     def __init__(self):
         super().__init__(get_orders_collection(), OrderDocument)
 

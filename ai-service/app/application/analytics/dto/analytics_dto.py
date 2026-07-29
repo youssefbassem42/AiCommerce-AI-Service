@@ -1,6 +1,8 @@
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any
+
 from pydantic import BaseModel
+
 
 class PromptHistoryDTO(BaseModel):
     id: str
@@ -14,6 +16,7 @@ class PromptHistoryDTO(BaseModel):
     token_used: int
     timestamp: datetime
 
+
 class AIRuntimeLogDTO(BaseModel):
     id: str
     conversation_id: str
@@ -22,13 +25,14 @@ class AIRuntimeLogDTO(BaseModel):
     latency: float
     level: str
     message: str
-    details: Dict[str, Any]
-    prompt_histories: List[PromptHistoryDTO]
+    details: dict[str, Any]
+    prompt_histories: list[PromptHistoryDTO]
     timestamp: datetime
+
 
 class DashboardInsightDTO(BaseModel):
     id: str
     store_id: str
-    recommendations: List[str]
-    metadata: Dict[str, Any]
+    recommendations: list[str]
+    metadata: dict[str, Any]
     calculated_at: datetime

@@ -1,11 +1,10 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
 
+from app.application.integration.discovery.entity_detector import CANONICAL_FIELDS
+from app.application.integration.mapping.transformers import TransformerRegistry, get_default_registry
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.field_mapping import FieldMapping
-from app.application.integration.mapping.transformers import get_default_registry, TransformerRegistry
-from app.application.integration.discovery.entity_detector import CANONICAL_FIELDS
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +33,13 @@ class MappingValidationResult:
 class MappingValidator:
     """Validates that an EntityMapping is internally consistent and complete."""
 
-    def __init__(self, registry: Optional[TransformerRegistry] = None):
+    def __init__(self, registry: TransformerRegistry | None = None):
         self._registry = registry or get_default_registry()
 
     def validate(
         self,
         mapping: EntityMapping,
-        external_schema_fields: Optional[set[str]] = None,
+        external_schema_fields: set[str] | None = None,
     ) -> MappingValidationResult:
         issues: list[MappingValidationIssue] = []
 
@@ -76,7 +75,7 @@ class MappingValidator:
     def _validate_field_mapping(
         self,
         fm: FieldMapping,
-        external_schema_fields: Optional[set[str]],
+        external_schema_fields: set[str] | None,
         canonical_fields: set[str],
         issues: list[MappingValidationIssue],
     ) -> None:
@@ -96,21 +95,19 @@ class MappingValidator:
             issues.append(
                 MappingValidationIssue(
                     field=fm.target,
-                    message=f"Target field '{fm.target}' is not a recognized canonical field "
-                            f"for entity type.",
+                    message=f"Target field '{fm.target}' is not a recognized canonical field for entity type.",
                     severity="warning",
                 )
             )
 
-        if fm.transformer:
-            if not self._registry.has(fm.transformer):
-                issues.append(
-                    MappingValidationIssue(
-                        field=fm.source,
-                        message=f"Transformer '{fm.transformer}' is not registered.",
-                        severity="error",
-                    )
+        if fm.transformer and not self._registry.has(fm.transformer):
+            issues.append(
+                MappingValidationIssue(
+                    field=fm.source,
+                    message=f"Transformer '{fm.transformer}' is not registered.",
+                    severity="error",
                 )
+            )
 
     @staticmethod
     def _find_required_canonical(mapping: EntityMapping) -> set[str]:

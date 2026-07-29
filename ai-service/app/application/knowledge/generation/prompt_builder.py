@@ -17,7 +17,7 @@ def build_generation_messages(merged_content: str) -> list[dict]:
         "Generate a complete business context from the following documents.\n\n"
         "Return a JSON object with exactly these keys, each containing the generated text:\n"
         + "\n".join(f'  "{key}": "{desc}"' for key, desc in SECTION_DEFINITIONS.items())
-        + "\n\nAlso include a key \"rag_context\" that contains a single optimized text combining all sections "
+        + '\n\nAlso include a key "rag_context" that contains a single optimized text combining all sections '
         "into a concise, searchable business context suitable for a RAG system. "
         "The rag_context should be a narrative text, not JSON.\n\n"
         "Documents:\n\n"

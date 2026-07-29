@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -13,7 +13,7 @@ class DataEntityDocument(BaseMongoDocument):
     entity_type: str = Field(...)
     external_id: str = Field(...)
     data: dict[str, Any] = Field(default_factory=dict)
-    connection_id: Optional[str] = None
+    connection_id: str | None = None
     synced_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def to_entity(self) -> DataEntity:

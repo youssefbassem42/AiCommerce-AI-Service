@@ -1,5 +1,4 @@
 """Tests for the AuditLog domain entity."""
-import pytest
 
 from app.domain.auth.entities.audit_log import AuditLog
 

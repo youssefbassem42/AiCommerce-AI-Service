@@ -1,16 +1,13 @@
 import logging
-from datetime import datetime, UTC
-from typing import Dict, List, Optional
-
-from bson import ObjectId
+from datetime import UTC, datetime
 
 from app.domain.recommendation.entities.store_capabilities import StoreCapabilities
 from app.domain.recommendation.repositories.store_capabilities_repository import (
     StoreCapabilitiesRepository as IStoreCapabilitiesRepository,
 )
 from app.infrastructure.mongodb.collections import (
-    get_store_capabilities_collection,
     get_integration_connections_collection,
+    get_store_capabilities_collection,
 )
 from app.infrastructure.mongodb.documents.store_capabilities_document import (
     StoreCapabilitiesDocument,
@@ -26,12 +23,11 @@ class StoreCapabilitiesMongoRepository(
     BaseMongoRepository[StoreCapabilitiesDocument, StoreCapabilities],
     IStoreCapabilitiesRepository,
 ):
-
     def __init__(self):
         super().__init__(get_store_capabilities_collection(), StoreCapabilitiesDocument)
         self._integrations_collection = get_integration_connections_collection()
 
-    async def get_by_store_id(self, store_id: str) -> Optional[StoreCapabilities]:
+    async def get_by_store_id(self, store_id: str) -> StoreCapabilities | None:
         items = await self.find_many({"store_id": store_id}, limit=1)
         return items[0] if items else None
 
@@ -60,7 +56,7 @@ class StoreCapabilitiesMongoRepository(
         entity = StoreCapabilities(
             store_id=store_id,
             capabilities=detected,
-            auto_detected={k: True for k in detected},
+            auto_detected=dict.fromkeys(detected, True),
         )
         return await self.create(entity)
 
@@ -79,7 +75,7 @@ class StoreCapabilitiesMongoRepository(
         )
         return await self.create(entity)
 
-    async def detect_capabilities(self, store_id: str) -> Dict[str, bool]:
+    async def detect_capabilities(self, store_id: str) -> dict[str, bool]:
         has_promo = False
         try:
             cursor = self._integrations_collection.find(

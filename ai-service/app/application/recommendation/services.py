@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from app.application.knowledge.retrieval.service import RetrieverService
 from app.application.recommendation.dto.recommendation_dto import (
@@ -35,11 +34,13 @@ class RecommendationService:
         self,
         query: str,
         store_id: str,
-        customer_id: Optional[str] = None,
+        customer_id: str | None = None,
     ) -> RecommendationResponse:
         logger.info(
             "Recommendation requested: query='%s', store_id='%s', customer_id='%s'",
-            query, store_id, customer_id,
+            query,
+            store_id,
+            customer_id,
         )
         return await self._workflow.run(
             query=query,
@@ -54,7 +55,7 @@ class BundleSuggestionService:
         product_repo: ProductRepository,
         llm: BaseLLMProvider,
         capabilities_repo: StoreCapabilitiesRepository,
-        promo_service: Optional[PromoCodeService] = None,
+        promo_service: PromoCodeService | None = None,
     ):
         self._capabilities_repo = capabilities_repo
         self._workflow = BundleSuggestionWorkflow(
@@ -67,11 +68,13 @@ class BundleSuggestionService:
         self,
         query: str,
         store_id: str,
-        customer_id: Optional[str] = None,
+        customer_id: str | None = None,
     ) -> BundleResponse:
         logger.info(
             "Bundle suggestion requested: query='%s', store_id='%s', customer_id='%s'",
-            query, store_id, customer_id,
+            query,
+            store_id,
+            customer_id,
         )
 
         caps = await self._capabilities_repo.get_or_detect(store_id)

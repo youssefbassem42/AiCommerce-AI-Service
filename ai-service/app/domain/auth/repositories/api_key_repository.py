@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from app.domain.auth.entities.api_key import ApiKey
 from app.shared.kernel.repository import AsyncRepository
@@ -9,7 +8,7 @@ class ApiKeyRepository(AsyncRepository[ApiKey, str], ABC):
     """Domain repository interface for API keys."""
 
     @abstractmethod
-    async def find_by_key_prefix(self, key_prefix: str) -> Optional[ApiKey]:
+    async def find_by_key_prefix(self, key_prefix: str) -> ApiKey | None:
         """Find an API key by its prefix."""
 
     @abstractmethod

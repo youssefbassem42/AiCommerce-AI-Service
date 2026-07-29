@@ -1,8 +1,10 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from app.application.dto.ai_dto import ChatRequest, EmbeddingRequest, MessageDTO
 from app.infrastructure.providers.gemini_provider import GeminiProvider
-from app.application.dto.ai_dto import ChatRequest, MessageDTO, EmbeddingRequest
-from google.genai import types
+
 
 @pytest.fixture
 def mock_genai_client():
@@ -11,41 +13,38 @@ def mock_genai_client():
         mock_client_cls.return_value = mock_client
         yield mock_client
 
+
 @pytest.mark.asyncio
 async def test_gemini_chat_success(mock_genai_client):
     provider = GeminiProvider(api_key="test-api-key")
-    
+
     # Mock return value of client.aio.models.generate_content
     mock_candidate = MagicMock()
     mock_candidate.content.parts = [MagicMock(text="Gemini text response", function_call=None)]
-    
+
     mock_response = MagicMock()
     mock_response.candidates = [mock_candidate]
-    mock_response.usage_metadata = MagicMock(
-        prompt_token_count=12,
-        candidates_token_count=8,
-        total_token_count=20
-    )
-    
+    mock_response.usage_metadata = MagicMock(prompt_token_count=12, candidates_token_count=8, total_token_count=20)
+
     mock_genai_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
-    
+
     request = ChatRequest(
         messages=[
             MessageDTO(role="system", content="You are a helper."),
-            MessageDTO(role="user", content="Hello Gemini")
+            MessageDTO(role="user", content="Hello Gemini"),
         ],
         model="gemini-2.5-flash",
-        temperature=0.7
+        temperature=0.7,
     )
-    
+
     response = await provider.chat(request)
-    
+
     assert response.provider == "gemini"
     assert response.model == "gemini-2.5-flash"
     assert response.message.content == "Gemini text response"
     assert response.usage.prompt_tokens == 12
     assert response.usage.completion_tokens == 8
-    
+
     # Verify calls
     mock_genai_client.aio.models.generate_content.assert_called_once()
     call_kwargs = mock_genai_client.aio.models.generate_content.call_args[1]
@@ -57,21 +56,18 @@ async def test_gemini_chat_success(mock_genai_client):
 @pytest.mark.asyncio
 async def test_gemini_embeddings(mock_genai_client):
     provider = GeminiProvider(api_key="test-api-key")
-    
+
     # Mock return value of client.aio.models.embed_content
     mock_emb = MagicMock()
     mock_emb.values = [0.1, 0.2, 0.3]
     mock_response = MagicMock(embeddings=[mock_emb])
-    
+
     mock_genai_client.aio.models.embed_content = AsyncMock(return_value=mock_response)
-    
-    request = EmbeddingRequest(
-        input=["hello", "world"],
-        model="gemini-embedding-001"
-    )
-    
+
+    request = EmbeddingRequest(input=["hello", "world"], model="gemini-embedding-001")
+
     response = await provider.embeddings(request)
-    
+
     assert response.provider == "gemini"
     assert response.embeddings == [[0.1, 0.2, 0.3]]
     mock_genai_client.aio.models.embed_content.assert_called_once()

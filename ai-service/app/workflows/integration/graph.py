@@ -1,16 +1,13 @@
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any, Optional
-
-from bson import ObjectId
+from typing import Any
 
 from app.agents.integration.agent import IntegrationMappingAgent
 from app.agents.integration.schemas import IntegrationMappingReport
 from app.application.integration.mapping.dto import (
     AuthConfigDTO,
     ConnectionCreateDTO,
-    ConnectionResponseDTO,
     EntityMappingDTO,
     FieldMappingDTO,
     PaginationConfigDTO,
@@ -32,14 +29,14 @@ logger = logging.getLogger(__name__)
 
 class IntegrationSyncResult:
     def __init__(self):
-        self.connection_id: Optional[str] = None
-        self.mapping_report: Optional[IntegrationMappingReport] = None
-        self.capabilities: Optional[dict[str, bool]] = None
-        self.sync_result: Optional[dict] = None
-        self.error: Optional[str] = None
-        self.user_friendly_error: Optional[str] = None
+        self.connection_id: str | None = None
+        self.mapping_report: IntegrationMappingReport | None = None
+        self.capabilities: dict[str, bool] | None = None
+        self.sync_result: dict | None = None
+        self.error: str | None = None
+        self.user_friendly_error: str | None = None
         self.started_at: datetime = datetime.now(UTC)
-        self.completed_at: Optional[datetime] = None
+        self.completed_at: datetime | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -59,8 +56,8 @@ class IntegrationWorkflow:
         self,
         integration_service: IntegrationApplicationService,
         sync_orchestrator: SyncOrchestrator,
-        llm: Optional[BaseLLMProvider] = None,
-        model: Optional[str] = None,
+        llm: BaseLLMProvider | None = None,
+        model: str | None = None,
     ):
         self._mapping_agent = IntegrationMappingAgent(llm=llm, model=model)
         self._integration_service = integration_service
@@ -72,8 +69,8 @@ class IntegrationWorkflow:
         platform_name: str,
         store_id: str,
         organization_id: str,
-        credentials: Optional[dict[str, str]] = None,
-        connection_name: Optional[str] = None,
+        credentials: dict[str, str] | None = None,
+        connection_name: str | None = None,
         auto_sync: bool = True,
     ) -> IntegrationSyncResult:
         result = IntegrationSyncResult()
@@ -130,9 +127,9 @@ class IntegrationWorkflow:
         platform_name: str,
         store_id: str,
         organization_id: str,
-        credentials: Optional[dict[str, str]],
-        connection_name: Optional[str],
-        capabilities: Optional[dict[str, bool]],
+        credentials: dict[str, str] | None,
+        connection_name: str | None,
+        capabilities: dict[str, bool] | None,
     ) -> IntegrationConnection:
         spec_dict = raw_spec if isinstance(raw_spec, dict) else {}
         auth_config = report.auth or AuthConfigDTO()
@@ -197,7 +194,9 @@ class IntegrationWorkflow:
             raw_spec=spec_dict,
             auth_config=AuthConfig(
                 type=AuthType(auth_config.type) if auth_config.type else AuthType.APIKEY,
-                credentials_location=CredentialsLocation(auth_config.credentials_location) if auth_config.credentials_location else CredentialsLocation.HEADER,
+                credentials_location=CredentialsLocation(auth_config.credentials_location)
+                if auth_config.credentials_location
+                else CredentialsLocation.HEADER,
                 scheme=auth_config.scheme,
                 name=auth_config.name,
                 token_url=auth_config.token_url,
@@ -236,13 +235,13 @@ class IntegrationWorkflow:
             ],
             discovered_endpoints=[
                 {"path": e.list_path, "method": e.list_method, "entity": e.entity_type}
-                for e in report.entities if e.list_path
+                for e in report.entities
+                if e.list_path
             ],
             discovered_schemas={
                 e.entity_type: {
                     "fields": [
-                        {"name": fm.target, "type": "string", "required": fm.required}
-                        for fm in e.field_mappings
+                        {"name": fm.target, "type": "string", "required": fm.required} for fm in e.field_mappings
                     ]
                 }
                 for e in report.entities

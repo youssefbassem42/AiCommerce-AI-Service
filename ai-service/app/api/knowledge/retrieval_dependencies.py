@@ -15,6 +15,7 @@ def get_vector_store() -> QdrantProvider:
 async def get_chat_provider() -> BaseLLMProvider:
     factory = LLMProviderFactory()
     from app.core.ai_settings import ai_settings
+
     provider_name = ai_settings.DEFAULT_PROVIDER
     return factory.get_provider(provider_name)
 

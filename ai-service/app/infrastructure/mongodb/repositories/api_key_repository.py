@@ -1,6 +1,6 @@
 import logging
-from datetime import datetime, UTC
-from typing import Optional, Any
+from datetime import UTC, datetime
+from typing import Any
 
 import bcrypt
 
@@ -22,13 +22,11 @@ class ApiKeyRepository(BaseMongoRepository[ApiKeyDocument, ApiKey], IApiKeyRepos
     async def create(self, entity: ApiKey, session: Any = None) -> ApiKey:
         return await super().create(entity, session=session)
 
-    async def find_by_key_prefix(self, key_prefix: str) -> Optional[ApiKey]:
+    async def find_by_key_prefix(self, key_prefix: str) -> ApiKey | None:
         results = await self.find_many({"key_prefix": key_prefix}, limit=1)
         return results[0] if results else None
 
-    async def find_by_store_id(
-        self, store_id: str, limit: int = 50, skip: int = 0
-    ) -> list[ApiKey]:
+    async def find_by_store_id(self, store_id: str, limit: int = 50, skip: int = 0) -> list[ApiKey]:
         return await self.find_many({"store_id": store_id, "deleted_at": None}, limit=limit, skip=skip)
 
     async def find_active_by_store_id(self, store_id: str) -> list[ApiKey]:

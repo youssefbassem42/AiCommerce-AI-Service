@@ -1,10 +1,9 @@
-from app.domain.analytics.entities.runtime_log import AIRuntimeLog
-from app.domain.analytics.entities.prompt_history import PromptHistory
+from app.application.analytics.dto.analytics_dto import AIRuntimeLogDTO, DashboardInsightDTO, PromptHistoryDTO
 from app.domain.analytics.entities.dashboard_insight import DashboardInsight
-from app.infrastructure.mongodb.documents.runtime_log_document import AIRuntimeLogDocument
-from app.infrastructure.mongodb.documents.prompt_history_document import PromptHistoryDocument
+from app.domain.analytics.entities.runtime_log import AIRuntimeLog
 from app.infrastructure.mongodb.documents.dashboard_document import DashboardInsightDocument
-from app.application.analytics.dto.analytics_dto import AIRuntimeLogDTO, PromptHistoryDTO, DashboardInsightDTO
+from app.infrastructure.mongodb.documents.runtime_log_document import AIRuntimeLogDocument
+
 
 class AnalyticsMapper:
     """Maps Analytics & Logging aggregates between Mongo Documents, Domain Entities, and DTOs."""
@@ -42,11 +41,11 @@ class AnalyticsMapper:
                     user_prompt=ph.user_prompt,
                     llm_response=ph.llm_response,
                     token_used=ph.token_used,
-                    timestamp=ph.timestamp
+                    timestamp=ph.timestamp,
                 )
                 for ph in entity.prompt_histories
             ],
-            timestamp=entity.timestamp
+            timestamp=entity.timestamp,
         )
 
     @staticmethod
@@ -67,5 +66,5 @@ class AnalyticsMapper:
             store_id=entity.store_id,
             recommendations=entity.recommendations,
             metadata=entity.metadata,
-            calculated_at=entity.calculated_at
+            calculated_at=entity.calculated_at,
         )

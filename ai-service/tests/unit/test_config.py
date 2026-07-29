@@ -1,9 +1,7 @@
 import os
 from unittest.mock import patch
 
-import pytest
-
-from app.core.config import Settings, REQUIRED_SECRETS, AI_PROVIDER_KEYS
+from app.core.config import AI_PROVIDER_KEYS, REQUIRED_SECRETS, Settings
 
 
 class TestSettings:
@@ -30,35 +28,52 @@ class TestSettings:
             assert len(jwt_warnings) == 1
 
     def test_validate_required_no_warnings_when_set(self):
-        with patch.dict(os.environ, {
-            "JWT_SECRET_KEY": "test-secret-key-that-is-long-enough-for-hs256",
-            "OPENAI_API_KEY": "sk-test-key",
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "JWT_SECRET_KEY": "test-secret-key-that-is-long-enough-for-hs256",
+                "OPENAI_API_KEY": "sk-test-key",
+            },
+            clear=True,
+        ):
             s = Settings()
             warnings = s.validate_required()
             assert len(warnings) == 0
 
     def test_validate_required_warns_when_no_ai_key(self):
-        with patch.dict(os.environ, {
-            "JWT_SECRET_KEY": "test-secret-key-that-is-long-enough-for-hs256",
-        }, clear=True):
+        with patch.dict(
+            os.environ,
+            {
+                "JWT_SECRET_KEY": "test-secret-key-that-is-long-enough-for-hs256",
+            },
+            clear=True,
+        ):
             s = Settings()
             warnings = s.validate_required()
             ai_warnings = [w for w in warnings if "AI provider" in w]
             assert len(ai_warnings) == 1
 
     def test_validate_required_accepts_any_provider_key(self):
-        providers = ["OPENAI_API_KEY", "GEMINI_API_KEY", "CLAUDE_API_KEY",
-                      "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY"]
+        providers = [
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+            "CLAUDE_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "MISTRAL_API_KEY",
+            "OPENROUTER_API_KEY",
+        ]
         for key in providers:
-            with patch.dict(os.environ, {
-                "JWT_SECRET_KEY": "test-secret",
-                key: "some-api-key",
-            }, clear=True):
+            with patch.dict(
+                os.environ,
+                {
+                    "JWT_SECRET_KEY": "test-secret",
+                    key: "some-api-key",
+                },
+                clear=True,
+            ):
                 s = Settings()
                 warnings = s.validate_required()
-                assert len([w for w in warnings if "AI provider" in w]) == 0, \
-                    f"Failed for {key}"
+                assert len([w for w in warnings if "AI provider" in w]) == 0, f"Failed for {key}"
 
     def test_required_secrets_defined(self):
         assert len(REQUIRED_SECRETS) >= 1

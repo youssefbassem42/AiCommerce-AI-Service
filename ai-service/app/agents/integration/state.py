@@ -1,4 +1,4 @@
-from typing import Any, Optional, TypedDict
+from typing import Any, TypedDict
 
 from app.agents.integration.schemas import IntegrationMappingReport
 
@@ -9,9 +9,9 @@ class IntegrationMappingState(TypedDict):
     store_id: str
     organization_id: str
     spec_format: str
-    parsed_spec: Optional[dict]
-    report: Optional[IntegrationMappingReport]
-    capabilities: Optional[dict[str, bool]]
-    error: Optional[str]
-    user_friendly_error: Optional[str]
-    connection_id: Optional[str]
+    parsed_spec: dict | None
+    report: IntegrationMappingReport | None
+    capabilities: dict[str, bool] | None
+    error: str | None
+    user_friendly_error: str | None
+    connection_id: str | None

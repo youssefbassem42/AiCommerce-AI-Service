@@ -25,7 +25,6 @@ def service(mock_repo):
 
 
 class TestOrderService:
-
     async def test_create_order(self, service, mock_repo):
         data = OrderCreateDTO(
             store_id="store1",
@@ -42,9 +41,7 @@ class TestOrderService:
         assert result.store_id == "store1"
 
     async def test_get_order_found(self, service, mock_repo):
-        mock_repo.find_by_id.return_value = Order(
-            id="o1", store_id="s1", org_id="o1"
-        )
+        mock_repo.find_by_id.return_value = Order(id="o1", store_id="s1", org_id="o1")
         result = await service.get_by_id("o1")
         assert result.id == "o1"
 
@@ -64,9 +61,7 @@ class TestOrderService:
     async def test_update_order_status(self, service, mock_repo):
         existing = Order(id="o1", store_id="s1", org_id="o1", financial_status="pending")
         mock_repo.find_by_id.return_value = existing
-        mock_repo.update.return_value = Order(
-            id="o1", store_id="s1", org_id="o1", financial_status="paid"
-        )
+        mock_repo.update.return_value = Order(id="o1", store_id="s1", org_id="o1", financial_status="paid")
         result = await service.update_status("o1", OrderUpdateDTO(financial_status="paid"))
         assert result.financial_status == "paid"
 

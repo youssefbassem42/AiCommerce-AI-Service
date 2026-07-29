@@ -1,9 +1,10 @@
-import pytest
 from datetime import UTC, datetime
 
+import pytest
+
 from app.domain.knowledge.entities import BusinessSummary, KnowledgeChunk, KnowledgeDocument
-from app.domain.knowledge.value_objects import DocumentMetadata, DocumentVersion
 from app.domain.knowledge.exceptions import KnowledgeValidationException
+from app.domain.knowledge.value_objects import DocumentMetadata, DocumentVersion
 
 
 class TestDocumentMetadata:

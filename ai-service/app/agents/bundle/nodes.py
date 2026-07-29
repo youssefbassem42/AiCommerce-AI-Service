@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from app.agents.bundle.state import BundleState
 from app.agents.bundle.tools import (
@@ -17,7 +17,7 @@ from app.infrastructure.providers.base import BaseLLMProvider
 logger = logging.getLogger(__name__)
 
 
-async def parse_budget_node(state: BundleState, llm: BaseLLMProvider) -> Dict[str, Any]:
+async def parse_budget_node(state: BundleState, llm: BaseLLMProvider) -> dict[str, Any]:
     try:
         budget, desired_items = await parse_budget(state["user_query"], llm=llm)
         return {
@@ -39,7 +39,7 @@ async def parse_budget_node(state: BundleState, llm: BaseLLMProvider) -> Dict[st
 async def find_candidates_node(
     state: BundleState,
     product_repo: ProductRepository,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if state.get("error") or not state.get("desired_items"):
         return {"candidates_by_type": {}}
 
@@ -55,7 +55,7 @@ async def find_candidates_node(
         return {"candidates_by_type": {}, "error": f"Search failed: {exc}"}
 
 
-async def compute_bundles_node(state: BundleState) -> Dict[str, Any]:
+async def compute_bundles_node(state: BundleState) -> dict[str, Any]:
     candidates = state.get("candidates_by_type", {})
     budget = state.get("budget")
 
@@ -71,7 +71,7 @@ async def compute_bundles_node(state: BundleState) -> Dict[str, Any]:
         return {"bundles": [], "error": f"Bundle computation failed: {exc}"}
 
 
-async def select_best_node(state: BundleState) -> Dict[str, Any]:
+async def select_best_node(state: BundleState) -> dict[str, Any]:
     bundles = state.get("bundles", [])
     selected = bundles[:3] if bundles else []
     return {"selected": selected}
@@ -80,7 +80,7 @@ async def select_best_node(state: BundleState) -> Dict[str, Any]:
 async def handle_promo_node(
     state: BundleState,
     promo_service: PromoCodeService,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     capabilities = state.get("store_capabilities") or {}
 
     if not capabilities.get("has_promo_codes", True):
@@ -91,7 +91,7 @@ async def handle_promo_node(
     if not selected:
         return {"promo_code": None}
 
-    product_ids: List[str] = []
+    product_ids: list[str] = []
     for bundle in selected:
         for p in bundle.products:
             if p.product_id not in product_ids:
@@ -113,7 +113,7 @@ async def handle_promo_node(
         return {"promo_code": None}
 
 
-async def format_bundle_response_node(state: BundleState) -> Dict[str, Any]:
+async def format_bundle_response_node(state: BundleState) -> dict[str, Any]:
     budget = state.get("budget") or 0.0
     response = build_bundle_response(
         query=state.get("user_query", ""),

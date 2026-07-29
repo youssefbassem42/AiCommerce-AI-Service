@@ -1,5 +1,6 @@
 """Tests for extended RateLimitMiddleware per-tenant rate limiting."""
-from unittest.mock import AsyncMock, Mock, patch
+
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import Request, Response

@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from app.infrastructure.providers.claude_provider import ClaudeProvider
+
+import pytest
+
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
+from app.infrastructure.providers.claude_provider import ClaudeProvider
 
 
 @pytest.fixture

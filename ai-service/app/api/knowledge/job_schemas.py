@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class JobResponseSchema(BaseModel):
@@ -10,16 +10,16 @@ class JobResponseSchema(BaseModel):
     status: str
     progress: float
     payload: dict[str, Any]
-    result: Optional[dict[str, Any]] = None
-    error_message: Optional[str] = None
+    result: dict[str, Any] | None = None
+    error_message: str | None = None
     retry_count: int
     max_retries: int
-    store_id: Optional[str] = None
-    organization_id: Optional[str] = None
-    triggered_by: Optional[str] = None
-    celery_task_id: Optional[str] = None
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    store_id: str | None = None
+    organization_id: str | None = None
+    triggered_by: str | None = None
+    celery_task_id: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

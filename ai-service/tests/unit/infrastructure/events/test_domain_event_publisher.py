@@ -1,11 +1,11 @@
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, UTC
 
 from app.infrastructure.events.event_publisher import DomainEventPublisher
 from app.infrastructure.events.in_memory_event_bus import InMemoryEventBus
-from app.shared.kernel.domain_event import DomainEvent
 from app.shared.kernel.aggregate_root import AggregateRoot
+from app.shared.kernel.domain_event import DomainEvent
 
 
 class TestAggregate(AggregateRoot[str]):

@@ -1,9 +1,8 @@
-from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
 class SentimentAnalysisRequest(BaseModel):
-    messages: List[str] = Field(..., description="Conversation messages to analyze")
+    messages: list[str] = Field(..., description="Conversation messages to analyze")
     store_id: str
     customer_id: str
 

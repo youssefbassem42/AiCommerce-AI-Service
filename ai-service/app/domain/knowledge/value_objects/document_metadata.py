@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -7,10 +7,10 @@ class DocumentMetadata(BaseModel):
     """Document source and classification metadata."""
 
     source_type: str = Field(default="manual")
-    source_uri: Optional[str] = None
-    mime_type: Optional[str] = None
+    source_uri: str | None = None
+    mime_type: str | None = None
     language: str = Field(default="en")
-    category: Optional[str] = None
+    category: str | None = None
     tags: list[str] = Field(default_factory=list)
     attributes: dict[str, Any] = Field(default_factory=dict)
 

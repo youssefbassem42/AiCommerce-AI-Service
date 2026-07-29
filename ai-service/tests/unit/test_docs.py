@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 DOCS_DIR = "docs"
@@ -19,8 +20,7 @@ class TestDocs:
         assert not empty, f"Empty doc files: {empty}"
 
     def test_critical_docs_exist(self):
-        critical = ["agents.md", "rag.md", "database.md",
-                     "deployment.md", "security.md", "ARCHITECTURE.md"]
+        critical = ["agents.md", "rag.md", "database.md", "deployment.md", "security.md", "ARCHITECTURE.md"]
         for doc in critical:
             path = os.path.join(DOCS_DIR, doc)
             assert os.path.exists(path), f"Missing critical doc: {doc}"

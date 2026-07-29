@@ -33,8 +33,7 @@ def mmr_rerank(
 
             if selected:
                 max_sim_to_selected = max(
-                    _cosine_similarity(candidate_embeddings[i], candidate_embeddings[j])
-                    for j in selected
+                    _cosine_similarity(candidate_embeddings[i], candidate_embeddings[j]) for j in selected
                 )
             else:
                 max_sim_to_selected = 0.0
@@ -55,7 +54,7 @@ def mmr_rerank(
 def _cosine_similarity(a: list[float], b: list[float]) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
-    dot = sum(ai * bi for ai, bi in zip(a, b))
+    dot = sum(ai * bi for ai, bi in zip(a, b, strict=False))
     norm_a = math.sqrt(sum(ai * ai for ai in a))
     norm_b = math.sqrt(sum(bi * bi for bi in b))
     if norm_a == 0 or norm_b == 0:

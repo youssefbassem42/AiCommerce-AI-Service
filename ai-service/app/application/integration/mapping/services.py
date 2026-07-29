@@ -1,8 +1,11 @@
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
+
 from bson import ObjectId
 
+from app.agents.integration.agent import IntegrationMappingAgent
+from app.agents.integration.schemas import IntegrationMappingReport
 from app.application.integration.discovery.endpoint_classifier import EndpointClassifier
 from app.application.integration.discovery.entity_detector import EntityDetector
 from app.application.integration.discovery.field_suggester import FieldSuggester
@@ -12,8 +15,8 @@ from app.application.integration.mapping.dto import (
     AuthConfigDTO,
     ConnectionCreateDTO,
     ConnectionResponseDTO,
-    EntityMappingDTO,
     EndpointSchemaDTO,
+    EntityMappingDTO,
     FieldMappingDTO,
     PaginationConfigDTO,
     ParseSpecRequestDTO,
@@ -42,8 +45,6 @@ from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.field_mapping import FieldMapping
 from app.domain.integration.value_objects.pagination_config import PaginationConfig
 from app.infrastructure.security.key_manager import KeyManager
-from app.agents.integration.agent import IntegrationMappingAgent
-from app.agents.integration.schemas import IntegrationMappingReport
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +53,13 @@ class IntegrationApplicationService:
     def __init__(
         self,
         repository: IntegrationConnectionRepository,
-        parser: Optional[OpenApiParser] = None,
-        validator: Optional[SpecValidator] = None,
-        classifier: Optional[EndpointClassifier] = None,
-        entity_detector: Optional[EntityDetector] = None,
-        field_suggester: Optional[FieldSuggester] = None,
-        mapping_suggestor: Optional[MappingSuggestor] = None,
-        key_manager: Optional[KeyManager] = None,
+        parser: OpenApiParser | None = None,
+        validator: SpecValidator | None = None,
+        classifier: EndpointClassifier | None = None,
+        entity_detector: EntityDetector | None = None,
+        field_suggester: FieldSuggester | None = None,
+        mapping_suggestor: MappingSuggestor | None = None,
+        key_manager: KeyManager | None = None,
     ):
         self._repository = repository
         self._parser = parser or OpenApiParser()
@@ -110,13 +111,15 @@ class IntegrationApplicationService:
         for ds in discovered_schemas:
             result = self._entity_detector.detect(ds.field_names)
             if result.entity_type:
-                discovered_entities.append({
-                    "entity_type": result.entity_type,
-                    "confidence": result.confidence,
-                    "matched_fields": result.matched_fields,
-                    "endpoint_path": ds.endpoint.path,
-                    "endpoint_method": ds.endpoint.method,
-                })
+                discovered_entities.append(
+                    {
+                        "entity_type": result.entity_type,
+                        "confidence": result.confidence,
+                        "matched_fields": result.matched_fields,
+                        "endpoint_path": ds.endpoint.path,
+                        "endpoint_method": ds.endpoint.method,
+                    }
+                )
 
         suggested_entity_mappings: list[EntityMappingDTO] = []
         for de in discovered_entities:
@@ -161,7 +164,7 @@ class IntegrationApplicationService:
         platform_name: str,
         store_id: str,
         organization_id: str,
-    ) -> tuple[Optional[IntegrationMappingReport], Optional[str], Optional[dict]]:
+    ) -> tuple[IntegrationMappingReport | None, str | None, dict | None]:
         return await self._agent.analyze(
             raw_spec=raw_spec,
             platform_name=platform_name,
@@ -170,9 +173,7 @@ class IntegrationApplicationService:
         )
 
     async def create_connection(self, data: ConnectionCreateDTO) -> ConnectionResponseDTO:
-        existing = await self._repository.find_by_store_and_name(
-            store_id=data.store_id, name=data.name
-        )
+        existing = await self._repository.find_by_store_and_name(store_id=data.store_id, name=data.name)
         if existing is not None:
             raise DuplicateConnectionException(
                 f"Connection with name '{data.name}' already exists in store '{data.store_id}'."
@@ -235,9 +236,7 @@ class IntegrationApplicationService:
     async def list_connections(
         self, store_id: str, page: int = 1, page_size: int = 20
     ) -> tuple[list[ConnectionResponseDTO], int]:
-        items, total = await self._repository.find_by_store(
-            store_id=store_id, page=page, page_size=page_size
-        )
+        items, total = await self._repository.find_by_store(store_id=store_id, page=page, page_size=page_size)
         return [self._entity_to_response_dto(item) for item in items], total
 
     async def update_mappings(

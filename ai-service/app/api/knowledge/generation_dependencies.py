@@ -4,7 +4,6 @@ from app.application.knowledge.commands.generate_business_summary_handler import
     GenerateBusinessSummaryHandler,
     RegenerateBusinessSummaryHandler,
 )
-from app.application.knowledge.generation.config import GenerationConfig
 from app.application.knowledge.generation.service import BusinessSummaryGenerationService
 from app.application.knowledge.queries.list_business_summary_history_handler import (
     ListBusinessSummaryHistoryHandler,

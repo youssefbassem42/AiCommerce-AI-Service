@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -19,11 +19,11 @@ class DataEntity(AggregateRoot[str]):
     entity_type: str = Field(..., min_length=1, max_length=128)
     external_id: str = Field(..., min_length=1)
     data: dict[str, Any] = Field(default_factory=dict)
-    connection_id: Optional[str] = None
+    connection_id: str | None = None
     synced_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    deleted_at: Optional[datetime] = None
+    deleted_at: datetime | None = None
 
     def update_data(self, new_data: dict[str, Any]) -> None:
         if not isinstance(new_data, dict):

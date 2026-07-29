@@ -1,20 +1,21 @@
 import asyncio
 import logging
-import time
-from typing import Any, Callable, Coroutine, TypeVar, Union
+from collections.abc import Callable, Coroutine
+from typing import Any, TypeVar
+
 from app.core.ai_exceptions import (
-    AuthenticationException,
-    RateLimitException,
-    ProviderUnavailableException,
-    StreamingException,
-    ToolCallingException,
-    StructuredOutputException,
     AIException,
+    AuthenticationException,
+    ProviderUnavailableException,
+    RateLimitException,
+    StructuredOutputException,
+    ToolCallingException,
 )
 
 logger = logging.getLogger("ai_service")
 
 T = TypeVar("T")
+
 
 def map_provider_exception(provider: str, e: Exception) -> Exception:
     """
@@ -86,7 +87,7 @@ def map_provider_exception(provider: str, e: Exception) -> Exception:
     return AIException(f"AI operation failed on provider '{provider}': {err_msg}", 500)
 
 
-async def execute_with_retry(
+async def execute_with_retry[T](
     provider: str,
     operation: Callable[[], Coroutine[Any, Any, T]],
     max_retries: int = 3,
@@ -105,14 +106,14 @@ async def execute_with_retry(
             return await operation()
         except Exception as e:
             mapped_exc = map_provider_exception(provider, e)
-            
+
             # Do not retry on authentication or schema validation issues
             if isinstance(mapped_exc, (AuthenticationException, StructuredOutputException, ToolCallingException)):
                 raise mapped_exc
-            
+
             # Save the mapped exception
             last_exception = mapped_exc
-            
+
             if attempt == max_retries:
                 logger.error(f"Failed after {max_retries} attempts on provider '{provider}'.")
                 raise last_exception

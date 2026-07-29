@@ -1,45 +1,41 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
-
-from app.domain.integration.value_objects.auth_config import AuthConfig
-from app.domain.integration.value_objects.entity_mapping import EntityMapping
-from app.domain.integration.value_objects.pagination_config import PaginationConfig
 
 
 class AuthConfigDTO(BaseModel):
     type: str = "apiKey"
     credentials_location: str = "header"
-    scheme: Optional[str] = None
-    name: Optional[str] = None
-    token_url: Optional[str] = None
-    flow: Optional[str] = None
+    scheme: str | None = None
+    name: str | None = None
+    token_url: str | None = None
+    flow: str | None = None
 
 
 class PaginationConfigDTO(BaseModel):
     style: str = "none"
-    page_param: Optional[str] = None
-    limit_param: Optional[str] = None
+    page_param: str | None = None
+    limit_param: str | None = None
     default_limit: int = 20
-    cursor_field: Optional[str] = None
-    total_field: Optional[str] = None
-    next_link_field: Optional[str] = None
+    cursor_field: str | None = None
+    total_field: str | None = None
+    next_link_field: str | None = None
 
 
 class FieldMappingDTO(BaseModel):
     source: str
     target: str
-    transformer: Optional[str] = None
+    transformer: str | None = None
     default_value: Any = None
     required: bool = False
 
 
 class EntityMappingDTO(BaseModel):
     entity_type: str
-    list_path: Optional[str] = None
+    list_path: str | None = None
     list_method: str = "GET"
-    detail_path: Optional[str] = None
+    detail_path: str | None = None
     detail_method: str = "GET"
     id_field: str = "id"
     pagination: PaginationConfigDTO = Field(default_factory=PaginationConfigDTO)
@@ -49,10 +45,10 @@ class EntityMappingDTO(BaseModel):
 class EndpointSchemaDTO(BaseModel):
     path: str
     method: str
-    operation_id: Optional[str] = None
-    summary: Optional[str] = None
+    operation_id: str | None = None
+    summary: str | None = None
     parameters: list[dict] = Field(default_factory=list)
-    response_schema_ref: Optional[str] = None
+    response_schema_ref: str | None = None
 
 
 class ParsedSpecDTO(BaseModel):
@@ -76,9 +72,9 @@ class ConnectionResponseDTO(BaseModel):
     entity_mappings: list[EntityMappingDTO] = Field(default_factory=list)
     discovered_endpoints: list[dict] = Field(default_factory=list)
     discovered_schemas: dict = Field(default_factory=dict)
-    last_sync_at: Optional[datetime] = None
-    last_sync_status: Optional[str] = None
-    error_message: Optional[str] = None
+    last_sync_at: datetime | None = None
+    last_sync_status: str | None = None
+    error_message: str | None = None
     created_at: datetime
     updated_at: datetime
 

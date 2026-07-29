@@ -1,5 +1,4 @@
-from datetime import datetime, UTC
-from typing import Optional
+from datetime import UTC, datetime
 
 from pydantic import Field
 
@@ -15,10 +14,10 @@ class ApiKey(Entity[str]):
     store_id: str = Field(..., description="Tenant/store context ID")
     scopes: list[str] = Field(default_factory=list, description="Permission scopes")
     is_active: bool = Field(default=True, description="Whether the key is active")
-    expires_at: Optional[datetime] = Field(default=None, description="Key expiration timestamp")
+    expires_at: datetime | None = Field(default=None, description="Key expiration timestamp")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    deleted_at: Optional[datetime] = Field(default=None)
+    deleted_at: datetime | None = Field(default=None)
 
     @property
     def is_expired(self) -> bool:

@@ -1,19 +1,20 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
-from app.shared.kernel.repository import AsyncRepository
-from app.domain.analytics.entities.runtime_log import AIRuntimeLog
+
 from app.domain.analytics.entities.dashboard_insight import DashboardInsight
+from app.domain.analytics.entities.runtime_log import AIRuntimeLog
+from app.shared.kernel.repository import AsyncRepository
+
 
 class AnalyticsRepository(AsyncRepository[AIRuntimeLog, str], ABC):
     """Domain repository interface for Analytics & Logging Context."""
 
     @abstractmethod
-    async def get_logs_by_conversation(self, conversation_id: str) -> List[AIRuntimeLog]:
+    async def get_logs_by_conversation(self, conversation_id: str) -> list[AIRuntimeLog]:
         """Fetch all execution traces for a conversation."""
         pass
 
     @abstractmethod
-    async def get_dashboard_insights(self, store_id: str, metric_name: Optional[str] = None) -> List[DashboardInsight]:
+    async def get_dashboard_insights(self, store_id: str, metric_name: str | None = None) -> list[DashboardInsight]:
         """Retrieve insights for the merchant dashboard."""
         pass
 

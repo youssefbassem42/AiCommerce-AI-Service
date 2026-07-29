@@ -1,6 +1,4 @@
-import json
 import logging
-from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
@@ -32,8 +30,6 @@ from app.api.integration.schemas import (
 from app.application.integration.mapping.dto import (
     AuthConfigDTO,
     ConnectionCreateDTO,
-    ConnectionUpdateCredentialsDTO,
-    ConnectionUpdateMappingsDTO,
     EntityMappingDTO,
     FieldMappingDTO,
     PaginationConfigDTO,
@@ -178,7 +174,9 @@ async def agent_sync(
                     for f in result.mapping_report.feature_analysis.unsupported_features
                 ],
                 notes=result.mapping_report.feature_analysis.notes,
-            ) if result.mapping_report else None,
+            )
+            if result.mapping_report
+            else None,
             error=result.error,
             user_friendly_error=result.user_friendly_error,
             started_at=result.started_at.isoformat(),
@@ -234,9 +232,7 @@ async def list_connections(
     service: IntegrationApplicationService = Depends(get_integration_service),
 ) -> PaginatedConnectionResponseSchema:
     try:
-        items, total = await service.list_connections(
-            store_id=store_id, page=page, page_size=page_size
-        )
+        items, total = await service.list_connections(store_id=store_id, page=page, page_size=page_size)
         return PaginatedConnectionResponseSchema(
             items=[ConnectionResponseSchema(**item.model_dump()) for item in items],
             total=total,

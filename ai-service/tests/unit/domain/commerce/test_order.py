@@ -7,7 +7,6 @@ from app.domain.commerce.value_objects.money import Money
 
 
 class TestOrder:
-
     def test_valid_order(self):
         order = Order(
             id="o1",

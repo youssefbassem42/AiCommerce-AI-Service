@@ -4,7 +4,6 @@ from app.domain.commerce.entities.inventory import Inventory
 
 
 class TestInventory:
-
     def test_valid_inventory(self):
         inv = Inventory(
             id="i1",

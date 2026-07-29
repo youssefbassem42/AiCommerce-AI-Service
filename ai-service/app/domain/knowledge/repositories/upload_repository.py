@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from app.domain.knowledge.entities.document_upload import DocumentUpload
 from app.shared.kernel.repository import AsyncRepository
@@ -9,7 +8,7 @@ class UploadRepository(AsyncRepository[DocumentUpload, str], ABC):
     """Domain repository interface for document uploads."""
 
     @abstractmethod
-    async def find_by_checksum(self, checksum: str) -> Optional[DocumentUpload]:
+    async def find_by_checksum(self, checksum: str) -> DocumentUpload | None:
         """Find an upload by its SHA-256 checksum to detect duplicates."""
 
     @abstractmethod

@@ -5,8 +5,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import OperationFailure
 
 from app.core.config import settings
-from app.infrastructure.mongodb.validators import VALIDATORS_MAP
 from app.infrastructure.mongodb.indexes import setup_database_indexes
+from app.infrastructure.mongodb.validators import VALIDATORS_MAP
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("migrate_atlas")

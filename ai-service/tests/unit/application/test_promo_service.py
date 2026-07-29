@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -36,6 +36,7 @@ class TestPromoCodeService:
             }
         }
         from datetime import UTC, datetime
+
         with patch("app.application.recommendation.promo_service.datetime") as mock_dt:
             mock_dt.now.return_value = datetime(2025, 1, 1, tzinfo=UTC)
             code = await promo_service.find_existing_code("s1", ["p1", "p2"], 10.0)
@@ -43,6 +44,7 @@ class TestPromoCodeService:
 
     async def test_generate_code_reuses_existing(self, promo_service, mock_collection):
         from datetime import UTC, datetime
+
         mock_collection.find_one.return_value = {
             "promo_codes": {
                 "BUNDLE-EXISTING": {

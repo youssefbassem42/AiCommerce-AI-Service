@@ -31,7 +31,10 @@ def mock_collection():
 
 @pytest.fixture
 def repo(mock_collection):
-    with patch("app.infrastructure.mongodb.repositories.commerce_inventory_repository.get_inventory_collection", return_value=mock_collection):
+    with patch(
+        "app.infrastructure.mongodb.repositories.commerce_inventory_repository.get_inventory_collection",
+        return_value=mock_collection,
+    ):
         r = CommerceInventoryRepository()
         r.collection = mock_collection
         return r
@@ -60,7 +63,6 @@ _base_doc = {
 
 
 class TestCommerceInventoryRepository:
-
     async def test_create_inventory(self, repo, mock_collection):
         inv = Inventory(
             id="507f1f77bcf86cd799439011",

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -56,7 +56,7 @@ class VectorStore(ABC):
         pass
 
     @abstractmethod
-    async def get_collection_info(self, collection_name: str) -> Optional[CollectionInfo]:
+    async def get_collection_info(self, collection_name: str) -> CollectionInfo | None:
         pass
 
     @abstractmethod
@@ -75,8 +75,8 @@ class VectorStore(ABC):
     async def delete_by_filter(
         self,
         collection_name: str,
-        must: Optional[list[dict[str, Any]]] = None,
-        must_not: Optional[list[dict[str, Any]]] = None,
+        must: list[dict[str, Any]] | None = None,
+        must_not: list[dict[str, Any]] | None = None,
     ) -> int:
         pass
 
@@ -86,9 +86,9 @@ class VectorStore(ABC):
         collection_name: str,
         vector: list[float],
         limit: int = 10,
-        must: Optional[list[dict[str, Any]]] = None,
-        must_not: Optional[list[dict[str, Any]]] = None,
-        score_threshold: Optional[float] = None,
+        must: list[dict[str, Any]] | None = None,
+        must_not: list[dict[str, Any]] | None = None,
+        score_threshold: float | None = None,
     ) -> list[SearchResult]:
         pass
 

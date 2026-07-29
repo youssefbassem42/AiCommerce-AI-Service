@@ -50,10 +50,7 @@ class KnowledgeDocumentService:
             status=data.status,
             language=data.language,
             metadata=DocumentMetadata(**data.metadata.model_dump()),
-            versions=[
-                DocumentVersion(**version.model_dump(exclude_none=True))
-                for version in data.versions
-            ],
+            versions=[DocumentVersion(**version.model_dump(exclude_none=True)) for version in data.versions],
             current_version=data.current_version,
             chunking_strategy=data.chunking_strategy,
         )
@@ -63,9 +60,7 @@ class KnowledgeDocumentService:
     async def get_by_id(self, document_id: str) -> KnowledgeDocumentDTO:
         entity = await self.repository.find_by_id(document_id)
         if entity is None:
-            raise KnowledgeDocumentNotFoundException(
-                f"Knowledge document '{document_id}' was not found."
-            )
+            raise KnowledgeDocumentNotFoundException(f"Knowledge document '{document_id}' was not found.")
         return self._to_dto(entity)
 
     async def list(
@@ -95,9 +90,7 @@ class KnowledgeDocumentService:
     ) -> KnowledgeDocumentDTO:
         entity = await self.repository.find_by_id(document_id)
         if entity is None:
-            raise KnowledgeDocumentNotFoundException(
-                f"Knowledge document '{document_id}' was not found."
-            )
+            raise KnowledgeDocumentNotFoundException(f"Knowledge document '{document_id}' was not found.")
 
         updates = data.model_dump(exclude_unset=True)
         if "store_id" in updates and data.store_id is not None:
@@ -115,10 +108,7 @@ class KnowledgeDocumentService:
         if "metadata" in updates and data.metadata is not None:
             entity.metadata = DocumentMetadata(**data.metadata.model_dump())
         if "versions" in updates and data.versions is not None:
-            entity.versions = [
-                DocumentVersion(**version.model_dump(exclude_none=True))
-                for version in data.versions
-            ]
+            entity.versions = [DocumentVersion(**version.model_dump(exclude_none=True)) for version in data.versions]
         if "current_version" in updates and data.current_version is not None:
             entity.current_version = data.current_version
         if "chunking_strategy" in updates and data.chunking_strategy is not None:
@@ -131,9 +121,7 @@ class KnowledgeDocumentService:
     async def delete(self, document_id: str) -> bool:
         deleted = await self.repository.delete(document_id)
         if not deleted:
-            raise KnowledgeDocumentNotFoundException(
-                f"Knowledge document '{document_id}' was not found."
-            )
+            raise KnowledgeDocumentNotFoundException(f"Knowledge document '{document_id}' was not found.")
         return deleted
 
     @staticmethod
@@ -273,9 +261,7 @@ class BusinessSummaryService:
     async def get_by_id(self, summary_id: str) -> BusinessSummaryDTO:
         entity = await self.repository.find_by_id(summary_id)
         if entity is None:
-            raise BusinessSummaryNotFoundException(
-                f"Business summary '{summary_id}' was not found."
-            )
+            raise BusinessSummaryNotFoundException(f"Business summary '{summary_id}' was not found.")
         return BusinessSummaryDTO(**entity.model_dump())
 
     async def list(
@@ -301,9 +287,7 @@ class BusinessSummaryService:
     async def update(self, summary_id: str, data: BusinessSummaryUpdateDTO) -> BusinessSummaryDTO:
         entity = await self.repository.find_by_id(summary_id)
         if entity is None:
-            raise BusinessSummaryNotFoundException(
-                f"Business summary '{summary_id}' was not found."
-            )
+            raise BusinessSummaryNotFoundException(f"Business summary '{summary_id}' was not found.")
 
         updates = data.model_dump(exclude_unset=True)
         if "version_number" in updates and data.version_number is not None:
@@ -322,9 +306,7 @@ class BusinessSummaryService:
     async def delete(self, summary_id: str) -> bool:
         deleted = await self.repository.delete(summary_id)
         if not deleted:
-            raise BusinessSummaryNotFoundException(
-                f"Business summary '{summary_id}' was not found."
-            )
+            raise BusinessSummaryNotFoundException(f"Business summary '{summary_id}' was not found.")
         return deleted
 
 

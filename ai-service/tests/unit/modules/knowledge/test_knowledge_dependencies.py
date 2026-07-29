@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock, patch
 
 from app.application.knowledge.services import (
@@ -14,6 +13,7 @@ def test_get_knowledge_repository(MockRepo):
     MockRepo.return_value = mock_instance
 
     from app.api.knowledge.dependencies import get_knowledge_repository
+
     repo = get_knowledge_repository()
     assert repo is mock_instance
 
@@ -24,6 +24,7 @@ def test_get_chunk_repository(MockRepo):
     MockRepo.return_value = mock_instance
 
     from app.api.knowledge.dependencies import get_chunk_repository
+
     repo = get_chunk_repository()
     assert repo is mock_instance
 
@@ -34,6 +35,7 @@ def test_get_business_summary_repository(MockRepo):
     MockRepo.return_value = mock_instance
 
     from app.api.knowledge.dependencies import get_business_summary_repository
+
     repo = get_business_summary_repository()
     assert repo is mock_instance
 

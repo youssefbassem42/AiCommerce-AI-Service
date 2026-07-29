@@ -45,9 +45,7 @@ class TestBundleSuggestionAgent:
         assert response.customer_id == "cust_1"
 
     async def test_run_no_budget_parsed(self, agent, llm):
-        llm.structured_output.return_value.message.content = (
-            '{"budget": null, "desired_items": [], "use_case": null}'
-        )
+        llm.structured_output.return_value.message.content = '{"budget": null, "desired_items": [], "use_case": null}'
         response = await agent.run(
             query="I want something",
             store_id="store_1",

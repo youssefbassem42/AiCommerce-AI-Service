@@ -1,11 +1,11 @@
 """Tests for AuthMiddleware."""
-from datetime import datetime, timedelta, UTC
+
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import jwt as pyjwt
 import pytest
 from fastapi import Request, Response
-from starlette.datastructures import MutableHeaders
 
 
 def create_mock_request(path="/api/v1/chat", auth_header=None, method="GET"):
@@ -20,7 +20,7 @@ def create_mock_request(path="/api/v1/chat", auth_header=None, method="GET"):
     if auth_header:
         headers_raw = []
         if auth_header:
-            headers_raw.append(("authorization".encode(), auth_header.encode()))
+            headers_raw.append((b"authorization", auth_header.encode()))
         scope["headers"] = headers_raw
         request = Request(scope)
     return request
@@ -75,11 +75,13 @@ class TestAuthMiddleware:
         }
         token = pyjwt.encode(payload, secret, algorithm="HS256")
 
-        with patch("app.middleware.auth.auth_settings.JWT_SECRET_KEY", secret), \
-             patch("app.middleware.auth.auth_settings.JWT_ALGORITHM", "HS256"), \
-             patch("app.middleware.auth.auth_settings.JWT_ISSUER", "ai-commerce"), \
-             patch("app.middleware.auth.auth_settings.JWT_AUDIENCE", "ai-service"), \
-             patch("app.middleware.auth.auth_settings.JWT_REQUIRED", True):
+        with (
+            patch("app.middleware.auth.auth_settings.JWT_SECRET_KEY", secret),
+            patch("app.middleware.auth.auth_settings.JWT_ALGORITHM", "HS256"),
+            patch("app.middleware.auth.auth_settings.JWT_ISSUER", "ai-commerce"),
+            patch("app.middleware.auth.auth_settings.JWT_AUDIENCE", "ai-service"),
+            patch("app.middleware.auth.auth_settings.JWT_REQUIRED", True),
+        ):
             request = create_mock_request(path="/api/v1/chat", auth_header=f"Bearer {token}")
             middleware = AuthMiddleware(lambda app: None)
 
@@ -102,10 +104,12 @@ class TestAuthMiddleware:
         }
         token = pyjwt.encode(payload, secret, algorithm="HS256")
 
-        with patch("app.middleware.auth.auth_settings.JWT_SECRET_KEY", secret), \
-             patch("app.middleware.auth.auth_settings.JWT_ALGORITHM", "HS256"), \
-             patch("app.middleware.auth.auth_settings.JWT_ISSUER", "ai-commerce"), \
-             patch("app.middleware.auth.auth_settings.JWT_AUDIENCE", "ai-service"):
+        with (
+            patch("app.middleware.auth.auth_settings.JWT_SECRET_KEY", secret),
+            patch("app.middleware.auth.auth_settings.JWT_ALGORITHM", "HS256"),
+            patch("app.middleware.auth.auth_settings.JWT_ISSUER", "ai-commerce"),
+            patch("app.middleware.auth.auth_settings.JWT_AUDIENCE", "ai-service"),
+        ):
             request = create_mock_request(path="/api/v1/chat", auth_header=f"Bearer {token}")
             middleware = AuthMiddleware(lambda app: None)
 

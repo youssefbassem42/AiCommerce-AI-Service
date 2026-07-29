@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from app.domain.commerce.aggregates.category import Category
 from app.domain.commerce.repositories.category_repository import CategoryRepository as ICategoryRepository
@@ -8,7 +8,6 @@ from app.infrastructure.mongodb.repositories.base_repository import BaseMongoRep
 
 
 class CommerceCategoryRepository(BaseMongoRepository[CategoryDocument, Category], ICategoryRepository):
-
     def __init__(self):
         super().__init__(get_categories_collection(), CategoryDocument)
 

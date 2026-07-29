@@ -1,7 +1,7 @@
 import logging
 import uuid
 from contextvars import ContextVar
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -36,10 +36,10 @@ class ExternalApiClient:
     def __init__(
         self,
         config: ConnectionConfig,
-        auth_config: Optional[AuthConfig] = None,
-        encrypted_credentials: Optional[str] = None,
-        auth_handler: Optional[AuthHandler] = None,
-        retry_handler: Optional[RetryHandler] = None,
+        auth_config: AuthConfig | None = None,
+        encrypted_credentials: str | None = None,
+        auth_handler: AuthHandler | None = None,
+        retry_handler: RetryHandler | None = None,
     ):
         self._config = config
         self._auth_config = auth_config
@@ -79,9 +79,9 @@ class ExternalApiClient:
         self,
         method: str,
         path: str,
-        params: Optional[dict[str, Any]] = None,
-        body: Optional[dict[str, Any]] = None,
-        headers: Optional[dict[str, str]] = None,
+        params: dict[str, Any] | None = None,
+        body: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         correlation_id = correlation_id_var.get() or str(uuid.uuid4())
         request_headers = dict(headers or {})
@@ -121,39 +121,39 @@ class ExternalApiClient:
     async def get(
         self,
         path: str,
-        params: Optional[dict[str, Any]] = None,
-        headers: Optional[dict[str, str]] = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         return await self.request("GET", path, params=params, headers=headers)
 
     async def post(
         self,
         path: str,
-        body: Optional[dict[str, Any]] = None,
-        headers: Optional[dict[str, str]] = None,
+        body: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         return await self.request("POST", path, body=body, headers=headers)
 
     async def put(
         self,
         path: str,
-        body: Optional[dict[str, Any]] = None,
-        headers: Optional[dict[str, str]] = None,
+        body: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         return await self.request("PUT", path, body=body, headers=headers)
 
     async def patch(
         self,
         path: str,
-        body: Optional[dict[str, Any]] = None,
-        headers: Optional[dict[str, str]] = None,
+        body: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         return await self.request("PATCH", path, body=body, headers=headers)
 
     async def delete(
         self,
         path: str,
-        headers: Optional[dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         return await self.request("DELETE", path, headers=headers)
 

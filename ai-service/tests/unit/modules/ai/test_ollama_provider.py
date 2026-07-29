@@ -1,8 +1,9 @@
-import pytest
-import httpx
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from app.application.dto.ai_dto import ChatRequest, EmbeddingRequest, MessageDTO
 from app.infrastructure.providers.ollama_provider import OllamaProvider
-from app.application.dto.ai_dto import ChatRequest, MessageDTO, EmbeddingRequest
 
 
 @pytest.mark.asyncio

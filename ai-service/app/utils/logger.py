@@ -1,8 +1,6 @@
 import json
 import logging
 import sys
-import uuid
-from typing import Optional
 
 
 class StructuredFormatter(logging.Formatter):
@@ -43,9 +41,7 @@ def setup_logging(level: str = "INFO", structured: bool = True) -> None:
     if structured:
         formatter = StructuredFormatter()
     else:
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     handler.setFormatter(formatter)
 
@@ -53,7 +49,7 @@ def setup_logging(level: str = "INFO", structured: bool = True) -> None:
     root_logger.addHandler(handler)
 
 
-def get_logger(name: str, request_id: Optional[str] = None) -> logging.Logger:
+def get_logger(name: str, request_id: str | None = None) -> logging.Logger:
     """Get a named logger with optional request_id context."""
     logger = logging.getLogger(name)
     if request_id:

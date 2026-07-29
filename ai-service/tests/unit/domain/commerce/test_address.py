@@ -4,7 +4,6 @@ from app.domain.commerce.value_objects.address import Address
 
 
 class TestAddress:
-
     def test_valid_address(self):
         addr = Address(
             first_name="John",

@@ -1,15 +1,16 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
 from app.application.knowledge.retrieval.dto import RetrievedChunkDTO, UnifiedRetrievalResult
-from app.application.knowledge.retrieval.mmr import mmr_rerank, _cosine_similarity
+from app.application.knowledge.retrieval.mmr import _cosine_similarity, mmr_rerank
 from app.application.knowledge.retrieval.reranker import LLMCrossEncoderReRanker
 from app.application.knowledge.retrieval.service import RetrieverService
 from app.infrastructure.vectorstore.base import SearchResult
 
-
 # ---------- DTO tests ----------
+
 
 class TestRetrievalConfig:
     def test_defaults(self):
@@ -59,16 +60,27 @@ class TestRetrievalFilters:
 class TestRetrievedChunkDTO:
     def test_minimal(self):
         dto = RetrievedChunkDTO(
-            chunk_id="c1", document_id="d1", document_title="T", chunk_index=0,
-            content="Hello", score=0.9, rank=1,
+            chunk_id="c1",
+            document_id="d1",
+            document_title="T",
+            chunk_index=0,
+            content="Hello",
+            score=0.9,
+            rank=1,
         )
         assert dto.metadata == {}
         assert dto.language is None
 
     def test_model_dump_roundtrip(self):
         dto = RetrievedChunkDTO(
-            chunk_id="c1", document_id="d1", document_title="T", chunk_index=1,
-            content="Test", score=0.8, rank=2, metadata={"key": "val"},
+            chunk_id="c1",
+            document_id="d1",
+            document_title="T",
+            chunk_index=1,
+            content="Test",
+            score=0.8,
+            rank=2,
+            metadata={"key": "val"},
         )
         dumped = dto.model_dump()
         assert dumped["chunk_id"] == "c1"
@@ -78,14 +90,19 @@ class TestRetrievedChunkDTO:
 class TestUnifiedRetrievalResult:
     def test_create(self):
         result = UnifiedRetrievalResult(
-            query="test", results=[], total_count=0, strategy="semantic",
-            latency_ms=10.0, filters_applied={},
+            query="test",
+            results=[],
+            total_count=0,
+            strategy="semantic",
+            latency_ms=10.0,
+            filters_applied={},
         )
         assert result.strategy == "semantic"
         assert result.latency_ms == 10.0
 
 
 # ---------- MMR unit tests ----------
+
 
 class TestMMR:
     def test_empty_input(self):
@@ -130,6 +147,7 @@ class TestCosineSimilarity:
 
 # ---------- ReRanker tests ----------
 
+
 class TestLLMCrossEncoderReRanker:
     @pytest.fixture
     def mock_provider(self):
@@ -143,8 +161,24 @@ class TestLLMCrossEncoderReRanker:
     @pytest.fixture
     def sample_docs(self):
         return [
-            RetrievedChunkDTO(chunk_id="c1", document_id="d1", document_title="T1", chunk_index=0, content="Doc one content", score=0.8, rank=1),
-            RetrievedChunkDTO(chunk_id="c2", document_id="d2", document_title="T2", chunk_index=1, content="Doc two content", score=0.6, rank=2),
+            RetrievedChunkDTO(
+                chunk_id="c1",
+                document_id="d1",
+                document_title="T1",
+                chunk_index=0,
+                content="Doc one content",
+                score=0.8,
+                rank=1,
+            ),
+            RetrievedChunkDTO(
+                chunk_id="c2",
+                document_id="d2",
+                document_title="T2",
+                chunk_index=1,
+                content="Doc two content",
+                score=0.6,
+                rank=2,
+            ),
         ]
 
     @pytest.mark.asyncio
@@ -173,7 +207,7 @@ class TestLLMCrossEncoderReRanker:
     @pytest.mark.asyncio
     async def test_rerank_with_markdown_json(self, reranker, mock_provider, sample_docs):
         mock_response = MagicMock()
-        mock_response.message.content = "```json\n[{\"index\": 0, \"score\": 0.8}]\n```"
+        mock_response.message.content = '```json\n[{"index": 0, "score": 0.8}]\n```'
         mock_provider.chat = AsyncMock(return_value=mock_response)
 
         result = await reranker.rerank("query", sample_docs, 5)
@@ -202,12 +236,22 @@ class TestLLMCrossEncoderReRanker:
     @pytest.mark.asyncio
     async def test_rerank_content_truncation(self, reranker, mock_provider):
         long_doc = RetrievedChunkDTO(
-            chunk_id="c1", document_id="d1", document_title="T1", chunk_index=0,
-            content="A" * 2000, score=0.5, rank=1,
+            chunk_id="c1",
+            document_id="d1",
+            document_title="T1",
+            chunk_index=0,
+            content="A" * 2000,
+            score=0.5,
+            rank=1,
         )
         short_doc = RetrievedChunkDTO(
-            chunk_id="c2", document_id="d2", document_title="T2", chunk_index=1,
-            content="Short", score=0.4, rank=2,
+            chunk_id="c2",
+            document_id="d2",
+            document_title="T2",
+            chunk_index=1,
+            content="Short",
+            score=0.4,
+            rank=2,
         )
         mock_response = MagicMock()
         mock_response.message.content = '[{"index": 0, "score": 0.9}, {"index": 1, "score": 0.8}]'
@@ -220,6 +264,7 @@ class TestLLMCrossEncoderReRanker:
 
 
 # ---------- RetrieverService tests ----------
+
 
 @pytest.fixture
 def mock_vector_store():
@@ -256,7 +301,8 @@ def make_search_result(chunk_id: str, score: float, rank: int = 0, payload: dict
     return SearchResult(
         id=chunk_id,
         score=score,
-        payload=payload or {
+        payload=payload
+        or {
             "document_id": "doc-1",
             "document_title": "Test",
             "chunk_index": 0,
@@ -270,8 +316,28 @@ class TestRetrieverServiceSemantic:
     async def test_semantic_search(self, retriever, mock_vector_store, mock_llm_provider):
         mock_llm_provider.embeddings.return_value = MagicMock(embeddings=[[0.1, 0.2, 0.3]])
         mock_vector_store.search.return_value = [
-            make_search_result("c1", 0.9, payload={"document_id": "d1", "document_title": "Doc 1", "chunk_index": 0, "content": "Hello world", "language": "en"}),
-            make_search_result("c2", 0.8, payload={"document_id": "d1", "document_title": "Doc 1", "chunk_index": 1, "content": "More text", "language": "en"}),
+            make_search_result(
+                "c1",
+                0.9,
+                payload={
+                    "document_id": "d1",
+                    "document_title": "Doc 1",
+                    "chunk_index": 0,
+                    "content": "Hello world",
+                    "language": "en",
+                },
+            ),
+            make_search_result(
+                "c2",
+                0.8,
+                payload={
+                    "document_id": "d1",
+                    "document_title": "Doc 1",
+                    "chunk_index": 1,
+                    "content": "More text",
+                    "language": "en",
+                },
+            ),
         ]
 
         result = await retriever.search(query="test", config=RetrievalConfig(top_k=5))
@@ -331,9 +397,23 @@ class TestRetrieverServiceHybrid:
             make_search_result("c2", 0.8),
         ]
 
-        with patch.object(retriever, "_keyword_search", AsyncMock(return_value=[
-            RetrievedChunkDTO(chunk_id="c3", document_id="d1", document_title="T", chunk_index=2, content="KW result", score=1.0, rank=1),
-        ])):
+        with patch.object(
+            retriever,
+            "_keyword_search",
+            AsyncMock(
+                return_value=[
+                    RetrievedChunkDTO(
+                        chunk_id="c3",
+                        document_id="d1",
+                        document_title="T",
+                        chunk_index=2,
+                        content="KW result",
+                        score=1.0,
+                        rank=1,
+                    ),
+                ]
+            ),
+        ):
             result = await retriever.search(query="test", config=RetrievalConfig(top_k=5, use_hybrid=True))
 
             assert len(result.results) >= 1
@@ -345,9 +425,39 @@ class TestRetrieverServiceMMR:
     async def test_mmr_search(self, retriever, mock_vector_store, mock_llm_provider):
         mock_llm_provider.embeddings.return_value = MagicMock(embeddings=[[0.1, 0.2]])
         mock_vector_store.search.return_value = [
-            make_search_result("c1", 0.9, payload={"document_id": "d1", "document_title": "T", "chunk_index": 0, "content": "A", "_embedding": [0.1, 0.2]}),
-            make_search_result("c2", 0.8, payload={"document_id": "d1", "document_title": "T", "chunk_index": 1, "content": "B", "_embedding": [0.3, 0.4]}),
-            make_search_result("c3", 0.7, payload={"document_id": "d1", "document_title": "T", "chunk_index": 2, "content": "C", "_embedding": [0.5, 0.6]}),
+            make_search_result(
+                "c1",
+                0.9,
+                payload={
+                    "document_id": "d1",
+                    "document_title": "T",
+                    "chunk_index": 0,
+                    "content": "A",
+                    "_embedding": [0.1, 0.2],
+                },
+            ),
+            make_search_result(
+                "c2",
+                0.8,
+                payload={
+                    "document_id": "d1",
+                    "document_title": "T",
+                    "chunk_index": 1,
+                    "content": "B",
+                    "_embedding": [0.3, 0.4],
+                },
+            ),
+            make_search_result(
+                "c3",
+                0.7,
+                payload={
+                    "document_id": "d1",
+                    "document_title": "T",
+                    "chunk_index": 2,
+                    "content": "C",
+                    "_embedding": [0.5, 0.6],
+                },
+            ),
         ]
 
         result = await retriever.search(query="test", config=RetrievalConfig(top_k=3, use_mmr=True))
@@ -365,8 +475,12 @@ class TestRetrieverServiceRerank:
         ]
 
         reranked = [
-            RetrievedChunkDTO(chunk_id="c2", document_id="d1", document_title="T", chunk_index=1, content="B", score=0.95, rank=1),
-            RetrievedChunkDTO(chunk_id="c1", document_id="d1", document_title="T", chunk_index=0, content="A", score=0.85, rank=2),
+            RetrievedChunkDTO(
+                chunk_id="c2", document_id="d1", document_title="T", chunk_index=1, content="B", score=0.95, rank=1
+            ),
+            RetrievedChunkDTO(
+                chunk_id="c1", document_id="d1", document_title="T", chunk_index=0, content="A", score=0.85, rank=2
+            ),
         ]
         mock_reranker.rerank = AsyncMock(return_value=reranked)
 

@@ -1,7 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import bson
+import pytest
 
 from app.domain.job.entities.knowledge_job import KnowledgeJob
 from app.domain.job.value_objects import JobStatus, JobType
@@ -57,8 +56,8 @@ async def test_create_job(mock_jobs_collection, sample_job):
 
 @pytest.mark.asyncio
 async def test_find_by_id_found(mock_jobs_collection, sample_job):
-    from app.infrastructure.mongodb.repositories.job_repository import JobRepository
     from app.infrastructure.mongodb.documents.job_document import KnowledgeJobDocument
+    from app.infrastructure.mongodb.repositories.job_repository import JobRepository
 
     doc = KnowledgeJobDocument.from_entity(sample_job)
     mock_jobs_collection.find_one.return_value = doc.to_mongo_dict()

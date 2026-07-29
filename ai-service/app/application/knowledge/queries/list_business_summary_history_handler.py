@@ -15,9 +15,7 @@ class ListBusinessSummaryHistoryHandler:
     def __init__(self, repository: BusinessSummaryRepository):
         self.repository = repository
 
-    async def handle(
-        self, query: ListBusinessSummaryHistoryQuery
-    ) -> PaginatedResultDTO[BusinessSummaryDTO]:
+    async def handle(self, query: ListBusinessSummaryHistoryQuery) -> PaginatedResultDTO[BusinessSummaryDTO]:
         items, total = await self.repository.paginate(
             filters={"document_id": query.store_id},
             page=query.page,

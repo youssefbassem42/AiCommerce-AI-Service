@@ -1,12 +1,12 @@
-from typing import Any, Dict, List, Optional, Type, TypeVar
 import logging
+from typing import Any, TypeVar
 
 from app.shared.cqrs.command import Command
-from app.shared.cqrs.query import Query
 from app.shared.cqrs.command_handler import CommandHandler
+from app.shared.cqrs.query import Query
 from app.shared.cqrs.query_handler import QueryHandler
 from app.shared.cqrs.result import CommandResult, QueryResult
-from app.shared.mediator.pipeline import PipelineBehavior, NextHandler
+from app.shared.mediator.pipeline import NextHandler, PipelineBehavior
 
 logger = logging.getLogger(__name__)
 
@@ -17,23 +17,23 @@ TEvent = TypeVar("TEvent")
 
 class Mediator:
     def __init__(self):
-        self._command_handlers: Dict[Type[Command], CommandHandler] = {}
-        self._query_handlers: Dict[Type[Query], QueryHandler] = {}
-        self._event_handlers: Dict[Type[Any], List[Any]] = {}
-        self._behaviors: List[PipelineBehavior] = []
+        self._command_handlers: dict[type[Command], CommandHandler] = {}
+        self._query_handlers: dict[type[Query], QueryHandler] = {}
+        self._event_handlers: dict[type[Any], list[Any]] = {}
+        self._behaviors: list[PipelineBehavior] = []
 
-    def register_handler(self, command_type: Type[TCommand], handler: CommandHandler[TCommand, Any]) -> None:
+    def register_handler(self, command_type: type[TCommand], handler: CommandHandler[TCommand, Any]) -> None:
         self._command_handlers[command_type] = handler
 
-    def register_query_handler(self, query_type: Type[TQuery], handler: QueryHandler[TQuery, Any]) -> None:
+    def register_query_handler(self, query_type: type[TQuery], handler: QueryHandler[TQuery, Any]) -> None:
         self._query_handlers[query_type] = handler
 
-    def register_event_handler(self, event_type: Type[TEvent], handler: Any) -> None:
+    def register_event_handler(self, event_type: type[TEvent], handler: Any) -> None:
         if event_type not in self._event_handlers:
             self._event_handlers[event_type] = []
         self._event_handlers[event_type].append(handler)
 
-    def unregister_event_handler(self, event_type: Type[TEvent], handler: Any) -> None:
+    def unregister_event_handler(self, event_type: type[TEvent], handler: Any) -> None:
         if event_type in self._event_handlers:
             self._event_handlers[event_type] = [h for h in self._event_handlers[event_type] if h is not handler]
             if not self._event_handlers[event_type]:
@@ -119,6 +119,7 @@ class Mediator:
             async def make_handler(b: PipelineBehavior, n: NextHandler) -> NextHandler:
                 async def handler_wrapper() -> Any:
                     return await b.handle(request, n)
+
                 return handler_wrapper
 
             chain = await make_handler(current_behavior, next_in_chain)

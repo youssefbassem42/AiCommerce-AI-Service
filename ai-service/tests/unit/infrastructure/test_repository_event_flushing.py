@@ -1,11 +1,12 @@
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 from bson import ObjectId
 
-from app.infrastructure.mongodb.repositories.base_repository import BaseMongoRepository
 from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
-from app.shared.kernel.domain_event import DomainEvent
+from app.infrastructure.mongodb.repositories.base_repository import BaseMongoRepository
 from app.shared.kernel.aggregate_root import AggregateRoot
+from app.shared.kernel.domain_event import DomainEvent
 
 
 class TestAggregateEvent(DomainEvent):

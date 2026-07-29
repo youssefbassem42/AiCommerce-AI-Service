@@ -1,7 +1,9 @@
 import os
 from functools import lru_cache
+
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from app.core.mongo_settings import MongoSettings
 from app.core.openai_settings import OpenAISettings
 from app.core.qdrant_settings import QdrantSettings
@@ -31,11 +33,7 @@ class Settings(BaseSettings):
     REDIS_SETTINGS: RedisSettings = RedisSettings()
     CORS_ORIGINS: list[str] = ["*"]
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore",
-        case_sensitive=True
-    )
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=True)
 
     def validate_required(self) -> list[str]:
         warnings: list[str] = []
@@ -48,8 +46,9 @@ class Settings(BaseSettings):
             if val and val.strip():
                 provided.append(name)
         if not provided:
-            warnings.append("No AI provider keys configured — set at least one of: " +
-                            ", ".join(k for k, _ in AI_PROVIDER_KEYS))
+            warnings.append(
+                "No AI provider keys configured — set at least one of: " + ", ".join(k for k, _ in AI_PROVIDER_KEYS)
+            )
         return warnings
 
 
@@ -59,6 +58,7 @@ def get_settings() -> Settings:
     warnings = s.validate_required()
     if warnings:
         import logging
+
         logger = logging.getLogger(__name__)
         for w in warnings:
             logger.warning("Configuration warning: %s", w)

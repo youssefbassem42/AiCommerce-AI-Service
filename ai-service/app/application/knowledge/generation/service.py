@@ -1,7 +1,6 @@
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any
 
 from bson import ObjectId
 
@@ -71,7 +70,10 @@ class BusinessSummaryGenerationService:
         created = await self.summary_repository.create(entity)
         logger.info(
             "Business context generated for store '%s' v%d (%d sections, %d documents)",
-            store_id, version, len(sections), len(documents),
+            store_id,
+            version,
+            len(sections),
+            len(documents),
         )
         return created
 
@@ -84,14 +86,9 @@ class BusinessSummaryGenerationService:
 
     async def _load_documents(self, store_id: str) -> list[KnowledgeDocument]:
         docs = await self.knowledge_repository.find_by_store_id(store_id, limit=500)
-        approved = [
-            d for d in docs
-            if d.status == "active" and d.processed_text
-        ]
+        approved = [d for d in docs if d.status == "active" and d.processed_text]
         if not approved:
-            raise ChunkingException(
-                f"No approved documents with processed text found for store '{store_id}'"
-            )
+            raise ChunkingException(f"No approved documents with processed text found for store '{store_id}'")
         return approved
 
     def _merge_documents(self, documents: list[KnowledgeDocument], max_chars: int = 100_000) -> str:
@@ -111,20 +108,14 @@ class BusinessSummaryGenerationService:
         return "".join(parts)
 
     async def _next_version(self, store_id: str) -> int:
-        existing = await self.summary_repository.find_by_document_id(
-            store_id, limit=1_000
-        )
+        existing = await self.summary_repository.find_by_document_id(store_id, limit=1_000)
         if not existing:
             return 1
         return max(s.version_number for s in existing) + 1
 
-    async def _call_llm(
-        self, merged_content: str, cfg: GenerationConfig, store_id: str
-    ) -> dict[str, str]:
+    async def _call_llm(self, merged_content: str, cfg: GenerationConfig, store_id: str) -> dict[str, str]:
         raw_messages = build_generation_messages(merged_content)
-        messages = [
-            MessageDTO(role=m["role"], content=m["content"]) for m in raw_messages
-        ]
+        messages = [MessageDTO(role=m["role"], content=m["content"]) for m in raw_messages]
 
         request = ChatRequest(
             messages=messages,
@@ -167,7 +158,7 @@ class BusinessSummaryGenerationService:
 
     def _build_fallback_context(self, sections: dict[str, str]) -> str:
         parts = []
-        for key, desc in SECTION_DEFINITIONS.items():
+        for key, _desc in SECTION_DEFINITIONS.items():
             content = sections.get(key, "")
             if content:
                 parts.append(f"{key.replace('_', ' ').title()}\n{content}")

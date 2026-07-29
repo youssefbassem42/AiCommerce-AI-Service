@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -15,28 +15,28 @@ class OrderDTO(BaseModel):
     currency: str
     financial_status: str
     created_at: datetime
-    line_items: List[LineItemDTO] = Field(default_factory=list)
+    line_items: list[LineItemDTO] = Field(default_factory=list)
 
 
 class CustomerProfileDTO(BaseModel):
     id: str
-    email: Optional[str] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    phone: Optional[str] = None
+    email: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
 
 
 class ConversationSummaryDTO(BaseModel):
     message_count: int
-    last_message_at: Optional[datetime] = None
-    recent_messages: List[str] = Field(default_factory=list)
+    last_message_at: datetime | None = None
+    recent_messages: list[str] = Field(default_factory=list)
 
 
 class TicketCreateDTO(BaseModel):
     store_id: str
     customer_id: str
-    conversation_id: Optional[str] = None
-    messages: List[str] = Field(default_factory=list, description="Conversation messages to analyze")
+    conversation_id: str | None = None
+    messages: list[str] = Field(default_factory=list, description="Conversation messages to analyze")
 
 
 class TicketDTO(BaseModel):
@@ -55,14 +55,14 @@ class TicketDTO(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    customer: Optional[CustomerProfileDTO] = None
-    recent_orders: List[OrderDTO] = Field(default_factory=list)
-    conversation: Optional[ConversationSummaryDTO] = None
+    customer: CustomerProfileDTO | None = None
+    recent_orders: list[OrderDTO] = Field(default_factory=list)
+    conversation: ConversationSummaryDTO | None = None
 
 
 class TicketStatusUpdateDTO(BaseModel):
     status: str
-    resolution_type: Optional[str] = None
+    resolution_type: str | None = None
 
 
 class ResolutionMetricsDTO(BaseModel):

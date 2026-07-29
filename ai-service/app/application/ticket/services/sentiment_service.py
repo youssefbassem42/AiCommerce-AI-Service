@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.application.services.chat_service import ChatService
@@ -24,13 +23,11 @@ class SentimentAnalysisService:
         self._chat = chat_service
 
     async def analyze(self, request: SentimentAnalysisRequest) -> SentimentAnalysisResult:
-        messages: List[MessageDTO] = [
+        messages: list[MessageDTO] = [
             MessageDTO(role="system", content=SENTIMENT_SYSTEM_PROMPT),
             MessageDTO(
                 role="user",
-                content="Conversation messages:\n" + "\n".join(
-                    f"- {msg}" for msg in request.messages[-10:]
-                ),
+                content="Conversation messages:\n" + "\n".join(f"- {msg}" for msg in request.messages[-10:]),
             ),
         ]
 
@@ -49,6 +46,7 @@ class SentimentAnalysisService:
                 content = " ".join(str(c) for c in content)
 
             import json
+
             data = json.loads(content)
             return SentimentAnalysisResult(
                 sentiment=data.get("sentiment", "neutral"),

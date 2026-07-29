@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from app.application.dto.ai_dto import EmbeddingRequest
 from app.application.integration.sync.formatters import format_record
@@ -37,8 +37,8 @@ class EntityVectorSyncResult:
 class CommerceKnowledgeBridge:
     def __init__(
         self,
-        vector_store: Optional[QdrantProvider] = None,
-        llm_provider: Optional[BaseLLMProvider] = None,
+        vector_store: QdrantProvider | None = None,
+        llm_provider: BaseLLMProvider | None = None,
         embedding_model: str = EMBEDDING_MODEL,
     ):
         self._vector_store = vector_store
@@ -53,7 +53,7 @@ class CommerceKnowledgeBridge:
                     self._vector_store.connect(),
                     timeout=10,
                 )
-            except (asyncio.TimeoutError, ConnectionError, OSError) as e:
+            except (TimeoutError, ConnectionError, OSError) as e:
                 logger.warning("Qdrant unavailable, vector sync will be skipped: %s", e)
                 self._vector_store = None
                 raise ConnectionError(f"Qdrant not available: {e}")

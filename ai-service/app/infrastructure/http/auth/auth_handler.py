@@ -1,7 +1,6 @@
 import base64
 import json
 import logging
-from typing import Optional
 
 import httpx
 
@@ -17,7 +16,7 @@ class AuthHandler:
         self,
         client: httpx.AsyncClient,
         auth_config: AuthConfig,
-        credentials_json: Optional[str] = None,
+        credentials_json: str | None = None,
     ) -> None:
         if not credentials_json:
             logger.warning("No credentials provided for auth type '%s'.", auth_config.type.value)

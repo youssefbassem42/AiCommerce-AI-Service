@@ -2,7 +2,7 @@ import logging
 import time
 from typing import Any
 
-from app.shared.mediator.pipeline import PipelineBehavior, NextHandler
+from app.shared.mediator.pipeline import NextHandler, PipelineBehavior
 
 logger = logging.getLogger(__name__)
 

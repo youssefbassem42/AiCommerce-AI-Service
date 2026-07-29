@@ -1,42 +1,33 @@
+import contextlib
 import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 
 from app.api.knowledge.dependencies import (
-    get_business_summary_service,
     get_document_upload_service,
-    get_knowledge_chunk_service,
     get_knowledge_document_service,
-    get_upload_repository,
     write_upload_temp,
 )
 from app.api.knowledge.generation_dependencies import (
     get_generate_handler,
-    get_list_history_handler,
     get_regenerate_handler,
 )
 from app.api.knowledge.generation_schemas import (
     BusinessSummaryGenerationResponseSchema,
     GenerateBusinessSummaryRequestSchema,
-    PaginatedBusinessSummaryHistoryResponseSchema,
 )
 from app.api.knowledge.job_schemas import JobResponseSchema
+from app.api.knowledge.retrieval_dependencies import get_retriever_service
 from app.api.knowledge.retrieval_schemas import (
     RetrievalRequestSchema,
     RetrievalResponseSchema,
     RetrievedChunkSchema,
 )
-from app.api.knowledge.retrieval_dependencies import get_retriever_service
 from app.api.knowledge.schemas import (
     DeleteResponseSchema,
-    KnowledgeChunkResponseSchema,
-    KnowledgeDocumentCreateSchema,
     KnowledgeDocumentResponseSchema,
-    KnowledgeDocumentUpdateSchema,
-    PaginatedKnowledgeChunkResponseSchema,
     PaginatedKnowledgeDocumentResponseSchema,
-    PaginatedUploadResponseSchema,
     UploadResponseSchema,
 )
 from app.api.knowledge.unified_schemas import (
@@ -53,22 +44,16 @@ from app.application.knowledge.commands.generate_business_summary_handler import
     GenerateBusinessSummaryHandler,
     RegenerateBusinessSummaryHandler,
 )
-from app.application.knowledge.generation.config import GenerationConfig
 from app.application.knowledge.commands.upload_command import UploadDocumentCommand
-from app.application.knowledge.queries.list_business_summary_history_handler import (
-    ListBusinessSummaryHistoryHandler,
-)
+from app.application.knowledge.generation.config import GenerationConfig
 from app.application.knowledge.retrieval import RetrieverService
 from app.application.knowledge.services import (
-    BusinessSummaryService,
     DocumentUploadService,
-    KnowledgeChunkService,
     KnowledgeDocumentService,
 )
 from app.core.knowledge_settings import knowledge_settings
 from app.domain.job.exceptions import JobNotFoundException
 from app.domain.job.repositories.job_repository import JobRepository
-from app.domain.job.value_objects import JobStatus
 from app.domain.knowledge.exceptions import (
     BusinessSummaryNotFoundException,
     DuplicateUploadException,
@@ -78,7 +63,6 @@ from app.domain.knowledge.exceptions import (
     KnowledgeDomainException,
 )
 from app.infrastructure.mongodb.repositories.job_repository import JobRepository
-from app.infrastructure.mongodb.repositories.upload_repository import UploadRepository
 from app.infrastructure.tasks.helpers import _run_async, create_job, set_celery_task_id
 
 logger = logging.getLogger(__name__)
@@ -126,10 +110,8 @@ async def upload_document(
         temp_path = await write_upload_temp(file)
         mime_type = file.content_type or "application/octet-stream"
         file_size = 0
-        try:
+        with contextlib.suppress(OSError):
             file_size = os.path.getsize(temp_path)
-        except OSError:
-            pass
 
         command = UploadDocumentCommand(
             file_path=temp_path,
@@ -164,9 +146,7 @@ async def list_documents(
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
 ) -> PaginatedKnowledgeDocumentResponseSchema:
     try:
-        result = await service.list(
-            page=page, page_size=page_size, store_id=store_id, status=status_filter
-        )
+        result = await service.list(page=page, page_size=page_size, store_id=store_id, status=status_filter)
         return PaginatedKnowledgeDocumentResponseSchema(**result.model_dump())
     except Exception as exc:
         _handle_exception(exc)
@@ -319,15 +299,13 @@ async def embed_document(
         from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
 
         chunk_repo = ChunkRepository()
-        chunk_service = KnowledgeChunkService(repository=chunk_repo)
+        KnowledgeChunkService(repository=chunk_repo)
 
         chunks = await chunk_repo.find_by_document_id(body.document_id, limit=10_000)
         chunk_ids = [c.id for c in chunks]
 
         if not chunk_ids:
-            raise KnowledgeDocumentNotFoundException(
-                f"No chunks found for document '{body.document_id}'"
-            )
+            raise KnowledgeDocumentNotFoundException(f"No chunks found for document '{body.document_id}'")
 
         from app.workers.embedding.tasks import generate_embeddings_task, sync_vectors_task
 
@@ -395,7 +373,8 @@ async def search_knowledge(
     service: RetrieverService = Depends(get_retriever_service),
 ) -> RetrievalResponseSchema:
     try:
-        from app.application.knowledge.retrieval.config import RetrievalConfig as RC, RetrievalFilters as RF
+        from app.application.knowledge.retrieval.config import RetrievalConfig as RC
+        from app.application.knowledge.retrieval.config import RetrievalFilters as RF
 
         config = RC(
             top_k=body.top_k,
@@ -438,7 +417,8 @@ async def hybrid_search_knowledge(
     service: RetrieverService = Depends(get_retriever_service),
 ) -> RetrievalResponseSchema:
     try:
-        from app.application.knowledge.retrieval.config import RetrievalConfig as RC, RetrievalFilters as RF
+        from app.application.knowledge.retrieval.config import RetrievalConfig as RC
+        from app.application.knowledge.retrieval.config import RetrievalFilters as RF
 
         config = RC(
             top_k=body.top_k,

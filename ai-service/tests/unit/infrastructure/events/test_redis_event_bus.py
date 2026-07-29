@@ -1,5 +1,6 @@
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from app.infrastructure.events.redis_event_bus import RedisEventBus

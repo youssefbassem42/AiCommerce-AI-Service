@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -43,4 +42,4 @@ class UploadDTO(BaseModel):
     virus_scan_status: str
     created_at: datetime
     updated_at: datetime
-    deleted_at: Optional[datetime] = None
+    deleted_at: datetime | None = None

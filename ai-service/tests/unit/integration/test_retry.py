@@ -1,10 +1,9 @@
-import asyncio
 from unittest.mock import AsyncMock
 
 import httpx
 import pytest
 
-from app.infrastructure.http.retry import RetryHandler, RetryExhaustedError
+from app.infrastructure.http.retry import RetryExhaustedError, RetryHandler
 
 
 @pytest.fixture

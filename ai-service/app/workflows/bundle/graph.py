@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from app.agents.bundle.agent import BundleSuggestionAgent
 from app.application.recommendation.dto.recommendation_dto import BundleResponse
@@ -15,7 +14,7 @@ class BundleSuggestionWorkflow:
         self,
         product_repo: ProductRepository,
         llm: BaseLLMProvider,
-        promo_service: Optional[PromoCodeService] = None,
+        promo_service: PromoCodeService | None = None,
     ):
         self._agent = BundleSuggestionAgent(
             product_repo=product_repo,
@@ -27,8 +26,8 @@ class BundleSuggestionWorkflow:
         self,
         query: str,
         store_id: str,
-        customer_id: Optional[str] = None,
-        store_capabilities: Optional[dict[str, bool]] = None,
+        customer_id: str | None = None,
+        store_capabilities: dict[str, bool] | None = None,
     ) -> BundleResponse:
         return await self._agent.run(
             query=query,

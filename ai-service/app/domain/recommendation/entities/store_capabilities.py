@@ -1,18 +1,17 @@
-from datetime import datetime, UTC
-from typing import Dict, Optional
+from datetime import UTC, datetime
+
 from pydantic import Field
+
 from app.shared.kernel.entity import Entity
 
 
 class StoreCapabilities(Entity[str]):
     store_id: str = Field(..., description="Store context ID")
-    capabilities: Dict[str, bool] = Field(
-        default_factory=lambda: {"has_promo_codes": False},
-        description="Feature flags keyed by capability name"
+    capabilities: dict[str, bool] = Field(
+        default_factory=lambda: {"has_promo_codes": False}, description="Feature flags keyed by capability name"
     )
-    auto_detected: Dict[str, bool] = Field(
-        default_factory=dict,
-        description="True if the capability was auto-detected (not manually overridden)"
+    auto_detected: dict[str, bool] = Field(
+        default_factory=dict, description="True if the capability was auto-detected (not manually overridden)"
     )
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

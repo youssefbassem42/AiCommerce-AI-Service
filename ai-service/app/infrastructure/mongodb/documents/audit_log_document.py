@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any
 
 from pydantic import Field
 
@@ -11,16 +11,16 @@ class AuditLogDocument(BaseMongoDocument):
     """MongoDB document model representing an AuditLog."""
 
     action: str = Field(..., index=True)
-    actor_id: Optional[str] = Field(default=None, index=True)
+    actor_id: str | None = Field(default=None, index=True)
     actor_type: str = Field(default="user")
     resource_type: str = Field(..., index=True)
-    resource_id: Optional[str] = Field(default=None)
-    tenant_id: Optional[str] = Field(default=None, index=True)
+    resource_id: str | None = Field(default=None)
+    tenant_id: str | None = Field(default=None, index=True)
     details: dict[str, Any] = Field(default_factory=dict)
-    ip_address: Optional[str] = Field(default=None)
-    user_agent: Optional[str] = Field(default=None)
+    ip_address: str | None = Field(default=None)
+    user_agent: str | None = Field(default=None)
     outcome: str = Field(default="success", index=True)
-    failure_reason: Optional[str] = Field(default=None)
+    failure_reason: str | None = Field(default=None)
     timestamp: datetime = Field(default=..., index=True)
     updated_at: datetime = Field(default=...)
 

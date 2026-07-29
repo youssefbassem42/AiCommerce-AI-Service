@@ -1,11 +1,14 @@
-from datetime import datetime, UTC
-from typing import Dict, Any
+from datetime import UTC, datetime
+
 from pydantic import Field
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+
 from app.domain.analytics.entities.prompt_history import PromptHistory
+from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+
 
 class PromptHistoryDocument(BaseMongoDocument):
     """MongoDB document model representing PromptHistory."""
+
     runtimeId: str = Field(..., index=True)
     provider: str = Field(...)
     context: str = Field(...)
@@ -28,7 +31,7 @@ class PromptHistoryDocument(BaseMongoDocument):
             user_prompt=self.user_prompt,
             llm_response=self.llm_response,
             token_used=self.token_used,
-            timestamp=self.timestamp
+            timestamp=self.timestamp,
         )
 
     @classmethod
@@ -44,5 +47,5 @@ class PromptHistoryDocument(BaseMongoDocument):
             user_prompt=entity.user_prompt,
             llm_response=entity.llm_response,
             token_used=entity.token_used,
-            timestamp=entity.timestamp
+            timestamp=entity.timestamp,
         )

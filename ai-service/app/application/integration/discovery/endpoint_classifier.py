@@ -1,6 +1,5 @@
 import logging
 import re
-from typing import Optional
 
 from app.application.integration.openapi.parser import EndpointSchema
 
@@ -50,9 +49,7 @@ class ClassifiedEndpoint:
 class EndpointClassifier:
     """Classify endpoints by entity type and operation using path heuristics + schema inference."""
 
-    def classify(
-        self, endpoint: EndpointSchema
-    ) -> Optional[ClassifiedEndpoint]:
+    def classify(self, endpoint: EndpointSchema) -> ClassifiedEndpoint | None:
         clean_path = self._strip_version_prefix(endpoint.path)
         segments = self._path_segments(clean_path)
 
@@ -72,7 +69,7 @@ class EndpointClassifier:
         self,
         endpoint: EndpointSchema,
         field_names: set[str],
-    ) -> Optional[ClassifiedEndpoint]:
+    ) -> ClassifiedEndpoint | None:
         path_classification = self.classify(endpoint)
         if path_classification and path_classification.confidence >= 0.7:
             return path_classification
@@ -92,7 +89,7 @@ class EndpointClassifier:
     def classify_all(
         self,
         endpoints: list[EndpointSchema],
-        resolved_field_map: Optional[dict[str, set[str]]] = None,
+        resolved_field_map: dict[str, set[str]] | None = None,
     ) -> list[ClassifiedEndpoint]:
         result: list[ClassifiedEndpoint] = []
         for ep in endpoints:
@@ -113,7 +110,7 @@ class EndpointClassifier:
         return [s for s in path.strip("/").split("/") if s and not s.startswith("{")]
 
     @staticmethod
-    def _detect_entity_from_path(segments: list[str]) -> Optional[str]:
+    def _detect_entity_from_path(segments: list[str]) -> str | None:
         if not segments:
             return None
         candidate = segments[-1].lower()
@@ -139,7 +136,7 @@ class EndpointClassifier:
         return "unknown"
 
     @staticmethod
-    def _detect_entity_from_fields(field_names: set[str]) -> Optional[str]:
+    def _detect_entity_from_fields(field_names: set[str]) -> str | None:
         name_lower = {f.lower().replace("_", "") for f in field_names}
         product_score = len(PRODUCT_FIELDS & name_lower)
         order_score = len(ORDER_FIELDS & name_lower)

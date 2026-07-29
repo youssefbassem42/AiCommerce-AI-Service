@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import Enum, StrEnum
 
 
-class JobType(str, Enum):
+class JobType(StrEnum):
     DOCUMENT_PROCESSING = "document_processing"
     CHUNK_GENERATION = "chunk_generation"
     SUMMARY_GENERATION = "summary_generation"
@@ -9,7 +9,7 @@ class JobType(str, Enum):
     VECTOR_SYNC = "vector_sync"
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"

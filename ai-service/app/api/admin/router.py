@@ -1,11 +1,9 @@
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.admin.dependencies import get_bundle_tracking_service
 from app.api.admin.schemas import (
-    DemoteBundleRequest,
     PromoteBundleRequest,
     TrackCopyEventRequest,
     TrackCopyEventResponse,
@@ -214,7 +212,7 @@ def _format_tracked(doc: dict) -> TrackedBundleResponse:
     )
 
 
-def _fmt_dt(val) -> Optional[str]:
+def _fmt_dt(val) -> str | None:
     if val is None:
         return None
     if hasattr(val, "isoformat"):

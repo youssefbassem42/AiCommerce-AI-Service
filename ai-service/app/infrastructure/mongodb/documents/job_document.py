@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -13,16 +13,16 @@ class KnowledgeJobDocument(BaseMongoDocument):
     status: str = Field(default="pending")
     progress: float = Field(default=0.0, ge=0.0, le=1.0)
     payload: dict[str, Any] = Field(default_factory=dict)
-    result: Optional[dict[str, Any]] = Field(default=None)
-    error_message: Optional[str] = Field(default=None)
+    result: dict[str, Any] | None = Field(default=None)
+    error_message: str | None = Field(default=None)
     retry_count: int = Field(default=0, ge=0)
     max_retries: int = Field(default=3, ge=0)
-    store_id: Optional[str] = Field(default=None)
-    organization_id: Optional[str] = Field(default=None)
-    triggered_by: Optional[str] = Field(default=None)
-    celery_task_id: Optional[str] = Field(default=None, index=True)
-    started_at: Optional[datetime] = Field(default=None)
-    completed_at: Optional[datetime] = Field(default=None)
+    store_id: str | None = Field(default=None)
+    organization_id: str | None = Field(default=None)
+    triggered_by: str | None = Field(default=None)
+    celery_task_id: str | None = Field(default=None, index=True)
+    started_at: datetime | None = Field(default=None)
+    completed_at: datetime | None = Field(default=None)
 
     def to_entity(self) -> KnowledgeJob:
         return KnowledgeJob(

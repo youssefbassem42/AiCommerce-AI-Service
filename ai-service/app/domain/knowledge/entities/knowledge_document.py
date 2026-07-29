@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from typing import Optional
 
 from pydantic import Field, model_validator
 
@@ -14,11 +13,11 @@ class KnowledgeDocument(AggregateRoot[str]):
 
     store_id: str = Field(..., description="Commerce store context ID")
     title: str = Field(..., description="Title of the document")
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None,
         description="Human-readable description of the document",
     )
-    source_url: Optional[str] = Field(
+    source_url: str | None = Field(
         default=None,
         description="URL source of the document if applicable",
     )
@@ -35,29 +34,29 @@ class KnowledgeDocument(AggregateRoot[str]):
         default="manual",
         description="Chunking strategy label",
     )
-    processed_text: Optional[str] = Field(
+    processed_text: str | None = Field(
         default=None,
         description="Extracted and normalized text content after processing",
     )
-    page_count: Optional[int] = Field(
+    page_count: int | None = Field(
         default=None,
         description="Number of pages in the source document",
     )
-    word_count: Optional[int] = Field(
+    word_count: int | None = Field(
         default=None,
         description="Total word count of processed text",
     )
-    char_count: Optional[int] = Field(
+    char_count: int | None = Field(
         default=None,
         description="Total character count of processed text",
     )
-    estimated_tokens: Optional[int] = Field(
+    estimated_tokens: int | None = Field(
         default=None,
         description="Estimated token count using tiktoken",
     )
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    deleted_at: Optional[datetime] = Field(default=None)
+    deleted_at: datetime | None = Field(default=None)
 
     @model_validator(mode="after")
     def validate_versions(self) -> "KnowledgeDocument":
@@ -67,15 +66,11 @@ class KnowledgeDocument(AggregateRoot[str]):
 
         version_numbers = {version.version_number for version in self.versions}
         if self.current_version not in version_numbers:
-            raise KnowledgeValidationException(
-                "Current version must exist in the document version history."
-            )
+            raise KnowledgeValidationException("Current version must exist in the document version history.")
 
         current_versions = [version for version in self.versions if version.is_current]
         if len(current_versions) > 1:
-            raise KnowledgeValidationException(
-                "Only one document version can be marked as current."
-            )
+            raise KnowledgeValidationException("Only one document version can be marked as current.")
 
         if not current_versions:
             for version in self.versions:

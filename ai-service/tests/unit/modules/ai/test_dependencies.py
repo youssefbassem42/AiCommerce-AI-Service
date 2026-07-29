@@ -1,16 +1,16 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
 from app.api.ai.dependencies import (
-    get_provider_factory,
     get_ai_service,
-    get_provider,
-    get_openai,
-    get_claude,
-    get_gemini,
     get_azure,
-    get_ollama,
+    get_claude,
     get_deepseek,
+    get_gemini,
     get_mistral,
+    get_ollama,
+    get_openai,
+    get_provider,
+    get_provider_factory,
 )
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory

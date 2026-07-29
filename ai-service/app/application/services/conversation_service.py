@@ -1,6 +1,8 @@
-from typing import Any, Dict, List, Optional
-from app.infrastructure.repositories.conversation_repository import ConversationRepository
+from typing import Any
+
 from app.application.dto.ai_dto import MessageDTO, UsageDTO
+from app.infrastructure.repositories.conversation_repository import ConversationRepository
+
 
 class ConversationService:
     """
@@ -16,8 +18,8 @@ class ConversationService:
         conversation_id: str,
         provider: str,
         model: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Retrieves or creates a conversation.
         """
@@ -26,14 +28,14 @@ class ConversationService:
             conv = await self.repository.create_conversation(conversation_id, provider, model, metadata)
         return conv
 
-    async def get_conversation_history(self, conversation_id: str) -> List[MessageDTO]:
+    async def get_conversation_history(self, conversation_id: str) -> list[MessageDTO]:
         """
         Fetch conversation history as list of MessageDTOs.
         """
         conv = await self.repository.get_conversation(conversation_id)
         if not conv:
             return []
-        
+
         messages = []
         for msg in conv.get("messages", []):
             messages.append(
@@ -51,8 +53,8 @@ class ConversationService:
         conversation_id: str,
         user_message: MessageDTO,
         assistant_message: MessageDTO,
-        usage: Optional[UsageDTO] = None,
-        latency_ms: Optional[float] = None,
+        usage: UsageDTO | None = None,
+        latency_ms: float | None = None,
     ) -> None:
         """
         Persists both the user prompt and assistant response to conversation history.

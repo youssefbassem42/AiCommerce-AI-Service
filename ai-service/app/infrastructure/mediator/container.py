@@ -1,9 +1,6 @@
-from fastapi import Depends
-
-from app.shared.mediator.mediator import Mediator
 from app.shared.mediator.behaviors.logging import LoggingBehavior
 from app.shared.mediator.behaviors.validation import ValidationBehavior
-
+from app.shared.mediator.mediator import Mediator
 
 _mediator: Mediator | None = None
 

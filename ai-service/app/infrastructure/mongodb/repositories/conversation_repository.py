@@ -1,17 +1,21 @@
-from typing import List, Optional, Any
-from datetime import datetime, UTC
-from bson import ObjectId
 import logging
+from datetime import UTC, datetime
+from typing import Any
+
+from bson import ObjectId
 
 from app.domain.conversation.entities.conversation import Conversation
 from app.domain.conversation.entities.message import Message
-from app.domain.conversation.repositories.conversation_repository import ConversationRepository as IConversationRepository
-from app.infrastructure.mongodb.repositories.base_repository import BaseMongoRepository
+from app.domain.conversation.repositories.conversation_repository import (
+    ConversationRepository as IConversationRepository,
+)
+from app.infrastructure.mongodb.collections import get_conversations_collection, get_messages_collection
 from app.infrastructure.mongodb.documents.conversation_document import ConversationDocument
 from app.infrastructure.mongodb.documents.message_document import MessageDocument
-from app.infrastructure.mongodb.collections import get_conversations_collection, get_messages_collection
+from app.infrastructure.mongodb.repositories.base_repository import BaseMongoRepository
 
 logger = logging.getLogger(__name__)
+
 
 class ConversationRepository(BaseMongoRepository[ConversationDocument, Conversation], IConversationRepository):
     """MongoDB implementation of the ConversationRepository with transaction and session support."""
@@ -45,18 +49,15 @@ class ConversationRepository(BaseMongoRepository[ConversationDocument, Conversat
             self._handle_db_error(e)
             raise
 
-    async def find_by_id(self, id: str, session: Any = None) -> Optional[Conversation]:
+    async def find_by_id(self, id: str, session: Any = None) -> Conversation | None:
         """Find a conversation by ID and populate its messages."""
         try:
             conversation = await super().find_by_id(id, session=session)
             if not conversation:
                 return None
-            
-            cursor = self.messages_collection.find(
-                {"conversation_id": id}, 
-                session=session
-            ).sort("timestamp", 1)
-            
+
+            cursor = self.messages_collection.find({"conversation_id": id}, session=session).sort("timestamp", 1)
+
             messages = []
             async for data in cursor:
                 doc = MessageDocument.from_mongo_dict(data)
@@ -69,21 +70,15 @@ class ConversationRepository(BaseMongoRepository[ConversationDocument, Conversat
 
     async def find_by_customer_id(
         self, customer_id: str, limit: int = 20, skip: int = 0, session: Any = None
-    ) -> List[Conversation]:
+    ) -> list[Conversation]:
         """Retrieve conversations of a customer with their messages populated."""
         try:
-            conversations = await self.find_many(
-                {"customer_id": customer_id}, 
-                limit=limit, 
-                skip=skip, 
-                session=session
-            )
+            conversations = await self.find_many({"customer_id": customer_id}, limit=limit, skip=skip, session=session)
             for conv in conversations:
-                cursor = self.messages_collection.find(
-                    {"conversation_id": conv.id}, 
-                    session=session
-                ).sort("timestamp", 1)
-                
+                cursor = self.messages_collection.find({"conversation_id": conv.id}, session=session).sort(
+                    "timestamp", 1
+                )
+
                 messages = []
                 async for data in cursor:
                     doc = MessageDocument.from_mongo_dict(data)
@@ -94,18 +89,14 @@ class ConversationRepository(BaseMongoRepository[ConversationDocument, Conversat
             self._handle_db_error(e)
             raise
 
-    async def add_message_to_conversation(
-        self, conversation_id: str, message: Message, session: Any = None
-    ) -> bool:
+    async def add_message_to_conversation(self, conversation_id: str, message: Message, session: Any = None) -> bool:
         """Atomically append a message to the conversation and update the conversation timestamp."""
         try:
             doc = MessageDocument.from_entity(message)
             await self.messages_collection.insert_one(doc.to_mongo_dict(), session=session)
-            
+
             result = await self.collection.update_one(
-                {"_id": ObjectId(conversation_id)},
-                {"$set": {"updated_at": datetime.now(UTC)}},
-                session=session
+                {"_id": ObjectId(conversation_id)}, {"$set": {"updated_at": datetime.now(UTC)}}, session=session
             )
             return result.modified_count > 0
         except Exception as e:

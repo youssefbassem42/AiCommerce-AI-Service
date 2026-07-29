@@ -1,6 +1,5 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
 
 from app.application.integration.openapi.parser import IntegrationSchema
 
@@ -27,7 +26,7 @@ class SpecValidator:
     def validate(
         self,
         schema: IntegrationSchema,
-        platform_name: Optional[str] = None,
+        platform_name: str | None = None,
     ) -> ValidationReport:
         report = ValidationReport()
 
@@ -41,40 +40,26 @@ class SpecValidator:
         has_auth = len(schema.auth_methods) > 0
         if not has_auth:
             report.warnings.append(
-                "No authentication scheme found in spec. "
-                "This may limit the integration's usability."
+                "No authentication scheme found in spec. This may limit the integration's usability."
             )
 
         if not schema.base_url:
-            report.errors.append(
-                "Base URL could not be extracted from spec. "
-                "The platform will not be reachable."
-            )
+            report.errors.append("Base URL could not be extracted from spec. The platform will not be reachable.")
 
         if not schema.schemas:
-            report.warnings.append(
-                "No reusable schemas defined. "
-                "Automatic entity/field discovery will be limited."
-            )
+            report.warnings.append("No reusable schemas defined. Automatic entity/field discovery will be limited.")
 
-        has_list_endpoint = any(
-            ep.method == "GET" and "{" not in ep.path
-            for ep in schema.endpoints
-        )
+        has_list_endpoint = any(ep.method == "GET" and "{" not in ep.path for ep in schema.endpoints)
         if not has_list_endpoint:
             report.warnings.append(
                 "No simple GET list endpoint detected (no path params). "
                 "Data synchronization may require additional configuration."
             )
 
-        has_detail_endpoint = any(
-            ep.method == "GET" and "{" in ep.path
-            for ep in schema.endpoints
-        )
+        has_detail_endpoint = any(ep.method == "GET" and "{" in ep.path for ep in schema.endpoints)
         if not has_detail_endpoint:
             report.warnings.append(
-                "No detail GET endpoint detected (with path params). "
-                "Individual record lookups may not be supported."
+                "No detail GET endpoint detected (with path params). Individual record lookups may not be supported."
             )
 
         for ep in schema.endpoints:
@@ -84,10 +69,6 @@ class SpecValidator:
 
     def _validate_endpoint(self, ep: "EndpointSchema", report: ValidationReport) -> None:
         if not ep.path.startswith("/"):
-            report.warnings.append(
-                f"Endpoint path '{ep.path}' should start with '/'."
-            )
+            report.warnings.append(f"Endpoint path '{ep.path}' should start with '/'.")
         if ep.method not in ("GET", "POST", "PUT", "PATCH", "DELETE"):
-            report.warnings.append(
-                f"Endpoint '{ep.method} {ep.path}' uses unusual HTTP method."
-            )
+            report.warnings.append(f"Endpoint '{ep.method} {ep.path}' uses unusual HTTP method.")

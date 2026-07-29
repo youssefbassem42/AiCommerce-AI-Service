@@ -1,9 +1,7 @@
-from typing import Optional
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class SEO(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    url_slug: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    url_slug: str | None = None

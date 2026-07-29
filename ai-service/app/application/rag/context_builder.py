@@ -1,7 +1,7 @@
 import asyncio
-import os
 import logging
-from typing import Any, Optional
+import os
+from typing import Any
 
 from app.application.knowledge.retrieval import RetrieverService
 from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
@@ -25,21 +25,21 @@ class BuiltContext:
     """Aggregated RAG context assembled by ContextBuilder."""
 
     def __init__(self) -> None:
-        self.business_summary: Optional[str] = None
-        self.business_summary_version: Optional[int] = None
+        self.business_summary: str | None = None
+        self.business_summary_version: int | None = None
         self.business_summary_sections: dict[str, str] = {}
         self.chunks: list[RetrievedChunkDTO] = []
-        self.knowledge_version: Optional[KnowledgeVersionInfo] = None
+        self.knowledge_version: KnowledgeVersionInfo | None = None
         self.active_version_number: int = 0
-        self.merchant_profile: Optional[str] = None
-        self.store_info: Optional[str] = None
-        self.product_context: Optional[str] = None
+        self.merchant_profile: str | None = None
+        self.store_info: str | None = None
+        self.product_context: str | None = None
         self.categories: list[str] = []
         self.brands: list[str] = []
         self.collections: list[str] = []
         self.policies: list[str] = []
         self.faqs: list[str] = []
-        self.tenant: Optional[TenantContext] = None
+        self.tenant: TenantContext | None = None
         self.latency_ms: float = 0.0
         self.total_chunks_retrieved: int = 0
 
@@ -103,6 +103,7 @@ class ContextBuilder:
 
     async def build(self, query: str) -> BuiltContext:
         import time
+
         start = time.perf_counter()
 
         ctx = BuiltContext()
@@ -123,15 +124,13 @@ class ContextBuilder:
         ctx.business_summary_version = _safe_get(results, 0, {}).get("version")
         ctx.business_summary_sections = _safe_get(results, 0, {}).get("sections", {})
 
-        retrieval: Optional[UnifiedRetrievalResult] = _safe_get(results, 1)
+        retrieval: UnifiedRetrievalResult | None = _safe_get(results, 1)
         if isinstance(retrieval, UnifiedRetrievalResult):
             ctx.chunks = deduplicate_chunks(retrieval.results)
             ctx.total_chunks_retrieved = retrieval.total_count
 
         ctx.knowledge_version = _safe_get(results, 2)
-        ctx.active_version_number = (
-            ctx.knowledge_version.version_number if ctx.knowledge_version else 0
-        )
+        ctx.active_version_number = ctx.knowledge_version.version_number if ctx.knowledge_version else 0
 
         await self.add_merchant_profile(ctx)
         await self.add_store_info(ctx)
@@ -141,7 +140,8 @@ class ContextBuilder:
 
     async def _load_business_summary(self) -> dict[str, Any]:
         summaries = await self._summary_repo.find_by_document_id(
-            self._tenant.store_id, limit=50,
+            self._tenant.store_id,
+            limit=50,
         )
         if not summaries:
             return {}
@@ -153,7 +153,7 @@ class ContextBuilder:
             "sections": sections,
         }
 
-    async def _retrieve_chunks(self, query: str) -> Optional[UnifiedRetrievalResult]:
+    async def _retrieve_chunks(self, query: str) -> UnifiedRetrievalResult | None:
         filters = RetrievalFilters(
             organization_id=self._tenant.organization_id,
             store_id=self._tenant.store_id,
@@ -162,11 +162,15 @@ class ContextBuilder:
         )
         return await self._retriever.search(query=query, filters=filters, config=self._conf)
 
-    async def _load_knowledge_version(self) -> Optional[KnowledgeVersionInfo]:
+    async def _load_knowledge_version(self) -> KnowledgeVersionInfo | None:
         col = get_knowledge_versions_collection()
-        cursor = col.find(
-            {"organization_id": self._tenant.organization_id, "store_id": self._tenant.store_id},
-        ).sort("version_number", -1).limit(1)
+        cursor = (
+            col.find(
+                {"organization_id": self._tenant.organization_id, "store_id": self._tenant.store_id},
+            )
+            .sort("version_number", -1)
+            .limit(1)
+        )
         latest = await cursor.to_list(length=1)
         if latest:
             doc = KnowledgeVersionDocument.from_mongo_dict(latest[0])

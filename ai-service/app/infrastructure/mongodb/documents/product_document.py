@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -25,10 +25,10 @@ class MoneyModel(BaseModel):
 
 class ImageModel(BaseModel):
     url: str
-    alt_text: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
-    position: Optional[int] = None
+    alt_text: str | None = None
+    width: int | None = None
+    height: int | None = None
+    position: int | None = None
 
     def to_vo(self) -> Image:
         return Image(
@@ -51,9 +51,9 @@ class ImageModel(BaseModel):
 
 
 class SEOModel(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    url_slug: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    url_slug: str | None = None
 
     def to_vo(self) -> SEO:
         return SEO(title=self.title, description=self.description, url_slug=self.url_slug)
@@ -66,7 +66,7 @@ class SEOModel(BaseModel):
 class AuditInfoModel(BaseModel):
     created_at: Any
     updated_at: Any
-    updated_by: Optional[str] = None
+    updated_by: str | None = None
 
     def to_vo(self) -> AuditInfo:
         return AuditInfo(created_at=self.created_at, updated_at=self.updated_at, updated_by=self.updated_by)
@@ -81,10 +81,10 @@ class VariantModel(BaseModel):
     sku: str
     title: str
     price: MoneyModel
-    compare_at_price: Optional[MoneyModel] = None
+    compare_at_price: MoneyModel | None = None
     inventory_quantity: int = 0
-    weight: Optional[float] = None
-    dimensions: Optional[str] = None
+    weight: float | None = None
+    dimensions: str | None = None
 
     def to_entity(self) -> Variant:
         return Variant(
@@ -128,19 +128,19 @@ class ProductOptionModel(BaseModel):
 class ProductDocument(BaseMongoDocument):
     store_id: str = Field(..., index=True)
     organization_id: str = Field(...)
-    external_id: Optional[str] = None
+    external_id: str | None = None
     title: str = Field(...)
-    description: Optional[str] = None
-    handle: Optional[str] = None
+    description: str | None = None
+    handle: str | None = None
     status: str = Field(default="draft")
-    product_type: Optional[str] = None
-    vendor: Optional[str] = None
+    product_type: str | None = None
+    vendor: str | None = None
     tags: list[str] = Field(default_factory=list)
     images: list[ImageModel] = Field(default_factory=list)
     variants: list[VariantModel] = Field(default_factory=list)
     options: list[ProductOptionModel] = Field(default_factory=list)
     seo: SEOModel = Field(default_factory=SEOModel)
-    category_id: Optional[str] = None
+    category_id: str | None = None
     audit: AuditInfoModel = Field(default_factory=AuditInfoModel)
     metadata: dict[str, Any] = Field(default_factory=dict)
     max_discount_pct: float = Field(default=0.0, description="Maximum allowed discount percentage for this product")

@@ -1,7 +1,6 @@
 import pytest
 
 from app.application.integration.mapping.discovery import MappingSuggestor
-from app.application.integration.discovery.field_suggester import FieldSuggester
 
 
 @pytest.fixture

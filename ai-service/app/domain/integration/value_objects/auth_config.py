@@ -1,17 +1,16 @@
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, model_validator
 
 
-class AuthType(str, Enum):
+class AuthType(StrEnum):
     APIKEY = "apiKey"
     BEARER = "bearer"
     BASIC = "basic"
     OAUTH2 = "oauth2"
 
 
-class CredentialsLocation(str, Enum):
+class CredentialsLocation(StrEnum):
     HEADER = "header"
     QUERY = "query"
     COOKIE = "cookie"
@@ -27,10 +26,10 @@ class AuthConfig(BaseModel):
 
     type: AuthType
     credentials_location: CredentialsLocation = CredentialsLocation.HEADER
-    scheme: Optional[str] = Field(default=None, max_length=32)
-    name: Optional[str] = Field(default=None, max_length=128)
-    token_url: Optional[str] = Field(default=None, max_length=512)
-    flow: Optional[str] = Field(default=None, max_length=64)
+    scheme: str | None = Field(default=None, max_length=32)
+    name: str | None = Field(default=None, max_length=128)
+    token_url: str | None = Field(default=None, max_length=512)
+    flow: str | None = Field(default=None, max_length=64)
 
     @model_validator(mode="after")
     def validate_consistency(self) -> "AuthConfig":

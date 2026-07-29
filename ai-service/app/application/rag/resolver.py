@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from app.domain.knowledge.value_objects.tenant_context import TenantContext
 
@@ -15,7 +15,7 @@ class TenantContextResolver:
 
     def __init__(
         self,
-        store_registry: Optional[dict[str, dict[str, str]]] = None,
+        store_registry: dict[str, dict[str, str]] | None = None,
     ) -> None:
         self._registry = store_registry or {}
 
@@ -114,7 +114,7 @@ class TenantContextResolver:
         API key → store mapping.
         """
         key_hash = _hash_key(api_key)
-        for slug, config in self._registry.items():
+        for _slug, config in self._registry.items():
             stored = config.get("api_key_hash", "")
             if stored and stored == key_hash:
                 return self.from_config(config)
@@ -162,7 +162,7 @@ class TenantContextResolver:
 
         Uses the user's assigned store from the registry.
         """
-        for slug, config in self._registry.items():
+        for _slug, config in self._registry.items():
             if config.get("admin_user_id", "") == user_id:
                 return self.from_config(config)
         raise ValueError(f"Admin user '{user_id}' is not assigned to any store")
@@ -170,4 +170,5 @@ class TenantContextResolver:
 
 def _hash_key(key: str) -> str:
     import hashlib
+
     return hashlib.sha256(key.encode("utf-8")).hexdigest()

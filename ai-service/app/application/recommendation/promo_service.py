@@ -1,9 +1,5 @@
-import hashlib
-import json
 import logging
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from app.infrastructure.mongodb.collections import get_products_collection
@@ -20,9 +16,9 @@ class PromoCodeService:
     async def find_existing_code(
         self,
         store_id: str,
-        product_ids: List[str],
+        product_ids: list[str],
         total_discount_pct: float,
-    ) -> Optional[str]:
+    ) -> str | None:
         now = datetime.now(UTC)
         for pid in product_ids:
             doc = await self._products_collection.find_one(
@@ -31,12 +27,13 @@ class PromoCodeService:
             )
             if not doc:
                 continue
-            promo_codes: Dict = doc.get("promo_codes", {})
+            promo_codes: dict = doc.get("promo_codes", {})
             for code, info in promo_codes.items():
                 if isinstance(info, dict):
                     expires_at = info.get("expires_at")
                     if isinstance(expires_at, str):
                         from datetime import datetime as dt_parse
+
                         try:
                             expires_at = dt_parse.fromisoformat(expires_at.replace("Z", "+00:00"))
                             if expires_at.tzinfo is None:
@@ -60,9 +57,9 @@ class PromoCodeService:
     async def generate_code(
         self,
         store_id: str,
-        product_ids: List[str],
+        product_ids: list[str],
         discount_pct: float,
-        bundle_id: Optional[str] = None,
+        bundle_id: str | None = None,
     ) -> str:
         existing = await self.find_existing_code(
             store_id=store_id,

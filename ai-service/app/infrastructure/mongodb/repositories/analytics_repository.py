@@ -1,18 +1,21 @@
-from typing import List, Optional, Any
-from bson import ObjectId
 import logging
+from typing import Any
 
-from app.domain.analytics.entities.runtime_log import AIRuntimeLog
-from app.domain.analytics.entities.prompt_history import PromptHistory
 from app.domain.analytics.entities.dashboard_insight import DashboardInsight
+from app.domain.analytics.entities.runtime_log import AIRuntimeLog
 from app.domain.analytics.repositories.analytics_repository import AnalyticsRepository as IAnalyticsRepository
-from app.infrastructure.mongodb.repositories.base_repository import BaseMongoRepository
-from app.infrastructure.mongodb.documents.runtime_log_document import AIRuntimeLogDocument
-from app.infrastructure.mongodb.documents.prompt_history_document import PromptHistoryDocument
+from app.infrastructure.mongodb.collections import (
+    get_dashboard_insights_collection,
+    get_prompt_history_collection,
+    get_runtime_logs_collection,
+)
 from app.infrastructure.mongodb.documents.dashboard_document import DashboardInsightDocument
-from app.infrastructure.mongodb.collections import get_runtime_logs_collection, get_prompt_history_collection, get_dashboard_insights_collection
+from app.infrastructure.mongodb.documents.prompt_history_document import PromptHistoryDocument
+from app.infrastructure.mongodb.documents.runtime_log_document import AIRuntimeLogDocument
+from app.infrastructure.mongodb.repositories.base_repository import BaseMongoRepository
 
 logger = logging.getLogger(__name__)
+
 
 class AnalyticsRepository(BaseMongoRepository[AIRuntimeLogDocument, AIRuntimeLog], IAnalyticsRepository):
     """MongoDB implementation of the AnalyticsRepository with session and transaction support."""
@@ -34,18 +37,15 @@ class AnalyticsRepository(BaseMongoRepository[AIRuntimeLogDocument, AIRuntimeLog
             self._handle_db_error(e)
             raise
 
-    async def find_by_id(self, id: str, session: Any = None) -> Optional[AIRuntimeLog]:
+    async def find_by_id(self, id: str, session: Any = None) -> AIRuntimeLog | None:
         """Find a runtime log by ID and populate its prompt histories."""
         try:
             log = await super().find_by_id(id, session=session)
             if not log:
                 return None
-            
-            cursor = self.prompt_collection.find(
-                {"runtimeId": id}, 
-                session=session
-            ).sort("timestamp", 1)
-            
+
+            cursor = self.prompt_collection.find({"runtimeId": id}, session=session).sort("timestamp", 1)
+
             histories = []
             async for data in cursor:
                 doc = PromptHistoryDocument.from_mongo_dict(data)
@@ -56,16 +56,13 @@ class AnalyticsRepository(BaseMongoRepository[AIRuntimeLogDocument, AIRuntimeLog
             self._handle_db_error(e)
             raise
 
-    async def get_logs_by_conversation(self, conversation_id: str, session: Any = None) -> List[AIRuntimeLog]:
+    async def get_logs_by_conversation(self, conversation_id: str, session: Any = None) -> list[AIRuntimeLog]:
         """Fetch all execution traces for a conversation."""
         try:
             logs = await self.find_many({"conversation_id": conversation_id}, session=session)
             for log in logs:
-                cursor = self.prompt_collection.find(
-                    {"runtimeId": log.id}, 
-                    session=session
-                ).sort("timestamp", 1)
-                
+                cursor = self.prompt_collection.find({"runtimeId": log.id}, session=session).sort("timestamp", 1)
+
                 histories = []
                 async for data in cursor:
                     doc = PromptHistoryDocument.from_mongo_dict(data)
@@ -77,8 +74,8 @@ class AnalyticsRepository(BaseMongoRepository[AIRuntimeLogDocument, AIRuntimeLog
             raise
 
     async def get_dashboard_insights(
-        self, store_id: str, metric_name: Optional[str] = None, session: Any = None
-    ) -> List[DashboardInsight]:
+        self, store_id: str, metric_name: str | None = None, session: Any = None
+    ) -> list[DashboardInsight]:
         """Retrieve insights for the merchant dashboard."""
         try:
             filters = {"store_id": store_id}
@@ -98,10 +95,7 @@ class AnalyticsRepository(BaseMongoRepository[AIRuntimeLogDocument, AIRuntimeLog
             doc = DashboardInsightDocument.from_entity(insight)
             data = doc.to_mongo_dict()
             await self.insights_collection.replace_one(
-                {"store_id": insight.store_id},
-                data,
-                upsert=True,
-                session=session
+                {"store_id": insight.store_id}, data, upsert=True, session=session
             )
             return insight
         except Exception as e:

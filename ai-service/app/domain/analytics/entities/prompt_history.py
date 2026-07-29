@@ -1,10 +1,13 @@
-from datetime import datetime, UTC
-from typing import Dict, Any
+from datetime import UTC, datetime
+
 from pydantic import Field
+
 from app.shared.kernel.entity import Entity
+
 
 class PromptHistory(Entity[str]):
     """Domain representation of a specific prompt-response interaction with an LLM."""
+
     runtimeId: str = Field(..., description="ID of the parent AIRuntimeLog")
     provider: str = Field(..., description="LLM provider name (e.g. openai, claude, gemini)")
     context: str = Field(..., description="Context of the prompt")

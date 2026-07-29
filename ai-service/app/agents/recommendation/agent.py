@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from langgraph.graph import END, StateGraph
 
@@ -77,7 +77,7 @@ class RecommendationAgent:
         return workflow.compile()
 
     def _wrap(self, node_fn):
-        async def wrapped(state: RecommendationState) -> Dict[str, Any]:
+        async def wrapped(state: RecommendationState) -> dict[str, Any]:
             extra = {}
             if node_fn == parse_intent_node:
                 extra["llm"] = self._llm
@@ -86,13 +86,14 @@ class RecommendationAgent:
             elif node_fn == filter_inventory_node:
                 extra["product_repo"] = self._product_repo
             return await node_fn(state, **extra)
+
         return wrapped
 
     async def run(
         self,
         query: str,
         store_id: str,
-        customer_id: Optional[str] = None,
+        customer_id: str | None = None,
     ) -> RecommendationResponse:
         start = time.perf_counter()
 

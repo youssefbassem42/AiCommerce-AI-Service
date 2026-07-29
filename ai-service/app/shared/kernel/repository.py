@@ -1,10 +1,11 @@
-from typing import Generic, List, Optional, Tuple, TypeVar
 from abc import ABC, abstractmethod
+from typing import TypeVar
 
 T = TypeVar("T")
 ID = TypeVar("ID")
 
-class AsyncRepository(ABC, Generic[T, ID]):
+
+class AsyncRepository[T, ID](ABC):
     """Generic asynchronous repository interface."""
 
     @abstractmethod
@@ -23,29 +24,27 @@ class AsyncRepository(ABC, Generic[T, ID]):
         pass
 
     @abstractmethod
-    async def find_by_id(self, id: ID) -> Optional[T]:
+    async def find_by_id(self, id: ID) -> T | None:
         """Find an entity by its business ID."""
         pass
 
     @abstractmethod
-    async def find_many(self, filters: dict, limit: int = 100, skip: int = 0) -> List[T]:
+    async def find_many(self, filters: dict, limit: int = 100, skip: int = 0) -> list[T]:
         """Find multiple entities matching a filter."""
         pass
 
     @abstractmethod
-    async def paginate(
-        self, filters: dict, page: int = 1, page_size: int = 20
-    ) -> Tuple[List[T], int]:
+    async def paginate(self, filters: dict, page: int = 1, page_size: int = 20) -> tuple[list[T], int]:
         """Paginate entities matching a filter. Returns (items, total_count)."""
         pass
 
     @abstractmethod
-    async def bulk_insert(self, entities: List[T]) -> int:
+    async def bulk_insert(self, entities: list[T]) -> int:
         """Bulk insert multiple entities. Returns count of inserted items."""
         pass
 
     @abstractmethod
-    async def bulk_update(self, entities: List[T]) -> int:
+    async def bulk_update(self, entities: list[T]) -> int:
         """Bulk update multiple entities. Returns count of updated items."""
         pass
 

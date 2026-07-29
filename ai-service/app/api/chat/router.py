@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends
 
 from app.api.ai.dependencies import get_ai_service
 from app.api.chat.schemas import ChatRequest, ChatResponse
-from app.application.dto.ai_dto import ChatRequest as AIChatRequest, MessageDTO
+from app.application.dto.ai_dto import ChatRequest as AIChatRequest
+from app.application.dto.ai_dto import MessageDTO
 from app.application.services.chat_service import ChatService
 from app.core.ai_settings import ai_settings
 

@@ -1,8 +1,8 @@
 import pytest
 
+from app.application.integration.discovery.endpoint_classifier import EndpointClassifier
 from app.application.integration.openapi.parser import OpenApiParser
 from app.application.integration.openapi.validator import SpecValidator
-from app.application.integration.discovery.endpoint_classifier import EndpointClassifier
 
 
 @pytest.fixture
@@ -21,7 +21,6 @@ def classifier() -> EndpointClassifier:
 
 
 class TestOpenApiParserBugs:
-
     def test_parse_v2_spec(self, parser: OpenApiParser) -> None:
         v2_spec = {
             "swagger": "2.0",
@@ -85,11 +84,7 @@ class TestOpenApiParserBugs:
                         "responses": {
                             "200": {
                                 "description": "OK",
-                                "content": {
-                                    "application/json": {
-                                        "schema": {"type": "object"}
-                                    }
-                                },
+                                "content": {"application/json": {"schema": {"type": "object"}}},
                             }
                         },
                     },
@@ -101,12 +96,10 @@ class TestOpenApiParserBugs:
             if ep.path == "/products/{id}":
                 param_names = [p.get("name") for p in ep.parameters]
                 assert "id" in param_names, (
-                    f"Path-level parameter 'id' should be merged into endpoint. "
-                    f"Got params: {param_names}"
+                    f"Path-level parameter 'id' should be merged into endpoint. Got params: {param_names}"
                 )
                 assert "include" in param_names, (
-                    f"Operation-level parameter 'include' should be preserved. "
-                    f"Got params: {param_names}"
+                    f"Operation-level parameter 'include' should be preserved. Got params: {param_names}"
                 )
 
     def test_webhooks_extracted(self, parser: OpenApiParser) -> None:
@@ -117,9 +110,7 @@ class TestOpenApiParserBugs:
                 "newOrder": {
                     "post": {
                         "operationId": "newOrderWebhook",
-                        "responses": {
-                            "200": {"description": "OK"}
-                        },
+                        "responses": {"200": {"description": "OK"}},
                     }
                 }
             },
@@ -134,9 +125,7 @@ class TestOpenApiParserBugs:
         )
 
     def test_min_endpoints_not_present_on_parser(self, parser: OpenApiParser) -> None:
-        assert not hasattr(parser, 'MIN_ENDPOINTS'), (
-            "MIN_ENDPOINTS should not exist on parser (removed dead code)"
-        )
+        assert not hasattr(parser, "MIN_ENDPOINTS"), "MIN_ENDPOINTS should not exist on parser (removed dead code)"
 
     def test_v2_base_url_extraction(self, parser: OpenApiParser) -> None:
         spec = {
@@ -181,7 +170,6 @@ class TestOpenApiParserBugs:
 
 
 class TestSpecValidatorBugs:
-
     def test_zero_endpoints_does_not_crash(self, validator: SpecValidator) -> None:
         from app.application.integration.openapi.parser import IntegrationSchema
 
@@ -196,7 +184,7 @@ class TestSpecValidatorBugs:
         validator.validate(schema)
 
     def test_dangling_ref_not_detected(self, validator: SpecValidator) -> None:
-        from app.application.integration.openapi.parser import IntegrationSchema, EndpointSchema
+        from app.application.integration.openapi.parser import EndpointSchema, IntegrationSchema
 
         schema = IntegrationSchema(
             platform_name="test",
@@ -215,7 +203,7 @@ class TestSpecValidatorBugs:
             pagination_info={},
         )
         report = validator.validate(schema)
-        dangling_ref_errors = [e for e in report.errors if "NonExistentSchema" in e or "ref" in e.lower()]
+        [e for e in report.errors if "NonExistentSchema" in e or "ref" in e.lower()]
 
     def test_empty_paths_returns_empty(self, parser: OpenApiParser) -> None:
         spec = {
@@ -228,7 +216,6 @@ class TestSpecValidatorBugs:
 
 
 class TestEndpointClassifierBugs:
-
     def test_classify_with_minimal_path(self, classifier: EndpointClassifier) -> None:
         from app.application.integration.openapi.parser import EndpointSchema
 

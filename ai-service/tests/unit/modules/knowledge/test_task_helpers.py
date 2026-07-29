@@ -1,6 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import UTC, datetime
+
+import pytest
 
 from app.domain.job.value_objects import JobStatus, JobType
 

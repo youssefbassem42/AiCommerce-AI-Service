@@ -2,7 +2,6 @@ from app.domain.commerce.value_objects.seo import SEO
 
 
 class TestSEO:
-
     def test_empty_seo(self):
         seo = SEO()
         assert seo.title is None

@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 MAKEFILE_PATH = "Makefile"

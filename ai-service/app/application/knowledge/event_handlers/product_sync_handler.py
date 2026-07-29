@@ -1,8 +1,8 @@
 import logging
 
-from app.domain.commerce.events.product_events import ProductSynced, ProductDeleted
-from app.domain.knowledge.repositories.knowledge_repository import KnowledgeRepository
+from app.domain.commerce.events.product_events import ProductDeleted, ProductSynced
 from app.domain.knowledge.repositories.chunk_repository import ChunkRepository
+from app.domain.knowledge.repositories.knowledge_repository import KnowledgeRepository
 from app.shared.events.event_handler import IEventHandler
 
 logger = logging.getLogger(__name__)
@@ -24,9 +24,7 @@ class ProductSyncHandler(IEventHandler[ProductSynced]):
             event.store_id,
             event.platform,
         )
-        docs = await self._knowledge_repository.find_many(
-            {"store_id": event.store_id, "status": "active"}
-        )
+        docs = await self._knowledge_repository.find_many({"store_id": event.store_id, "status": "active"})
         for doc in docs:
             doc.status = "pending_reprocess"
             await self._knowledge_repository.update(doc)
@@ -45,8 +43,6 @@ class ProductDeletedHandler(IEventHandler[ProductDeleted]):
             event.product_id,
             event.store_id,
         )
-        chunks = await self._chunk_repository.find_many(
-            {"store_id": event.store_id, "product_id": event.product_id}
-        )
+        chunks = await self._chunk_repository.find_many({"store_id": event.store_id, "product_id": event.product_id})
         for chunk in chunks:
             await self._chunk_repository.delete(chunk.id)

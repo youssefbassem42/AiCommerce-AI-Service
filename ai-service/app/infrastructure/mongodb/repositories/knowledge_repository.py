@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from app.domain.knowledge.entities.knowledge_document import KnowledgeDocument
 from app.domain.knowledge.repositories.knowledge_repository import KnowledgeRepository as IKnowledgeRepository
@@ -18,7 +18,7 @@ class KnowledgeRepository(BaseMongoRepository[KnowledgeDocumentModel, KnowledgeD
         super().__init__(get_knowledge_documents_collection(), KnowledgeDocumentModel)
         self.chunks_collection = get_knowledge_chunks_collection()
 
-    async def find_by_id(self, id: str, session: Any = None) -> Optional[KnowledgeDocument]:
+    async def find_by_id(self, id: str, session: Any = None) -> KnowledgeDocument | None:
         document = await super().find_by_id(id, session=session)
         if document is None:
             return None

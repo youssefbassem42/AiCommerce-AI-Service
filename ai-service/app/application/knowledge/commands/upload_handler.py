@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from bson import ObjectId
 
 from app.application.knowledge.commands.upload_command import UploadDocumentCommand
-from app.application.knowledge.dto.upload_dto import UploadCreateDTO, UploadDTO
+from app.application.knowledge.dto.upload_dto import UploadDTO
 from app.domain.knowledge.entities.document_upload import DocumentUpload
 from app.domain.knowledge.exceptions import (
     DuplicateUploadException,
@@ -44,23 +44,17 @@ def _compute_checksum(file_path: str) -> str:
 
 def _validate_extension(ext: str) -> None:
     if ext.lower() not in ALLOWED_EXTENSIONS:
-        raise FileValidationException(
-            f"Extension '{ext}' is not allowed. Allowed: {ALLOWED_EXTENSIONS}"
-        )
+        raise FileValidationException(f"Extension '{ext}' is not allowed. Allowed: {ALLOWED_EXTENSIONS}")
 
 
 def _validate_mime_type(mime: str) -> None:
     if mime not in ALLOWED_MIME_TYPES:
-        raise FileValidationException(
-            f"MIME type '{mime}' is not allowed. Allowed: {ALLOWED_MIME_TYPES}"
-        )
+        raise FileValidationException(f"MIME type '{mime}' is not allowed. Allowed: {ALLOWED_MIME_TYPES}")
 
 
 def _validate_file_size(size: int) -> None:
     if size > MAX_FILE_SIZE_BYTES:
-        raise FileValidationException(
-            f"File size {size} bytes exceeds maximum of {MAX_FILE_SIZE_BYTES} bytes"
-        )
+        raise FileValidationException(f"File size {size} bytes exceeds maximum of {MAX_FILE_SIZE_BYTES} bytes")
 
 
 class UploadDocumentHandler:
@@ -84,9 +78,7 @@ class UploadDocumentHandler:
         existing = await self.repository.find_by_checksum(checksum)
         if existing is not None:
             os.remove(command.file_path)
-            raise DuplicateUploadException(
-                f"Duplicate upload detected (checksum: {checksum[:16]}...)"
-            )
+            raise DuplicateUploadException(f"Duplicate upload detected (checksum: {checksum[:16]}...)")
 
         ext = os.path.splitext(command.original_filename)[1]
         stored_filename = f"{uuid.uuid4().hex}{ext}"

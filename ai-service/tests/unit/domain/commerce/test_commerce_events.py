@@ -1,14 +1,12 @@
-from datetime import datetime, UTC
-
-from app.domain.commerce.events.product_events import (
-    ProductCreated,
-    ProductUpdated,
-    ProductDeleted,
-    ProductSynced,
-)
-from app.domain.commerce.events.order_events import OrderPlaced, OrderUpdated, OrderCancelled
 from app.domain.commerce.events.customer_events import CustomerCreated, CustomerUpdated
 from app.domain.commerce.events.inventory_events import InventoryChanged, StockAlert
+from app.domain.commerce.events.order_events import OrderCancelled, OrderPlaced, OrderUpdated
+from app.domain.commerce.events.product_events import (
+    ProductCreated,
+    ProductDeleted,
+    ProductSynced,
+    ProductUpdated,
+)
 
 
 class TestProductEvents:

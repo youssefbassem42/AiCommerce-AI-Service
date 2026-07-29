@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -12,9 +12,9 @@ class KnowledgeChunkDocument(BaseMongoDocument):
     document_id: str = Field(..., index=True)
     version_number: int = Field(default=1, ge=1)
     chunk_index: int = Field(..., ge=0)
-    title: Optional[str] = None
+    title: str | None = None
     content: str = Field(...)
-    embedding_id: Optional[str] = Field(None, index=True)
+    embedding_id: str | None = Field(None, index=True)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def to_entity(self) -> KnowledgeChunk:

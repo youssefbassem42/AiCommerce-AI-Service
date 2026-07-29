@@ -1,3 +1,6 @@
+from app.application.knowledge.dto.business_summary_generation_dto import (
+    BusinessSummaryGenerationResponseDTO,
+)
 from app.application.knowledge.dto.knowledge_dto import (
     BusinessSummaryCreateDTO,
     BusinessSummaryDTO,
@@ -11,9 +14,6 @@ from app.application.knowledge.dto.knowledge_dto import (
     KnowledgeDocumentDTO,
     KnowledgeDocumentUpdateDTO,
     PaginatedResultDTO,
-)
-from app.application.knowledge.dto.business_summary_generation_dto import (
-    BusinessSummaryGenerationResponseDTO,
 )
 from app.application.knowledge.dto.upload_dto import UploadCreateDTO, UploadDTO
 

@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock
 
+import pytest
+
+from app.application.knowledge.dto import BusinessSummaryUpdateDTO
 from app.application.knowledge.services import BusinessSummaryService
-from app.application.knowledge.dto import BusinessSummaryCreateDTO, BusinessSummaryUpdateDTO
 from app.domain.knowledge.exceptions import BusinessSummaryNotFoundException
 
 

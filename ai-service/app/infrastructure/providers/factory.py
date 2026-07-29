@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
 from app.core.ai_exceptions import ProviderNotFoundException
 from app.infrastructure.providers.base import BaseLLMProvider
@@ -11,11 +11,11 @@ class LLMProviderFactory:
     """Singleton provider factory with lazy provider loading and instance caching."""
 
     _instance: Optional["LLMProviderFactory"] = None
-    _cache: Dict[str, BaseLLMProvider] = {}
+    _cache: dict[str, BaseLLMProvider] = {}
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(LLMProviderFactory, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._cache = {}
         return cls._instance
 

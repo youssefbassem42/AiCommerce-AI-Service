@@ -1,6 +1,5 @@
-import json
-from typing import Any, Dict, List, Optional
 import logging
+from typing import Any
 
 from redis.asyncio import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
@@ -14,7 +13,7 @@ class RedisEventBus(EventBus):
     def __init__(self, redis_client: Redis, prefix: str = "event:"):
         self._redis = redis_client
         self._prefix = prefix
-        self._local_handlers: Dict[str, List[Any]] = {}
+        self._local_handlers: dict[str, list[Any]] = {}
 
     async def publish(self, event: Any) -> None:
         event_type = type(event).__name__
@@ -42,8 +41,6 @@ class RedisEventBus(EventBus):
     async def unsubscribe(self, event_type: type, handler: Any) -> None:
         key = f"{self._prefix}{event_type.__name__}"
         if key in self._local_handlers:
-            self._local_handlers[key] = [
-                h for h in self._local_handlers[key] if h is not handler
-            ]
+            self._local_handlers[key] = [h for h in self._local_handlers[key] if h is not handler]
             if not self._local_handlers[key]:
                 del self._local_handlers[key]

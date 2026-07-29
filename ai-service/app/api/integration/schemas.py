@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -7,35 +7,35 @@ from pydantic import BaseModel, Field
 class AuthConfigSchema(BaseModel):
     type: str = "apiKey"
     credentials_location: str = "header"
-    scheme: Optional[str] = None
-    name: Optional[str] = None
-    token_url: Optional[str] = None
-    flow: Optional[str] = None
+    scheme: str | None = None
+    name: str | None = None
+    token_url: str | None = None
+    flow: str | None = None
 
 
 class PaginationConfigSchema(BaseModel):
     style: str = "none"
-    page_param: Optional[str] = None
-    limit_param: Optional[str] = None
+    page_param: str | None = None
+    limit_param: str | None = None
     default_limit: int = 20
-    cursor_field: Optional[str] = None
-    total_field: Optional[str] = None
-    next_link_field: Optional[str] = None
+    cursor_field: str | None = None
+    total_field: str | None = None
+    next_link_field: str | None = None
 
 
 class FieldMappingSchema(BaseModel):
     source: str
     target: str
-    transformer: Optional[str] = None
+    transformer: str | None = None
     default_value: Any = None
     required: bool = False
 
 
 class EntityMappingSchema(BaseModel):
     entity_type: str
-    list_path: Optional[str] = None
+    list_path: str | None = None
     list_method: str = "GET"
-    detail_path: Optional[str] = None
+    detail_path: str | None = None
     detail_method: str = "GET"
     id_field: str = "id"
     pagination: PaginationConfigSchema = Field(default_factory=PaginationConfigSchema)
@@ -45,10 +45,10 @@ class EntityMappingSchema(BaseModel):
 class EndpointSchema(BaseModel):
     path: str
     method: str
-    operation_id: Optional[str] = None
-    summary: Optional[str] = None
+    operation_id: str | None = None
+    summary: str | None = None
     parameters: list[dict] = Field(default_factory=list)
-    response_schema_ref: Optional[str] = None
+    response_schema_ref: str | None = None
 
 
 class DiscoveredEntitySchema(BaseModel):
@@ -61,7 +61,7 @@ class DiscoveredEntitySchema(BaseModel):
 
 class SuggestedMappingSchema(BaseModel):
     entity_type: str
-    list_path: Optional[str] = None
+    list_path: str | None = None
     id_field: str = "id"
     field_mappings: list[FieldMappingSchema] = Field(default_factory=list)
 
@@ -115,12 +115,12 @@ class ConnectionResponseSchema(BaseModel):
     entity_mappings: list[EntityMappingSchema]
     discovered_endpoints: list[dict] = Field(default_factory=list)
     discovered_schemas: dict = Field(default_factory=dict)
-    last_sync_at: Optional[datetime] = None
-    last_sync_status: Optional[str] = None
-    last_vector_sync_at: Optional[datetime] = None
-    last_vector_sync_status: Optional[str] = None
-    vector_sync_error: Optional[str] = None
-    error_message: Optional[str] = None
+    last_sync_at: datetime | None = None
+    last_sync_status: str | None = None
+    last_vector_sync_at: datetime | None = None
+    last_vector_sync_status: str | None = None
+    vector_sync_error: str | None = None
+    error_message: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -138,22 +138,22 @@ class EntitySyncResultSchema(BaseModel):
     total_mapped: int = 0
     total_upserted: int = 0
     errors: list[str] = Field(default_factory=list)
-    vector_sync: Optional[dict] = None
+    vector_sync: dict | None = None
 
 
 class SyncRequestSchema(BaseModel):
-    entity_types: Optional[list[str]] = None
+    entity_types: list[str] | None = None
 
 
 class SyncResponseSchema(BaseModel):
     connection_id: str
     store_id: str
     started_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     status: str
     entity_results: list[EntitySyncResultSchema] = Field(default_factory=list)
-    total_duration_seconds: Optional[float] = None
-    error: Optional[str] = None
+    total_duration_seconds: float | None = None
+    error: str | None = None
 
 
 class DeleteResponseSchema(BaseModel):
@@ -189,25 +189,25 @@ class AgentParseResponseSchema(BaseModel):
     capabilities: dict[str, bool] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
-    user_friendly_error: Optional[str] = None
+    user_friendly_error: str | None = None
 
 
 class AgentSyncRequestSchema(BaseModel):
     platform_name: str = Field(..., description="Name of the platform")
     raw_spec: Any = Field(..., description="OpenAPI/Swagger specification")
     store_id: str = Field(..., description="Store ID for the integration")
-    name: Optional[str] = Field(default=None, description="Optional connection name")
-    credentials: Optional[dict[str, str]] = Field(default=None, description="API credentials (tokens, keys)")
+    name: str | None = Field(default=None, description="Optional connection name")
+    credentials: dict[str, str] | None = Field(default=None, description="API credentials (tokens, keys)")
     auto_sync: bool = Field(default=True, description="Run sync automatically after mapping")
 
 
 class AgentSyncResponseSchema(BaseModel):
-    connection_id: Optional[str] = None
-    mapping_report: Optional[dict] = None
-    capabilities: Optional[dict[str, bool]] = None
-    sync_result: Optional[dict] = None
-    feature_analysis: Optional[FeatureAnalysisSchema] = None
-    error: Optional[str] = None
-    user_friendly_error: Optional[str] = None
+    connection_id: str | None = None
+    mapping_report: dict | None = None
+    capabilities: dict[str, bool] | None = None
+    sync_result: dict | None = None
+    feature_analysis: FeatureAnalysisSchema | None = None
+    error: str | None = None
+    user_friendly_error: str | None = None
     started_at: str
-    completed_at: Optional[str] = None
+    completed_at: str | None = None

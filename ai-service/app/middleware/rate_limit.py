@@ -1,13 +1,15 @@
-import time
 import logging
-from typing import Dict, Tuple, Optional
+import time
+
 from fastapi import Request, Response
+from redis.asyncio import Redis
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from redis.asyncio import Redis
+
 from app.core.config import settings
 
 logger = logging.getLogger("ai_service")
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
@@ -20,24 +22,24 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self,
         app,
         limit_per_minute: int = 100,
-        whitelist_paths: Tuple[str, ...] = ("/health/", "/health"),
+        whitelist_paths: tuple[str, ...] = ("/health/", "/health"),
     ):
         super().__init__(app)
         self.limit_per_minute = limit_per_minute
         self.whitelist_paths = whitelist_paths
-        
+
         # Local in-memory fallback store: {ip_address: [(timestamp)]}
-        self.local_store: Dict[str, list] = {}
-        
+        self.local_store: dict[str, list] = {}
+
         # Redis client initialization (lazy connection)
-        self.redis: Optional[Redis] = None
+        self.redis: Redis | None = None
         try:
             self.redis = Redis.from_url(settings.REDIS_SETTINGS.REDIS_URL, decode_responses=True)
             logger.info("RateLimitMiddleware: Redis client initialized successfully.")
         except Exception as e:
             logger.error(f"RateLimitMiddleware: Failed to initialize Redis client: {e}")
 
-    async def _is_rate_limited_redis(self, client_ip: str) -> Tuple[bool, int, int]:
+    async def _is_rate_limited_redis(self, client_ip: str) -> tuple[bool, int, int]:
         """
         Check rate limit using Redis (fixed window of 60 seconds).
         Returns (is_limited, remaining, reset_time_seconds).
@@ -67,24 +69,22 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             logger.warning(f"RateLimitMiddleware: Redis check failed, falling back to memory. Error: {e}")
             raise e
 
-    def _is_rate_limited_memory(self, client_ip: str) -> Tuple[bool, int, int]:
+    def _is_rate_limited_memory(self, client_ip: str) -> tuple[bool, int, int]:
         """
         In-memory fallback rate limiting (sliding window of 60 seconds).
         Returns (is_limited, remaining, reset_time_seconds).
         """
         current_time = time.time()
-        
+
         # Initialize or cleanup old requests
         if client_ip not in self.local_store:
             self.local_store[client_ip] = []
-            
+
         # Keep only requests within the last 60 seconds
-        self.local_store[client_ip] = [
-            t for t in self.local_store[client_ip] if current_time - t < 60
-        ]
-        
+        self.local_store[client_ip] = [t for t in self.local_store[client_ip] if current_time - t < 60]
+
         request_count = len(self.local_store[client_ip])
-        
+
         if request_count >= self.limit_per_minute:
             # Limited. The oldest request in the window dictates the reset
             reset_time = int(60 - (current_time - self.local_store[client_ip][0]))
@@ -122,14 +122,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             is_limited, remaining, reset_time = self._is_rate_limited_memory(rate_limit_key)
 
         if is_limited:
-            logger.warning(f"RateLimitMiddleware: Rate limit exceeded for key: {rate_limit_key}. Reset in {reset_time}s.")
+            logger.warning(
+                f"RateLimitMiddleware: Rate limit exceeded for key: {rate_limit_key}. Reset in {reset_time}s."
+            )
             response = JSONResponse(
                 status_code=429,
                 content={
                     "detail": "Rate limit exceeded. Please try again later.",
                     "limit": self.limit_per_minute,
-                    "reset_seconds": reset_time
-                }
+                    "reset_seconds": reset_time,
+                },
             )
             response.headers["Retry-After"] = str(reset_time)
             response.headers["X-RateLimit-Limit"] = str(self.limit_per_minute)

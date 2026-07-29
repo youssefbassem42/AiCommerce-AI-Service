@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from langgraph.graph import END, StateGraph
 
@@ -55,7 +55,7 @@ class BundleSuggestionAgent:
         self,
         product_repo: ProductRepository,
         llm: BaseLLMProvider,
-        promo_service: Optional[PromoCodeService] = None,
+        promo_service: PromoCodeService | None = None,
     ):
         self._product_repo = product_repo
         self._llm = llm
@@ -104,7 +104,7 @@ class BundleSuggestionAgent:
         return workflow.compile()
 
     def _wrap(self, node_fn):
-        async def wrapped(state: BundleState) -> Dict[str, Any]:
+        async def wrapped(state: BundleState) -> dict[str, Any]:
             extra = {}
             if node_fn == parse_budget_node:
                 extra["llm"] = self._llm
@@ -113,14 +113,15 @@ class BundleSuggestionAgent:
             elif node_fn == handle_promo_node:
                 extra["promo_service"] = self._promo_service
             return await node_fn(state, **extra)
+
         return wrapped
 
     async def run(
         self,
         query: str,
         store_id: str,
-        customer_id: Optional[str] = None,
-        store_capabilities: Optional[Dict[str, bool]] = None,
+        customer_id: str | None = None,
+        store_capabilities: dict[str, bool] | None = None,
     ) -> BundleResponse:
         start = time.perf_counter()
 

@@ -4,7 +4,6 @@ from app.domain.commerce.aggregates.category import Category
 
 
 class TestCategory:
-
     def test_valid_category(self):
         cat = Category(
             id="c1",

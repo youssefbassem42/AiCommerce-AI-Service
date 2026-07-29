@@ -4,7 +4,13 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.auth_settings import auth_settings
-from app.core.security import decode_jwt, get_tenant_id_from_token, get_user_id_from_token, get_roles_from_token, get_scopes_from_token
+from app.core.security import (
+    decode_jwt,
+    get_roles_from_token,
+    get_scopes_from_token,
+    get_tenant_id_from_token,
+    get_user_id_from_token,
+)
 
 logger = logging.getLogger(__name__)
 

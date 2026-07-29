@@ -1,9 +1,6 @@
-from typing import Optional
-
 from pydantic import Field
 
 from app.domain.commerce.aggregates.category import Category
-from app.domain.commerce.value_objects.audit import AuditInfo
 from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 from app.infrastructure.mongodb.documents.product_document import AuditInfoModel
 
@@ -11,12 +8,12 @@ from app.infrastructure.mongodb.documents.product_document import AuditInfoModel
 class CategoryDocument(BaseMongoDocument):
     store_id: str = Field(..., index=True)
     org_id: str = Field(...)
-    external_id: Optional[str] = None
+    external_id: str | None = None
     name: str = Field(...)
-    description: Optional[str] = None
-    handle: Optional[str] = None
-    parent_id: Optional[str] = None
-    image_url: Optional[str] = None
+    description: str | None = None
+    handle: str | None = None
+    parent_id: str | None = None
+    image_url: str | None = None
     sort_order: int = 0
     product_count: int = 0
     audit: AuditInfoModel = Field(default_factory=AuditInfoModel)

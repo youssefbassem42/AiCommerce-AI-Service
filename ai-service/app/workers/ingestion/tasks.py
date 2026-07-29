@@ -1,16 +1,14 @@
 import logging
-from typing import Optional
 
-from app.core.celery_app import celery_app
-from app.domain.job.value_objects import JobStatus, JobType
-from app.infrastructure.knowledge.extractors import ExtractorFactory
-from app.infrastructure.mongodb.repositories.knowledge_repository import KnowledgeRepository
-from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
-from app.infrastructure.tasks.helpers import _run_async, complete_job, fail_job, update_job_progress
+from app.application.knowledge.chunking.chunking_service import ChunkingConfig, ChunkingService
 from app.application.knowledge.processing.pipeline import ProcessingPipeline
 from app.application.knowledge.processing.processor import DocumentProcessor
-from app.application.knowledge.chunking.chunking_service import ChunkingService, ChunkingConfig
-from app.domain.knowledge.entities.knowledge_document import KnowledgeDocument
+from app.core.celery_app import celery_app
+from app.domain.job.value_objects import JobStatus
+from app.infrastructure.knowledge.extractors import ExtractorFactory
+from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
+from app.infrastructure.mongodb.repositories.knowledge_repository import KnowledgeRepository
+from app.infrastructure.tasks.helpers import _run_async, complete_job, fail_job, update_job_progress
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +20,9 @@ logger = logging.getLogger(__name__)
     default_retry_delay=30,
     acks_late=True,
 )
-def process_document_task(self, document_id: str, file_path: str, mime_type: Optional[str] = None, job_id: Optional[str] = None) -> dict:
+def process_document_task(
+    self, document_id: str, file_path: str, mime_type: str | None = None, job_id: str | None = None
+) -> dict:
     def _run():
         async def _async_run():
             if job_id:
@@ -66,7 +66,7 @@ def process_document_task(self, document_id: str, file_path: str, mime_type: Opt
     except Exception as exc:
         if job_id:
             _run_async(fail_job(job_id, str(exc), self.request.retries, self.max_retries))
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries * 30)
+        raise self.retry(exc=exc, countdown=2**self.request.retries * 30)
 
 
 @celery_app.task(
@@ -82,7 +82,7 @@ def generate_chunks_task(
     strategy: str = "recursive_character",
     chunk_size: int = 1000,
     overlap: int = 200,
-    job_id: Optional[str] = None,
+    job_id: str | None = None,
 ) -> dict:
     def _run():
         async def _async_run():
@@ -125,4 +125,4 @@ def generate_chunks_task(
     except Exception as exc:
         if job_id:
             _run_async(fail_job(job_id, str(exc), self.request.retries, self.max_retries))
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries * 30)
+        raise self.retry(exc=exc, countdown=2**self.request.retries * 30)

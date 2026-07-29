@@ -1,13 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
-from app.shared.kernel.repository import AsyncRepository
+
 from app.domain.recommendation.entities.store_capabilities import StoreCapabilities
+from app.shared.kernel.repository import AsyncRepository
 
 
 class StoreCapabilitiesRepository(AsyncRepository[StoreCapabilities, str], ABC):
-
     @abstractmethod
-    async def get_by_store_id(self, store_id: str) -> Optional[StoreCapabilities]:
+    async def get_by_store_id(self, store_id: str) -> StoreCapabilities | None:
         pass
 
     @abstractmethod
@@ -21,5 +20,5 @@ class StoreCapabilitiesRepository(AsyncRepository[StoreCapabilities, str], ABC):
         pass
 
     @abstractmethod
-    async def detect_capabilities(self, store_id: str) -> Dict[str, bool]:
+    async def detect_capabilities(self, store_id: str) -> dict[str, bool]:
         pass

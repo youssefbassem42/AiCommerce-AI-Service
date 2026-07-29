@@ -17,7 +17,9 @@ class TXTExtractor(BaseExtractor):
             text = raw.decode(encoding, errors="replace")
             logger.debug(
                 "Extracted %d characters from TXT '%s' (encoding: %s)",
-                len(text), file_path, encoding,
+                len(text),
+                file_path,
+                encoding,
             )
             return text
         except Exception:

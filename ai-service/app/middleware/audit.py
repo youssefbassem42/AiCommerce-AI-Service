@@ -1,9 +1,8 @@
-import json
 import logging
-from datetime import datetime, UTC
-from bson import ObjectId
+from datetime import UTC, datetime
 
-from fastapi import Request, Response
+from bson import ObjectId
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.domain.auth.entities.audit_log import AuditLog
@@ -31,7 +30,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
             status_code = response.status_code
-        except Exception as exc:
+        except Exception:
             status_code = 500
             raise
         finally:
@@ -63,7 +62,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         detail: dict,
         outcome: str,
     ) -> None:
-        async with get_unit_of_work() as uow:
+        async with get_unit_of_work():
             repo = AuditLogRepository()
             log_entry = AuditLog(
                 id=str(ObjectId()),

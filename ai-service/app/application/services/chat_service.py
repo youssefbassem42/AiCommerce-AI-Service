@@ -1,26 +1,27 @@
+import logging
 import time
 import uuid
-import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional
-from app.infrastructure.providers.base import BaseLLMProvider
-from app.infrastructure.providers.factory import LLMProviderFactory
+from collections.abc import AsyncGenerator
+from typing import Any
+
 from app.application.dto.ai_dto import (
     ChatRequest,
     ChatResponse,
     EmbeddingRequest,
     EmbeddingResponse,
-    HealthDTO,
     MessageDTO,
     StreamingChunkDTO,
     UsageDTO,
 )
 from app.application.services.conversation_service import ConversationService
+from app.core.ai_exceptions import AIException, ProviderUnavailableException, RateLimitException
 from app.core.ai_settings import ai_settings
 from app.core.model_registry import ModelRegistry
-from app.utils.token_utils import calculate_tokens, calculate_cost
-from app.core.ai_exceptions import AIException, ProviderUnavailableException, RateLimitException
+from app.infrastructure.providers.factory import LLMProviderFactory
+from app.utils.token_utils import calculate_cost, calculate_tokens
 
 logger = logging.getLogger("ai_service")
+
 
 class ChatService:
     """
@@ -33,7 +34,7 @@ class ChatService:
     def __init__(
         self,
         provider_factory: LLMProviderFactory,
-        conversation_service: Optional[ConversationService] = None,
+        conversation_service: ConversationService | None = None,
     ):
         self.provider_factory = provider_factory
         self.conversation_service = conversation_service
@@ -49,7 +50,7 @@ class ChatService:
         latency_ms: float,
         usage: UsageDTO,
         action: str = "chat",
-        error: Optional[str] = None,
+        error: str | None = None,
     ):
         """
         Log structured metrics for tracking and dashboarding.
@@ -75,15 +76,15 @@ class ChatService:
     async def chat(
         self,
         request: ChatRequest,
-        conversation_id: Optional[str] = None,
-        correlation_id: Optional[str] = None,
-        fallbacks: Optional[List[str]] = None,
+        conversation_id: str | None = None,
+        correlation_id: str | None = None,
+        fallbacks: list[str] | None = None,
     ) -> ChatResponse:
         """
         Generate completion response, automatically trying fallback providers if the main call fails.
         """
         corr_id = correlation_id or self._generate_correlation_id()
-        
+
         # Inject conversation history if conversation_id is provided
         if conversation_id and self.conversation_service:
             history = await self.conversation_service.get_conversation_history(conversation_id)
@@ -93,7 +94,7 @@ class ChatService:
 
         model_info = ModelRegistry.get_model_info(request.model)
         primary_provider = model_info.provider if model_info else ai_settings.DEFAULT_PROVIDER
-        
+
         # Build queue of providers to try (primary first, then fallbacks)
         provider_queue = [primary_provider]
         if fallbacks:
@@ -105,16 +106,16 @@ class ChatService:
         for provider_name in provider_queue:
             try:
                 provider = self.provider_factory.get_provider(provider_name)
-                
+
                 # Check capability
                 if model_info and not model_info.capabilities.streaming and request.stream:
                     raise AIException(f"Streaming not supported for model {request.model}", 400)
 
                 start_time = time.perf_counter()
-                
+
                 # Perform call
                 response = await provider.chat(request)
-                
+
                 latency = (time.perf_counter() - start_time) * 1000
                 response.latency_ms = latency
 
@@ -157,8 +158,8 @@ class ChatService:
     async def stream(
         self,
         request: ChatRequest,
-        conversation_id: Optional[str] = None,
-        correlation_id: Optional[str] = None,
+        conversation_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> AsyncGenerator[StreamingChunkDTO, None]:
         """
         Stream response from the provider.
@@ -166,27 +167,30 @@ class ChatService:
         corr_id = correlation_id or self._generate_correlation_id()
         model_info = ModelRegistry.get_model_info(request.model)
         provider_name = model_info.provider if model_info else ai_settings.DEFAULT_PROVIDER
-        
+
         provider = self.provider_factory.get_provider(provider_name)
-        
+
         start_time = time.perf_counter()
         accumulated_content = []
-        prompt_tokens = sum(calculate_tokens(m.content if isinstance(m.content, str) else str(m.content), request.model) for m in request.messages)
+        prompt_tokens = sum(
+            calculate_tokens(m.content if isinstance(m.content, str) else str(m.content), request.model)
+            for m in request.messages
+        )
 
         try:
             async for chunk in provider.stream(request):
                 if chunk.content:
                     accumulated_content.append(chunk.content)
                 yield chunk
-                
+
             latency = (time.perf_counter() - start_time) * 1000
-            
+
             # Log final usage metrics
             final_content = "".join(accumulated_content)
             completion_tokens = calculate_tokens(final_content, request.model)
             total_tokens = prompt_tokens + completion_tokens
             cost = calculate_cost(prompt_tokens, completion_tokens, request.model)
-            
+
             usage = UsageDTO(
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
@@ -214,15 +218,15 @@ class ChatService:
     async def embeddings(
         self,
         request: EmbeddingRequest,
-        correlation_id: Optional[str] = None,
+        correlation_id: str | None = None,
     ) -> EmbeddingResponse:
         corr_id = correlation_id or self._generate_correlation_id()
         model_info = ModelRegistry.get_model_info(request.model)
         provider_name = model_info.provider if model_info else ai_settings.DEFAULT_PROVIDER
-        
+
         provider = self.provider_factory.get_provider(provider_name)
         start_time = time.perf_counter()
-        
+
         try:
             response = await provider.embeddings(request)
             latency = (time.perf_counter() - start_time) * 1000
@@ -236,15 +240,15 @@ class ChatService:
         self,
         request: ChatRequest,
         response_schema: Any,
-        correlation_id: Optional[str] = None,
+        correlation_id: str | None = None,
     ) -> ChatResponse:
         corr_id = correlation_id or self._generate_correlation_id()
         model_info = ModelRegistry.get_model_info(request.model)
         provider_name = model_info.provider if model_info else ai_settings.DEFAULT_PROVIDER
-        
+
         provider = self.provider_factory.get_provider(provider_name)
         start_time = time.perf_counter()
-        
+
         try:
             response = await provider.structured_output(request, response_schema)
             latency = (time.perf_counter() - start_time) * 1000
@@ -258,15 +262,15 @@ class ChatService:
     async def tool_call(
         self,
         request: ChatRequest,
-        correlation_id: Optional[str] = None,
+        correlation_id: str | None = None,
     ) -> ChatResponse:
         corr_id = correlation_id or self._generate_correlation_id()
         model_info = ModelRegistry.get_model_info(request.model)
         provider_name = model_info.provider if model_info else ai_settings.DEFAULT_PROVIDER
-        
+
         provider = self.provider_factory.get_provider(provider_name)
         start_time = time.perf_counter()
-        
+
         try:
             response = await provider.tool_call(request)
             latency = (time.perf_counter() - start_time) * 1000

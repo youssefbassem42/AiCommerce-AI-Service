@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 ENV_EXAMPLE_PATH = ".env.example"
@@ -18,11 +19,19 @@ class TestEnvExample:
         with open(ENV_EXAMPLE_PATH) as f:
             content = f.read()
         required = [
-            "OPENAI_API_KEY", "GEMINI_API_KEY", "CLAUDE_API_KEY",
-            "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY",
-            "JWT_SECRET_KEY", "MONGO_URI", "MONGO_DB",
-            "REDIS_URL", "QDRANT_URL",
-            "DEFAULT_PROVIDER", "DEFAULT_MODEL",
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+            "CLAUDE_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "MISTRAL_API_KEY",
+            "OPENROUTER_API_KEY",
+            "JWT_SECRET_KEY",
+            "MONGO_URI",
+            "MONGO_DB",
+            "REDIS_URL",
+            "QDRANT_URL",
+            "DEFAULT_PROVIDER",
+            "DEFAULT_MODEL",
         ]
         for var in required:
             assert var + "=" in content, f"Missing required var: {var}"
@@ -43,8 +52,7 @@ class TestEnvExample:
         with open(gitignore_path) as f:
             content = f.read()
         lines = [l.strip() for l in content.split("\n")]
-        assert ".env" in lines or ".env" in content, \
-            ".env should be in .gitignore"
+        assert ".env" in lines or ".env" in content, ".env should be in .gitignore"
 
 
 @pytest.mark.unit
@@ -53,7 +61,6 @@ class TestGitignore:
         gitignore_path = os.path.join(os.path.dirname(ENV_EXAMPLE_PATH), ".gitignore")
         with open(gitignore_path) as f:
             content = f.read()
-        patterns = ["__pycache__", ".venv", ".env",
-                     ".vscode", ".DS_Store"]
+        patterns = ["__pycache__", ".venv", ".env", ".vscode", ".DS_Store"]
         for pat in patterns:
             assert pat in content, f".gitignore missing pattern: {pat}"

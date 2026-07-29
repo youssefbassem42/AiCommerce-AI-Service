@@ -1,6 +1,4 @@
-import pytest
-
-from app.application.integration.openapi.resolver import RefResolver, ResolvedField
+from app.application.integration.openapi.resolver import RefResolver
 
 
 class TestRefResolver:

@@ -1,12 +1,14 @@
 import os
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017/test")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
 
 # ---------- Ingestion Worker Tests ----------
+
 
 class TestProcessDocumentTask:
     @patch("app.workers.ingestion.tasks.KnowledgeRepository")
@@ -16,8 +18,13 @@ class TestProcessDocumentTask:
     @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)
     @patch("app.workers.ingestion.tasks.complete_job", new_callable=AsyncMock)
     def test_success(
-        self, mock_complete, mock_progress, mock_processor_cls,
-        mock_pipeline, mock_extractor, mock_repo_cls,
+        self,
+        mock_complete,
+        mock_progress,
+        mock_processor_cls,
+        mock_pipeline,
+        mock_extractor,
+        mock_repo_cls,
     ):
         from app.workers.ingestion.tasks import process_document_task
 
@@ -55,7 +62,7 @@ class TestProcessDocumentTask:
 
         with pytest.raises(ValueError, match="not found"):
             process_document_task.run("doc-1", "/tmp/file.pdf", job_id="job-1")
-    
+
     @patch("app.workers.ingestion.tasks.KnowledgeRepository")
     @patch("app.workers.ingestion.tasks.DocumentProcessor")
     @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)
@@ -92,7 +99,12 @@ class TestGenerateChunksTask:
     @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)
     @patch("app.workers.ingestion.tasks.complete_job", new_callable=AsyncMock)
     def test_success(
-        self, mock_complete, mock_progress, mock_svc_cls, mock_knowledge_repo_cls, mock_chunk_repo_cls,
+        self,
+        mock_complete,
+        mock_progress,
+        mock_svc_cls,
+        mock_knowledge_repo_cls,
+        mock_chunk_repo_cls,
     ):
         from app.workers.ingestion.tasks import generate_chunks_task
 
@@ -136,6 +148,7 @@ class TestGenerateChunksTask:
 
 # ---------- Summarization Worker Tests ----------
 
+
 class TestGenerateSummaryTask:
     @patch("app.workers.summarization.tasks.KnowledgeRepository")
     @patch("app.workers.summarization.tasks.BusinessSummaryRepository")
@@ -144,8 +157,13 @@ class TestGenerateSummaryTask:
     @patch("app.workers.summarization.tasks.update_job_progress", new_callable=AsyncMock)
     @patch("app.workers.summarization.tasks.complete_job", new_callable=AsyncMock)
     def test_success(
-        self, mock_complete, mock_progress, mock_svc_cls, mock_factory_cls,
-        mock_summary_repo_cls, mock_knowledge_repo_cls,
+        self,
+        mock_complete,
+        mock_progress,
+        mock_svc_cls,
+        mock_factory_cls,
+        mock_summary_repo_cls,
+        mock_knowledge_repo_cls,
     ):
         from app.workers.summarization.tasks import generate_summary_task
 
@@ -168,6 +186,7 @@ class TestGenerateSummaryTask:
 
 # ---------- Embedding Worker Tests ----------
 
+
 class TestGenerateEmbeddingsTask:
     @patch("app.workers.embedding.tasks.ChunkRepository")
     @patch("app.workers.embedding.tasks.LLMProviderFactory")
@@ -175,7 +194,12 @@ class TestGenerateEmbeddingsTask:
     @patch("app.workers.embedding.tasks.update_job_progress", new_callable=AsyncMock)
     @patch("app.workers.embedding.tasks.complete_job", new_callable=AsyncMock)
     def test_success(
-        self, mock_complete, mock_progress, mock_registry, mock_factory_cls, mock_repo_cls,
+        self,
+        mock_complete,
+        mock_progress,
+        mock_registry,
+        mock_factory_cls,
+        mock_repo_cls,
     ):
         from app.workers.embedding.tasks import generate_embeddings_task
 
@@ -204,6 +228,7 @@ class TestGenerateEmbeddingsTask:
 
         assert result["total_chunks"] == 2
         assert result["processed"] == 2
+
     @patch("app.workers.embedding.tasks.ChunkRepository")
     @patch("app.workers.embedding.tasks.update_job_progress", new_callable=AsyncMock)
     @patch("app.workers.embedding.tasks.ModelRegistry")
@@ -217,19 +242,22 @@ class TestGenerateEmbeddingsTask:
             generate_embeddings_task.run(["chunk-1"], "unknown-model", "job-1")
 
 
-
 class TestSyncVectorsTask:
     @patch("app.workers.embedding.tasks.update_job_progress", new_callable=AsyncMock)
     @patch("app.workers.embedding.tasks.complete_job", new_callable=AsyncMock)
     def test_success(
-        self, mock_complete, mock_progress,
+        self,
+        mock_complete,
+        mock_progress,
     ):
         from app.workers.embedding.tasks import sync_vectors_task
 
-        with patch("app.workers.embedding.tasks.ChunkRepository") as mock_repo_cls, \
-             patch("app.workers.embedding.tasks.LLMProviderFactory") as mock_factory_cls, \
-             patch("app.workers.embedding.tasks.ModelRegistry") as mock_registry, \
-             patch("app.infrastructure.qdrant.provider.QdrantProvider") as mock_qdrant_cls:
+        with (
+            patch("app.workers.embedding.tasks.ChunkRepository") as mock_repo_cls,
+            patch("app.workers.embedding.tasks.LLMProviderFactory") as mock_factory_cls,
+            patch("app.workers.embedding.tasks.ModelRegistry") as mock_registry,
+            patch("app.infrastructure.qdrant.provider.QdrantProvider") as mock_qdrant_cls,
+        ):
             mock_model_info = MagicMock()
             mock_model_info.provider = "openai"
             mock_registry.get_model_info.return_value = mock_model_info
@@ -278,6 +306,7 @@ class TestSyncVectorsTask:
 
 
 # ---------- Scheduler Worker Tests ----------
+
 
 class TestRetryFailedJobsTask:
     @patch("app.workers.scheduler.tasks.get_knowledge_jobs_collection")
@@ -353,6 +382,7 @@ class TestCleanupDeadLettersTask:
 
 
 # ---------- Cleanup Worker Tests ----------
+
 
 class TestProcessDeadLetterQueueTask:
     @patch("app.workers.cleanup.tasks.get_knowledge_jobs_collection")

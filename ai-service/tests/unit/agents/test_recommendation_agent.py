@@ -1,10 +1,10 @@
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from app.agents.recommendation.agent import RecommendationAgent
 from app.agents.recommendation.state import RecommendationState
 from app.application.recommendation.dto.recommendation_dto import (
-    ProductCard,
     RecommendationIntent,
     RecommendationResponse,
     ScoredProduct,
@@ -72,6 +72,7 @@ class TestRecommendationAgent:
 
     async def test_route_after_intent_error_sends_to_format(self, agent):
         from app.agents.recommendation.agent import route_after_intent
+
         state: RecommendationState = {
             "user_query": "test",
             "store_id": "s1",
@@ -86,6 +87,7 @@ class TestRecommendationAgent:
 
     async def test_route_after_search_empty(self, agent):
         from app.agents.recommendation.agent import route_after_search
+
         state: RecommendationState = {
             "user_query": "test",
             "store_id": "s1",
@@ -100,6 +102,7 @@ class TestRecommendationAgent:
 
     async def test_route_after_search_has_candidates(self, agent):
         from app.agents.recommendation.agent import route_after_search
+
         state: RecommendationState = {
             "user_query": "test",
             "store_id": "s1",

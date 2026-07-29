@@ -7,7 +7,6 @@ from app.application.recommendation.services import (
     BundleSuggestionService,
     RecommendationService,
 )
-from app.domain.commerce.repositories import ProductRepository
 from app.domain.recommendation.repositories.store_capabilities_repository import (
     StoreCapabilitiesRepository,
 )

@@ -1,7 +1,8 @@
 import asyncio
 import logging
+from collections.abc import Coroutine
 from datetime import UTC, datetime
-from typing import Any, Callable, Coroutine, Optional
+from typing import Any
 
 from bson import ObjectId
 
@@ -19,9 +20,9 @@ def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
 async def create_job(
     job_type: JobType,
     payload: dict[str, Any],
-    store_id: Optional[str] = None,
-    organization_id: Optional[str] = None,
-    triggered_by: Optional[str] = None,
+    store_id: str | None = None,
+    organization_id: str | None = None,
+    triggered_by: str | None = None,
     max_retries: int = 3,
 ) -> KnowledgeJob:
     collection = get_knowledge_jobs_collection()
@@ -63,7 +64,7 @@ async def create_job(
 async def update_job_progress(
     job_id: str,
     progress: float,
-    status: Optional[JobStatus] = None,
+    status: JobStatus | None = None,
 ) -> None:
     collection = get_knowledge_jobs_collection()
     update: dict[str, Any] = {
@@ -81,8 +82,8 @@ async def update_job_progress(
 
 async def complete_job(
     job_id: str,
-    result: Optional[dict[str, Any]] = None,
-    celery_task_id: Optional[str] = None,
+    result: dict[str, Any] | None = None,
+    celery_task_id: str | None = None,
 ) -> None:
     collection = get_knowledge_jobs_collection()
     update: dict[str, Any] = {
@@ -108,10 +109,7 @@ async def fail_job(
     collection = get_knowledge_jobs_collection()
     now = datetime.now(UTC)
 
-    if retry_count >= max_retries:
-        target_status = JobStatus.DEAD_LETTER
-    else:
-        target_status = JobStatus.RETRYING
+    target_status = JobStatus.DEAD_LETTER if retry_count >= max_retries else JobStatus.RETRYING
 
     await collection.update_one(
         {"_id": ObjectId(job_id)},
@@ -127,7 +125,11 @@ async def fail_job(
     )
     logger.warning(
         "Job %s -> %s (retry %d/%d): %s",
-        job_id, target_status.value, retry_count, max_retries, error_message,
+        job_id,
+        target_status.value,
+        retry_count,
+        max_retries,
+        error_message,
     )
     return target_status
 

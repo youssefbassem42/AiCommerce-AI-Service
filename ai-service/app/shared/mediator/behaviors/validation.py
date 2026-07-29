@@ -1,9 +1,9 @@
-from typing import Any, Dict, List, Optional, Type
 import logging
+from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from app.shared.mediator.pipeline import PipelineBehavior, NextHandler
+from app.shared.mediator.pipeline import NextHandler, PipelineBehavior
 
 logger = logging.getLogger(__name__)
 
@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 class ValidationBehavior(PipelineBehavior):
     order: int = -1000
 
-    def __init__(self, validators: Optional[Dict[Type, Any]] = None):
-        self._validators: Dict[Type, Any] = validators or {}
+    def __init__(self, validators: dict[type, Any] | None = None):
+        self._validators: dict[type, Any] = validators or {}
 
-    def register_validator(self, request_type: Type, validator: Any) -> None:
+    def register_validator(self, request_type: type, validator: Any) -> None:
         self._validators[request_type] = validator
 
     async def handle(self, request: Any, next_handler: NextHandler) -> Any:

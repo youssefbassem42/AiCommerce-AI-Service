@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from langgraph.graph import END, StateGraph
 
@@ -57,10 +57,10 @@ def route_after_capabilities(state: IntegrationMappingState) -> str:
 
 
 class IntegrationMappingAgent:
-    def __init__(self, llm: Optional[BaseLLMProvider] = None, model: Optional[str] = None):
+    def __init__(self, llm: BaseLLMProvider | None = None, model: str | None = None):
         self._llm = llm
         self._model = model
-        self._graph: Optional[StateGraph] = None
+        self._graph: StateGraph | None = None
 
     def _build_graph(self) -> StateGraph:
         workflow = StateGraph(IntegrationMappingState)
@@ -92,23 +92,25 @@ class IntegrationMappingAgent:
         return workflow.compile()
 
     def _wrap(self, node_fn):
-        async def wrapped(state: IntegrationMappingState) -> Dict[str, Any]:
+        async def wrapped(state: IntegrationMappingState) -> dict[str, Any]:
             extra = {}
             if node_fn == parse_spec_node:
                 extra["llm"] = self._llm
-            elif node_fn == detect_capabilities_node:
-                pass
-            elif node_fn == format_error_node:
+            elif node_fn in (detect_capabilities_node, format_error_node):
                 pass
             return await node_fn(state, **extra)
+
         return wrapped
 
     def _wrap_analysis(self, node_fn):
-        async def wrapped(state: IntegrationMappingState) -> Dict[str, Any]:
+        async def wrapped(state: IntegrationMappingState) -> dict[str, Any]:
             return await node_fn(state, llm=self._llm, model=self._model)
+
         return wrapped
 
-    async def analyze(self, raw_spec: Any, platform_name: str, store_id: str, organization_id: str) -> tuple[Optional[IntegrationMappingReport], Optional[str], Optional[dict]]:
+    async def analyze(
+        self, raw_spec: Any, platform_name: str, store_id: str, organization_id: str
+    ) -> tuple[IntegrationMappingReport | None, str | None, dict | None]:
         start = time.perf_counter()
 
         if self._llm is None:

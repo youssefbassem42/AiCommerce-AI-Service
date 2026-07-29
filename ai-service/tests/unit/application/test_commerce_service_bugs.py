@@ -1,12 +1,13 @@
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
-from app.application.commerce.services import ProductService, OrderService, InventoryService
-from app.domain.commerce.aggregates.product import Product, Variant, ProductOption
-from app.domain.commerce.aggregates.order import Order, LineItem
-from app.domain.commerce.value_objects.money import Money
+from app.application.commerce.services import InventoryService, OrderService, ProductService
+from app.domain.commerce.aggregates.order import LineItem, Order
+from app.domain.commerce.aggregates.product import Product, ProductOption, Variant
 from app.domain.commerce.value_objects.audit import AuditInfo
+from app.domain.commerce.value_objects.money import Money
 
 
 @pytest.fixture
@@ -43,7 +44,6 @@ def order_service(order_repo):
 
 
 class TestCommerceServiceBugs:
-
     async def test_product_update_preserves_variant_ids(self, product_service, product_repo):
         original_variant_id = "variant-001"
         original_option_id = "option-001"
@@ -53,8 +53,7 @@ class TestCommerceServiceBugs:
             organization_id="o1",
             title="Test Product",
             variants=[
-                Variant(id=original_variant_id, sku="SKU001", title="V1",
-                        price=Money(amount="10.00", currency="USD")),
+                Variant(id=original_variant_id, sku="SKU001", title="V1", price=Money(amount="10.00", currency="USD")),
             ],
             options=[
                 ProductOption(id=original_option_id, name="Size", values=["S", "M"]),
@@ -65,10 +64,17 @@ class TestCommerceServiceBugs:
         product_repo.update.side_effect = lambda e: e
 
         from app.application.commerce.dto import ProductUpdateDTO
+
         update_data = ProductUpdateDTO(
             title="Updated",
-            variants=[{"id": original_variant_id, "sku": "SKU002", "title": "V2",
-                       "price": {"amount": "15.00", "currency": "USD"}}],
+            variants=[
+                {
+                    "id": original_variant_id,
+                    "sku": "SKU002",
+                    "title": "V2",
+                    "price": {"amount": "15.00", "currency": "USD"},
+                }
+            ],
             options=[{"id": original_option_id, "name": "Color", "values": ["Red", "Blue"]}],
         )
 
@@ -90,8 +96,7 @@ class TestCommerceServiceBugs:
             organization_id="o1",
             title="Test Product",
             variants=[
-                Variant(id=original_variant_id, sku="SKU001", title="V1",
-                        price=Money(amount="10.00", currency="USD")),
+                Variant(id=original_variant_id, sku="SKU001", title="V1", price=Money(amount="10.00", currency="USD")),
             ],
             audit=AuditInfo(created_by="test"),
         )
@@ -99,15 +104,14 @@ class TestCommerceServiceBugs:
         product_repo.update.side_effect = lambda e: e
 
         from app.application.commerce.dto import ProductUpdateDTO
+
         update_data = ProductUpdateDTO(title="Just Title Update")
 
         await product_service.update("prod-1", update_data)
 
         updated_entity = product_repo.update.call_args[0][0]
         variant_ids = [v.id for v in updated_entity.variants]
-        assert original_variant_id in variant_ids, (
-            "Original variant IDs preserved when variants not in update payload"
-        )
+        assert original_variant_id in variant_ids, "Original variant IDs preserved when variants not in update payload"
 
     async def test_product_update_assigns_new_id_for_new_variants(self, product_service, product_repo):
         entity = Product(
@@ -123,9 +127,9 @@ class TestCommerceServiceBugs:
         product_repo.update.side_effect = lambda e: e
 
         from app.application.commerce.dto import ProductUpdateDTO
+
         update_data = ProductUpdateDTO(
-            variants=[{"sku": "NEW001", "title": "New V",
-                       "price": {"amount": "20.00", "currency": "USD"}}],
+            variants=[{"sku": "NEW001", "title": "New V", "price": {"amount": "20.00", "currency": "USD"}}],
         )
 
         await product_service.update("prod-1", update_data)
@@ -145,13 +149,19 @@ class TestCommerceServiceBugs:
             customer_email="c@example.com",
             line_items=[
                 LineItem(
-                    id="li-1", variant_id="v1", product_id="p1",
-                    title="Item 1", quantity=2,
+                    id="li-1",
+                    variant_id="v1",
+                    product_id="p1",
+                    title="Item 1",
+                    quantity=2,
                     price=Money(amount="10.00", currency="USD"),
                 ),
                 LineItem(
-                    id="li-2", variant_id="v2", product_id="p2",
-                    title="Item 2", quantity=1,
+                    id="li-2",
+                    variant_id="v2",
+                    product_id="p2",
+                    title="Item 2",
+                    quantity=1,
                     price=Money(amount="25.00", currency="USD"),
                 ),
             ],
@@ -172,18 +182,19 @@ class TestCommerceServiceBugs:
 
     async def test_inventory_bulk_update_returns_updated_count(self):
         repo = AsyncMock()
-        repo.find_many = AsyncMock(return_value=[
-            MagicMock(product_id="p1", audit=AuditInfo(created_by="test")),
-        ])
+        repo.find_many = AsyncMock(
+            return_value=[
+                MagicMock(product_id="p1", audit=AuditInfo(created_by="test")),
+            ]
+        )
         repo.update = AsyncMock(return_value=True)
         service = InventoryService(repository=repo)
 
         from app.application.commerce.dto.commerce_dto import InventoryUpdateDTO
+
         items = [InventoryUpdateDTO(quantity=10)]
         result = await service.bulk_update("s1", items)
-        assert result > 0, (
-            f"bulk_update returned {result}. Should return count of updated records."
-        )
+        assert result > 0, f"bulk_update returned {result}. Should return count of updated records."
         repo.update.assert_called_once()
 
     async def test_order_dto_preserves_line_items_after_get(self, order_service, order_repo):
@@ -197,8 +208,11 @@ class TestCommerceServiceBugs:
             customer_email="c@example.com",
             line_items=[
                 LineItem(
-                    id="li-1", variant_id="v1", product_id="p1",
-                    title="Item 1", quantity=2,
+                    id="li-1",
+                    variant_id="v1",
+                    product_id="p1",
+                    title="Item 1",
+                    quantity=2,
                     price=Money(amount="10.00", currency="USD"),
                 ),
             ],
@@ -232,8 +246,11 @@ class TestCommerceServiceBugs:
             customer_email="c@example.com",
             line_items=[
                 LineItem(
-                    id="li-x", variant_id="vx", product_id="px",
-                    title="Test Item", quantity=3,
+                    id="li-x",
+                    variant_id="vx",
+                    product_id="px",
+                    title="Test Item",
+                    quantity=3,
                     price=Money(amount="15.50", currency="USD"),
                 ),
             ],

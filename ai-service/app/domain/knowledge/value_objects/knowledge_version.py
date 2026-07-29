@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -19,6 +19,6 @@ class KnowledgeVersionInfo(BaseModel):
     embeddings_generated: bool = Field(default=False, description="Embeddings completed")
     vectors_synced: bool = Field(default=False, description="Vector DB synced")
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    completed_at: Optional[datetime] = Field(default=None)
-    error: Optional[str] = Field(default=None)
+    completed_at: datetime | None = Field(default=None)
+    error: str | None = Field(default=None)
     metadata: dict[str, Any] = Field(default_factory=dict)

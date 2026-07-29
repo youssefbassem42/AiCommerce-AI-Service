@@ -1,5 +1,3 @@
-from typing import Optional
-
 from app.domain.knowledge.entities.document_upload import DocumentUpload
 from app.domain.knowledge.repositories.upload_repository import (
     UploadRepository as IUploadRepository,
@@ -15,7 +13,7 @@ class UploadRepository(BaseMongoRepository[UploadMetadataModel, DocumentUpload],
     def __init__(self):
         super().__init__(get_knowledge_uploads_collection(), UploadMetadataModel)
 
-    async def find_by_checksum(self, checksum: str) -> Optional[DocumentUpload]:
+    async def find_by_checksum(self, checksum: str) -> DocumentUpload | None:
         data = await self.collection.find_one({"checksum": checksum})
         if data is None:
             return None

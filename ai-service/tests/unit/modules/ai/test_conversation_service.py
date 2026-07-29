@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from app.application.services.conversation_service import ConversationService
+
+import pytest
+
 from app.application.dto.ai_dto import MessageDTO, UsageDTO
+from app.application.services.conversation_service import ConversationService
 
 
 @pytest.fixture
@@ -42,7 +44,7 @@ async def test_get_conversation_history(conv_service, mock_repo):
         "messages": [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there"},
-        ]
+        ],
     }
     messages = await conv_service.get_conversation_history("conv-1")
     assert len(messages) == 2

@@ -1,7 +1,6 @@
 from unittest.mock import AsyncMock
 
 import httpx
-import pytest
 
 from app.domain.integration.value_objects.pagination_config import PaginationConfig, PaginationStyle
 from app.infrastructure.http.pagination import PaginationIterator
@@ -33,23 +32,29 @@ class TestPaginationIterator:
         assert len(pages[0].data) == 2
 
     async def test_page_style(self) -> None:
-        client = _mock_client([
-            {"data": [{"id": 1}], "total": 3},
-            {"data": [{"id": 2}], "total": 3},
-            {"data": [{"id": 3}], "total": 3},
-        ])
-        config = PaginationConfig(style=PaginationStyle.PAGE, page_param="page", limit_param="per_page", default_limit=1)
+        client = _mock_client(
+            [
+                {"data": [{"id": 1}], "total": 3},
+                {"data": [{"id": 2}], "total": 3},
+                {"data": [{"id": 3}], "total": 3},
+            ]
+        )
+        config = PaginationConfig(
+            style=PaginationStyle.PAGE, page_param="page", limit_param="per_page", default_limit=1
+        )
         pages = []
         async for page in PaginationIterator(client, "GET", "/products", config):
             pages.append(page)
         assert len(pages) == 3
 
     async def test_offset_style(self) -> None:
-        client = _mock_client([
-            {"data": [{"id": 1}, {"id": 2}]},
-            {"data": [{"id": 3}]},
-            {"data": []},
-        ])
+        client = _mock_client(
+            [
+                {"data": [{"id": 1}, {"id": 2}]},
+                {"data": [{"id": 3}]},
+                {"data": []},
+            ]
+        )
         config = PaginationConfig(
             style=PaginationStyle.OFFSET,
             page_param="offset",
@@ -62,11 +67,13 @@ class TestPaginationIterator:
         assert 1 <= len(pages) <= 3
 
     async def test_cursor_style(self) -> None:
-        client = _mock_client([
-            {"data": [{"id": 1}], "next_cursor": "abc"},
-            {"data": [{"id": 2}], "next_cursor": "def"},
-            {"data": [{"id": 3}], "next_cursor": None},
-        ])
+        client = _mock_client(
+            [
+                {"data": [{"id": 1}], "next_cursor": "abc"},
+                {"data": [{"id": 2}], "next_cursor": "def"},
+                {"data": [{"id": 3}], "next_cursor": None},
+            ]
+        )
         config = PaginationConfig(
             style=PaginationStyle.CURSOR,
             cursor_field="next_cursor",
@@ -87,6 +94,7 @@ class TestPaginationIterator:
 
     async def test_default_extractor_with_various_keys(self) -> None:
         from app.infrastructure.http.pagination import PaginationIterator as PI
+
         data = {"results": [{"id": 1}]}
         items = PI._default_extractor(data)
         assert items == [{"id": 1}]
@@ -110,7 +118,10 @@ class TestPaginationIterator:
         config = PaginationConfig(style=PaginationStyle.NONE)
         pages = []
         async for page in PaginationIterator(
-            client, "GET", "/products", config,
+            client,
+            "GET",
+            "/products",
+            config,
             extractor=lambda data: data.get("products", []),
         ):
             pages.append(page)

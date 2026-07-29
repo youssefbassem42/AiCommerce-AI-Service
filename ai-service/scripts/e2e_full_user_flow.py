@@ -14,10 +14,7 @@ import argparse
 import asyncio
 import json
 import logging
-import os
-import re
 import sys
-import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -43,89 +40,142 @@ SPECS = [
 # ──────────────────────────────────────────────
 SAMPLE_PRODUCTS = [
     {
-        "external_id": "prod_001", "entity_type": "product",
-        "title": "MacBook Pro 16-inch M3 Max", "category": "Laptops", "brand": "Apple",
-        "price": 3499.99, "sku": "MBP-M3-16-36-1TB",
+        "external_id": "prod_001",
+        "entity_type": "product",
+        "title": "MacBook Pro 16-inch M3 Max",
+        "category": "Laptops",
+        "brand": "Apple",
+        "price": 3499.99,
+        "sku": "MBP-M3-16-36-1TB",
         "description": "Apple MacBook Pro with M3 Max chip, 36GB RAM, 1TB SSD",
         "inventory_quantity": 15,
         "specs": {"cpu": "M3 Max 16-core", "ram": "36GB", "storage": "1TB SSD"},
     },
     {
-        "external_id": "prod_002", "entity_type": "product",
-        "title": "Dell XPS 15 OLED", "category": "Laptops", "brand": "Dell",
-        "price": 2499.99, "sku": "DEL-XPS-15-i9-32-1TB",
+        "external_id": "prod_002",
+        "entity_type": "product",
+        "title": "Dell XPS 15 OLED",
+        "category": "Laptops",
+        "brand": "Dell",
+        "price": 2499.99,
+        "sku": "DEL-XPS-15-i9-32-1TB",
         "description": "Dell XPS 15 with Intel Core i9, 32GB RAM, 1TB SSD, OLED display",
         "inventory_quantity": 23,
         "specs": {"cpu": "Intel Core i9-13900H", "ram": "32GB", "storage": "1TB SSD"},
     },
     {
-        "external_id": "prod_003", "entity_type": "product",
-        "title": "Samsung Galaxy S24 Ultra", "category": "Smartphones", "brand": "Samsung",
-        "price": 1399.99, "sku": "SAM-S24U-512",
+        "external_id": "prod_003",
+        "entity_type": "product",
+        "title": "Samsung Galaxy S24 Ultra",
+        "category": "Smartphones",
+        "brand": "Samsung",
+        "price": 1399.99,
+        "sku": "SAM-S24U-512",
         "description": "Samsung Galaxy S24 Ultra 512GB with S Pen, Titanium frame",
         "inventory_quantity": 42,
     },
     {
-        "external_id": "prod_004", "entity_type": "product",
-        "title": "Sony WH-1000XM5 Headphones", "category": "Audio", "brand": "Sony",
-        "price": 349.99, "sku": "SONY-WH1000XM5",
+        "external_id": "prod_004",
+        "entity_type": "product",
+        "title": "Sony WH-1000XM5 Headphones",
+        "category": "Audio",
+        "brand": "Sony",
+        "price": 349.99,
+        "sku": "SONY-WH1000XM5",
         "description": "Sony WH-1000XM5 Wireless Noise Cancelling Headphones",
         "inventory_quantity": 78,
     },
     {
-        "external_id": "prod_005", "entity_type": "product",
-        "title": "Logitech MX Mechanical Keyboard", "category": "Accessories", "brand": "Logitech",
-        "price": 149.99, "sku": "LOG-MX-MECH",
+        "external_id": "prod_005",
+        "entity_type": "product",
+        "title": "Logitech MX Mechanical Keyboard",
+        "category": "Accessories",
+        "brand": "Logitech",
+        "price": 149.99,
+        "sku": "LOG-MX-MECH",
         "description": "Logitech MX Mechanical Wireless Keyboard with Tactile Switches",
         "inventory_quantity": 120,
-        "specs": {"type": "Mechanical", "switches": "Tactile", "layout": "Full-size", "connectivity": "Bluetooth + USB-C"},
+        "specs": {
+            "type": "Mechanical",
+            "switches": "Tactile",
+            "layout": "Full-size",
+            "connectivity": "Bluetooth + USB-C",
+        },
     },
     {
-        "external_id": "prod_006", "entity_type": "product",
-        "title": "Apple AirPods Pro 2nd Gen", "category": "Audio", "brand": "Apple",
-        "price": 249.99, "sku": "AP-AIRPODS-PRO-2",
+        "external_id": "prod_006",
+        "entity_type": "product",
+        "title": "Apple AirPods Pro 2nd Gen",
+        "category": "Audio",
+        "brand": "Apple",
+        "price": 249.99,
+        "sku": "AP-AIRPODS-PRO-2",
         "description": "Apple AirPods Pro 2nd Generation with USB-C, Adaptive Audio",
         "inventory_quantity": 95,
     },
     {
-        "external_id": "prod_007", "entity_type": "product",
-        "title": "ASUS ROG Strix RTX 4080", "category": "Components", "brand": "ASUS",
-        "price": 1199.99, "sku": "ASUS-RTX4080-16G",
+        "external_id": "prod_007",
+        "entity_type": "product",
+        "title": "ASUS ROG Strix RTX 4080",
+        "category": "Components",
+        "brand": "ASUS",
+        "price": 1199.99,
+        "sku": "ASUS-RTX4080-16G",
         "description": "ASUS ROG Strix GeForce RTX 4080 16GB GDDR6X Graphics Card",
         "inventory_quantity": 8,
     },
     {
-        "external_id": "prod_008", "entity_type": "product",
-        "title": "LG 27-inch 4K Monitor", "category": "Monitors", "brand": "LG",
-        "price": 499.99, "sku": "LG-27UP850N",
+        "external_id": "prod_008",
+        "entity_type": "product",
+        "title": "LG 27-inch 4K Monitor",
+        "category": "Monitors",
+        "brand": "LG",
+        "price": 499.99,
+        "sku": "LG-27UP850N",
         "description": "LG 27UP850N 27-inch 4K UHD IPS Monitor with USB-C 96W PD",
         "inventory_quantity": 34,
     },
     {
-        "external_id": "prod_009", "entity_type": "product",
-        "title": "Logitech MX Master 3S Mouse", "category": "Accessories", "brand": "Logitech",
-        "price": 99.99, "sku": "LOG-MX-MASTER-3S",
+        "external_id": "prod_009",
+        "entity_type": "product",
+        "title": "Logitech MX Master 3S Mouse",
+        "category": "Accessories",
+        "brand": "Logitech",
+        "price": 99.99,
+        "sku": "LOG-MX-MASTER-3S",
         "description": "Logitech MX Master 3S Wireless Performance Mouse with 8K DPI",
         "inventory_quantity": 88,
     },
     {
-        "external_id": "prod_010", "entity_type": "product",
-        "title": "Logitech G413 SE Mechanical Keyboard", "category": "Accessories", "brand": "Logitech",
-        "price": 89.99, "sku": "LOG-G413-SE",
+        "external_id": "prod_010",
+        "entity_type": "product",
+        "title": "Logitech G413 SE Mechanical Keyboard",
+        "category": "Accessories",
+        "brand": "Logitech",
+        "price": 89.99,
+        "sku": "LOG-G413-SE",
         "description": "Logitech G413 SE Full-size Mechanical Keyboard with Tactile Switches",
         "inventory_quantity": 55,
     },
     {
-        "external_id": "prod_011", "entity_type": "product",
-        "title": "Logitech G203 Lightsync Mouse", "category": "Accessories", "brand": "Logitech",
-        "price": 39.99, "sku": "LOG-G203",
+        "external_id": "prod_011",
+        "entity_type": "product",
+        "title": "Logitech G203 Lightsync Mouse",
+        "category": "Accessories",
+        "brand": "Logitech",
+        "price": 39.99,
+        "sku": "LOG-G203",
         "description": "Logitech G203 Lightsync RGB Gaming Mouse with 8K DPI",
         "inventory_quantity": 200,
     },
     {
-        "external_id": "prod_012", "entity_type": "product",
-        "title": "Razer DeathAdder V3 Mouse", "category": "Accessories", "brand": "Razer",
-        "price": 79.99, "sku": "RAZ-DAV3",
+        "external_id": "prod_012",
+        "entity_type": "product",
+        "title": "Razer DeathAdder V3 Mouse",
+        "category": "Accessories",
+        "brand": "Razer",
+        "price": 79.99,
+        "sku": "RAZ-DAV3",
         "description": "Razer DeathAdder V3 Wireless Ergonomic Gaming Mouse",
         "inventory_quantity": 66,
     },
@@ -145,57 +195,67 @@ SAMPLE_CATEGORIES = [
 # ──────────────────────────────────────────────
 FAQ_ENTRIES = [
     {
-        "external_id": "faq_001", "entity_type": "faq",
+        "external_id": "faq_001",
+        "entity_type": "faq",
         "question": "What is your return policy?",
-        "answer": "We accept returns within 30 days of purchase. Items must be unused and in original packaging. Refunds are processed within 5-7 business days after we receive the item. Shipping costs are non-refundable."
+        "answer": "We accept returns within 30 days of purchase. Items must be unused and in original packaging. Refunds are processed within 5-7 business days after we receive the item. Shipping costs are non-refundable.",
     },
     {
-        "external_id": "faq_002", "entity_type": "faq",
+        "external_id": "faq_002",
+        "entity_type": "faq",
         "question": "How long does shipping take?",
-        "answer": "Standard shipping takes 3-5 business days within the continental US. Express shipping takes 1-2 business days. International shipping takes 7-14 business days depending on the destination. Free shipping on orders over $50."
+        "answer": "Standard shipping takes 3-5 business days within the continental US. Express shipping takes 1-2 business days. International shipping takes 7-14 business days depending on the destination. Free shipping on orders over $50.",
     },
     {
-        "external_id": "faq_003", "entity_type": "faq",
+        "external_id": "faq_003",
+        "entity_type": "faq",
         "question": "What is your warranty policy?",
-        "answer": "All products come with a 1-year manufacturer warranty. Extended warranty plans are available for purchase within 30 days of the original purchase. The warranty covers manufacturing defects but not accidental damage."
+        "answer": "All products come with a 1-year manufacturer warranty. Extended warranty plans are available for purchase within 30 days of the original purchase. The warranty covers manufacturing defects but not accidental damage.",
     },
     {
-        "external_id": "faq_004", "entity_type": "faq",
+        "external_id": "faq_004",
+        "entity_type": "faq",
         "question": "Do you offer price matching?",
-        "answer": "Yes, we offer price matching within 14 days of purchase. If you find a lower price from an authorized retailer, we will refund the difference. The item must be identical (same model, color, specifications)."
+        "answer": "Yes, we offer price matching within 14 days of purchase. If you find a lower price from an authorized retailer, we will refund the difference. The item must be identical (same model, color, specifications).",
     },
     {
-        "external_id": "faq_005", "entity_type": "faq",
+        "external_id": "faq_005",
+        "entity_type": "faq",
         "question": "How do I track my order?",
-        "answer": "Once your order ships, you will receive a tracking number via email. You can track your order on our website by entering the tracking number in the Order Tracking section of your account."
+        "answer": "Once your order ships, you will receive a tracking number via email. You can track your order on our website by entering the tracking number in the Order Tracking section of your account.",
     },
     {
-        "external_id": "faq_006", "entity_type": "faq",
+        "external_id": "faq_006",
+        "entity_type": "faq",
         "question": "Can I cancel or change my order?",
-        "answer": "Orders can be canceled or modified within 1 hour of placement. After that, the order enters processing and cannot be changed. Contact customer support immediately if you need to make changes."
+        "answer": "Orders can be canceled or modified within 1 hour of placement. After that, the order enters processing and cannot be changed. Contact customer support immediately if you need to make changes.",
     },
 ]
 
 POLICY_ENTRIES = [
     {
-        "external_id": "policy_001", "entity_type": "policy",
+        "external_id": "policy_001",
+        "entity_type": "policy",
         "title": "Refund Policy",
-        "content": "Full refunds are issued for items returned within 30 days in original condition. Partial refunds may be issued for opened items. Refund processing takes 5-7 business days. Refunds are issued to the original payment method."
+        "content": "Full refunds are issued for items returned within 30 days in original condition. Partial refunds may be issued for opened items. Refund processing takes 5-7 business days. Refunds are issued to the original payment method.",
     },
     {
-        "external_id": "policy_002", "entity_type": "policy",
+        "external_id": "policy_002",
+        "entity_type": "policy",
         "title": "Privacy Policy",
-        "content": "We collect only necessary personal information for order processing and shipping. We do not share customer data with third parties except shipping carriers. Customer data is encrypted and stored securely. You may request data deletion at any time."
+        "content": "We collect only necessary personal information for order processing and shipping. We do not share customer data with third parties except shipping carriers. Customer data is encrypted and stored securely. You may request data deletion at any time.",
     },
     {
-        "external_id": "policy_003", "entity_type": "policy",
+        "external_id": "policy_003",
+        "entity_type": "policy",
         "title": "Terms of Service",
-        "content": "By using our store, you agree to these terms. All prices are in USD and subject to change. We reserve the right to cancel orders due to pricing errors. Products are sold as described. Our liability is limited to the purchase price."
+        "content": "By using our store, you agree to these terms. All prices are in USD and subject to change. We reserve the right to cancel orders due to pricing errors. Products are sold as described. Our liability is limited to the purchase price.",
     },
     {
-        "external_id": "policy_004", "entity_type": "policy",
+        "external_id": "policy_004",
+        "entity_type": "policy",
         "title": "Customer Support Policy",
-        "content": "Our customer support team is available Monday-Friday 9AM-6PM EST. We aim to respond to all inquiries within 24 hours. For urgent issues, please call our support line. We are committed to resolving your concerns promptly and fairly."
+        "content": "Our customer support team is available Monday-Friday 9AM-6PM EST. We aim to respond to all inquiries within 24 hours. For urgent issues, please call our support line. We are committed to resolving your concerns promptly and fairly.",
     },
 ]
 
@@ -203,24 +263,30 @@ POLICY_ENTRIES = [
 # HELPERS
 # ──────────────────────────────────────────────
 
+
 def _load_spec(path: Path) -> dict:
     if path.suffix == ".json":
         return json.loads(path.read_text(encoding="utf-8"))
     elif path.suffix in (".yaml", ".yml"):
         import yaml
+
         return yaml.safe_load(path.read_text(encoding="utf-8"))
     raise ValueError(f"Unsupported spec format: {path.suffix}")
 
+
 def status_icon(success: bool) -> str:
     return "PASS" if success else "FAIL"
+
 
 def check_response(response: str, keywords: list[str]) -> bool:
     rl = response.lower()
     return any(kw.lower() in rl for kw in keywords)
 
+
 # ──────────────────────────────────────────────
 # STEP FUNCTIONS
 # ──────────────────────────────────────────────
+
 
 async def step_parse_specs(args) -> list[dict]:
     print("\n" + "=" * 72)
@@ -231,6 +297,7 @@ async def step_parse_specs(args) -> list[dict]:
         print("  SKIPPED (--skip-parse)")
         return results
     import httpx
+
     for platform_name, spec_path in SPECS:
         if not spec_path.exists():
             logger.warning("  Spec not found: %s", spec_path)
@@ -249,6 +316,7 @@ async def step_parse_specs(args) -> list[dict]:
                 print(f"  [FAIL] {platform_name}: HTTP {resp.status_code}")
     return results
 
+
 async def step_create_connections(args) -> list[dict]:
     print("\n" + "=" * 72)
     print("  STEP 2: Create Integration Connections")
@@ -258,6 +326,7 @@ async def step_create_connections(args) -> list[dict]:
         print("  SKIPPED (--skip-parse)")
         return results
     import httpx
+
     for platform_name, spec_path in SPECS:
         if not spec_path.exists():
             continue
@@ -281,13 +350,13 @@ async def step_create_connections(args) -> list[dict]:
                 print(f"  [FAIL] {platform_name}: HTTP {resp.status_code} - {resp.text[:200]}")
     return results
 
+
 async def step_seed_entities():
     print("\n" + "=" * 72)
     print("  STEP 3: Seed All Entities (Products + Categories + FAQ + Policy)")
     print("=" * 72)
-    from motor.motor_asyncio import AsyncIOMotorClient
-    from app.infrastructure.mongodb.collections import get_entities_collection
     from app.infrastructure.mongodb.client import MongoClientManager
+    from app.infrastructure.mongodb.collections import get_entities_collection
 
     await MongoClientManager.connect()
     collection = get_entities_collection()
@@ -306,11 +375,18 @@ async def step_seed_entities():
         data.pop("entity_type", None)
         await collection.update_one(
             {"store_id": STORE_ID, "external_id": eid, "entity_type": "product"},
-            {"$set": {
-                "store_id": STORE_ID, "organization_id": ORG_ID,
-                "entity_type": "product", "external_id": eid,
-                "data": data, "synced_at": now, "updated_at": now,
-            }, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {
+                    "store_id": STORE_ID,
+                    "organization_id": ORG_ID,
+                    "entity_type": "product",
+                    "external_id": eid,
+                    "data": data,
+                    "synced_at": now,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"created_at": now},
+            },
             upsert=True,
         )
         total += 1
@@ -323,11 +399,18 @@ async def step_seed_entities():
         data.pop("external_id", None)
         await collection.update_one(
             {"store_id": STORE_ID, "external_id": eid, "entity_type": "category"},
-            {"$set": {
-                "store_id": STORE_ID, "organization_id": ORG_ID,
-                "entity_type": "category", "external_id": eid,
-                "data": data, "synced_at": now, "updated_at": now,
-            }, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {
+                    "store_id": STORE_ID,
+                    "organization_id": ORG_ID,
+                    "entity_type": "category",
+                    "external_id": eid,
+                    "data": data,
+                    "synced_at": now,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"created_at": now},
+            },
             upsert=True,
         )
         total += 1
@@ -341,11 +424,18 @@ async def step_seed_entities():
         data.pop("entity_type", None)
         await collection.update_one(
             {"store_id": STORE_ID, "external_id": eid, "entity_type": "faq"},
-            {"$set": {
-                "store_id": STORE_ID, "organization_id": ORG_ID,
-                "entity_type": "faq", "external_id": eid,
-                "data": data, "synced_at": now, "updated_at": now,
-            }, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {
+                    "store_id": STORE_ID,
+                    "organization_id": ORG_ID,
+                    "entity_type": "faq",
+                    "external_id": eid,
+                    "data": data,
+                    "synced_at": now,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"created_at": now},
+            },
             upsert=True,
         )
         total += 1
@@ -359,11 +449,18 @@ async def step_seed_entities():
         data.pop("entity_type", None)
         await collection.update_one(
             {"store_id": STORE_ID, "external_id": eid, "entity_type": "policy"},
-            {"$set": {
-                "store_id": STORE_ID, "organization_id": ORG_ID,
-                "entity_type": "policy", "external_id": eid,
-                "data": data, "synced_at": now, "updated_at": now,
-            }, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {
+                    "store_id": STORE_ID,
+                    "organization_id": ORG_ID,
+                    "entity_type": "policy",
+                    "external_id": eid,
+                    "data": data,
+                    "synced_at": now,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"created_at": now},
+            },
             upsert=True,
         )
         total += 1
@@ -373,6 +470,7 @@ async def step_seed_entities():
     print(f"  Total entities seeded: {total}")
     return total
 
+
 async def step_vectorize_all():
     print("\n" + "=" * 72)
     print("  STEP 4: Vectorize All Entities to Qdrant")
@@ -381,8 +479,8 @@ async def step_vectorize_all():
     from app.application.integration.sync.formatters import format_record
     from app.infrastructure.mongodb.client import MongoClientManager
     from app.infrastructure.mongodb.collections import get_entities_collection
-    from app.infrastructure.qdrant.provider import QdrantProvider
     from app.infrastructure.providers.factory import LLMProviderFactory
+    from app.infrastructure.qdrant.provider import QdrantProvider
     from app.infrastructure.vectorstore.base import VectorRecord
 
     await MongoClientManager.connect()
@@ -438,8 +536,8 @@ async def step_vectorize_all():
         BATCH_SIZE = 50
         all_points = []
         for i in range(0, len(formatted), BATCH_SIZE):
-            batch = formatted[i:i + BATCH_SIZE]
-            batch_records = records[i:i + BATCH_SIZE]
+            batch = formatted[i : i + BATCH_SIZE]
+            batch_records = records[i : i + BATCH_SIZE]
             try:
                 request = EmbeddingRequest(input=batch, model="gemini-embedding-001")
                 response = await provider.embeddings(request)
@@ -469,7 +567,7 @@ async def step_vectorize_all():
                 logger.error("  Embedding batch failed for %s: %s", entity_type, e)
 
         if all_points:
-            count = await vector_store.upsert(qdrant_collection, all_points)
+            await vector_store.upsert(qdrant_collection, all_points)
             total_synced += len(all_points)
             print(f"  [PASS] Synced {len(all_points)} '{entity_type}' vectors")
 
@@ -477,6 +575,7 @@ async def step_vectorize_all():
     MongoClientManager.disconnect()
     print(f"  Total vectors synced to Qdrant: {total_synced}")
     return total_synced
+
 
 async def step_generate_business_summary(args):
     print("\n" + "=" * 72)
@@ -486,6 +585,7 @@ async def step_generate_business_summary(args):
         print("  SKIPPED (--skip-summary)")
         return None
     import httpx
+
     async with httpx.AsyncClient(base_url=API_BASE, timeout=120) as client:
         resp = await client.post(
             f"/api/v1/knowledge-base/summary?store_id={STORE_ID}",
@@ -501,11 +601,13 @@ async def step_generate_business_summary(args):
             print(f"  [FAIL] HTTP {resp.status_code}: {resp.text[:300]}")
             return None
 
+
 async def step_test_tenant_isolation():
     print("\n" + "=" * 72)
     print("  STEP 6: Test Tenant Isolation")
     print("=" * 72)
     import httpx
+
     wrong_store = "store_nonexistent_999"
     payload = {
         "message": "What laptops do you have?",
@@ -519,20 +621,40 @@ async def step_test_tenant_isolation():
             data = resp.json()
             response = data.get("response", "")
             citations = data.get("citations", [])
-            has_no_info = check_response(response, ["don't have enough information", "no information", "couldn't find", "no relevant", "nothing", "unavailable"])
+            has_no_info = check_response(
+                response,
+                [
+                    "don't have enough information",
+                    "no information",
+                    "couldn't find",
+                    "no relevant",
+                    "nothing",
+                    "unavailable",
+                ],
+            )
             is_isolation = has_no_info or len(citations) == 0
             print(f"  Response: {response[:200]}")
             print(f"  Citations: {len(citations)}")
-            print(f"  [{status_icon(is_isolation)}] Tenant isolation: {'✓ no data leaked' if is_isolation else '✗ data may have leaked'}")
+            print(
+                f"  [{status_icon(is_isolation)}] Tenant isolation: {'✓ no data leaked' if is_isolation else '✗ data may have leaked'}"
+            )
         else:
             print(f"  [FAIL] HTTP {resp.status_code}")
             return False
     return True
 
-async def step_rag_query(query: str, scenario_name: str, expected_keywords: list[str], expected_price_ref: bool = False, min_citations: int = 0) -> dict:
+
+async def step_rag_query(
+    query: str,
+    scenario_name: str,
+    expected_keywords: list[str],
+    expected_price_ref: bool = False,
+    min_citations: int = 0,
+) -> dict:
     print(f"\n  --- RAG Query [{scenario_name}] ---")
     print(f"  Query: {query}")
     import httpx
+
     payload = {
         "message": query,
         "store_id": STORE_ID,
@@ -552,7 +674,9 @@ async def step_rag_query(query: str, scenario_name: str, expected_keywords: list
         latency = data.get("latency_ms", 0)
 
         has_keywords = check_response(response, expected_keywords)
-        has_price_ref = check_response(response, ["$", "dollar", "price", "cost", "budget"]) if expected_price_ref else True
+        has_price_ref = (
+            check_response(response, ["$", "dollar", "price", "cost", "budget"]) if expected_price_ref else True
+        )
         has_citations = len(citations) >= min_citations
         is_useful = not check_response(response, ["don't have enough information", "no information", "couldn't find"])
 
@@ -572,6 +696,7 @@ async def step_rag_query(query: str, scenario_name: str, expected_keywords: list
             "confidence": confidence,
             "latency_ms": latency,
         }
+
 
 async def main():
     parser = argparse.ArgumentParser(description="E2E Full User Flow Test")
@@ -665,36 +790,44 @@ async def main():
         scenarios = []
 
         # SCENARIO 1: Customer Service Support
-        scenarios.append({
-            "name": "S1: Customer Service - Return Policy",
-            "query": "What is your return policy? I need to return a laptop I bought last week.",
-            "keywords": ["return", "30 day", "refund", "policy"],
-            "min_citations": 1,
-        })
+        scenarios.append(
+            {
+                "name": "S1: Customer Service - Return Policy",
+                "query": "What is your return policy? I need to return a laptop I bought last week.",
+                "keywords": ["return", "30 day", "refund", "policy"],
+                "min_citations": 1,
+            }
+        )
 
         # SCENARIO 2: Product Recommendations
-        scenarios.append({
-            "name": "S2: Product Recommendation - Best Gaming Laptop",
-            "query": "I'm looking for the best laptop for gaming and video editing. What do you recommend?",
-            "keywords": ["macbook", "dell", "laptop", "xps", "pro"],
-            "min_citations": 1,
-        })
+        scenarios.append(
+            {
+                "name": "S2: Product Recommendation - Best Gaming Laptop",
+                "query": "I'm looking for the best laptop for gaming and video editing. What do you recommend?",
+                "keywords": ["macbook", "dell", "laptop", "xps", "pro"],
+                "min_citations": 1,
+            }
+        )
 
         # SCENARIO 3: Bundle Suggestion
-        scenarios.append({
-            "name": "S3: Bundle Suggestion - $300 budget for keyboard + mouse",
-            "query": "I have a budget of $300 and want to buy a keyboard and a mouse. What combos do you recommend that fit my budget?",
-            "keywords": ["keyboard", "mouse", "logitech", "budget", "$"],
-            "min_citations": 1,
-        })
+        scenarios.append(
+            {
+                "name": "S3: Bundle Suggestion - $300 budget for keyboard + mouse",
+                "query": "I have a budget of $300 and want to buy a keyboard and a mouse. What combos do you recommend that fit my budget?",
+                "keywords": ["keyboard", "mouse", "logitech", "budget", "$"],
+                "min_citations": 1,
+            }
+        )
 
         # SCENARIO 4: Ticket Submission (frustrated user)
-        scenarios.append({
-            "name": "S4: Ticket Submission - Frustrated Customer",
-            "query": "I ordered a laptop 2 weeks ago and it still hasn't arrived. The tracking number isn't working. I'm really frustrated and want to speak to someone who can help me right now. This is unacceptable.",
-            "keywords": ["track", "order", "shipping", "support", "contact", "apolog"],
-            "min_citations": 1,
-        })
+        scenarios.append(
+            {
+                "name": "S4: Ticket Submission - Frustrated Customer",
+                "query": "I ordered a laptop 2 weeks ago and it still hasn't arrived. The tracking number isn't working. I'm really frustrated and want to speak to someone who can help me right now. This is unacceptable.",
+                "keywords": ["track", "order", "shipping", "support", "contact", "apolog"],
+                "min_citations": 1,
+            }
+        )
 
         for s in scenarios:
             print(f"\n  ─── {s['name']} ───")

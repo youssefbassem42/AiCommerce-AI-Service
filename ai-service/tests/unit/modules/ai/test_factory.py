@@ -1,8 +1,10 @@
 import pytest
-from app.infrastructure.providers.factory import LLMProviderFactory
-from app.infrastructure.providers.openai_provider import OpenAIProvider
-from app.infrastructure.providers.gemini_provider import GeminiProvider
+
 from app.core.ai_exceptions import ProviderNotFoundException
+from app.infrastructure.providers.factory import LLMProviderFactory
+from app.infrastructure.providers.gemini_provider import GeminiProvider
+from app.infrastructure.providers.openai_provider import OpenAIProvider
+
 
 def test_factory_singleton():
     factory1 = LLMProviderFactory()
@@ -13,14 +15,14 @@ def test_factory_singleton():
 def test_factory_get_provider():
     factory = LLMProviderFactory()
     factory.clear_cache()
-    
+
     openai_provider = factory.get_provider("openai")
     assert isinstance(openai_provider, OpenAIProvider)
-    
+
     # Caching check
     openai_provider_cached = factory.get_provider("openai")
     assert openai_provider is openai_provider_cached
-    
+
     gemini_provider = factory.get_provider("gemini")
     assert isinstance(gemini_provider, GeminiProvider)
 

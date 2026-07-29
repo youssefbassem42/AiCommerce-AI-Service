@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -22,8 +22,8 @@ class KnowledgeVersionDocument(BaseMongoDocument):
     embeddings_generated: bool = Field(default=False)
     vectors_synced: bool = Field(default=False)
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    completed_at: Optional[datetime] = Field(default=None)
-    error: Optional[str] = Field(default=None)
+    completed_at: datetime | None = Field(default=None)
+    error: str | None = Field(default=None)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def to_value_object(self) -> KnowledgeVersionInfo:
@@ -73,5 +73,6 @@ class KnowledgeVersionDocument(BaseMongoDocument):
     @staticmethod
     def _generate_id(vo: KnowledgeVersionInfo) -> str:
         import hashlib
+
         raw = f"{vo.organization_id}:{vo.store_id}:v{vo.version_number}"
         return hashlib.sha256(raw.encode()).hexdigest()[:24]

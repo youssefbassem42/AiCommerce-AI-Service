@@ -1,14 +1,15 @@
-from datetime import datetime, UTC
-from typing import List
 from pydantic import Field
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+
 from app.domain.recommendation.entities.recommendation import Recommendation
+from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+
 
 class RecommendationDocument(BaseMongoDocument):
     """MongoDB document model representing a Recommendation."""
+
     conversation_id: str = Field(..., index=True)
     customer_id: str = Field(..., index=True)
-    recommended_product_ids: List[str] = Field(...)
+    recommended_product_ids: list[str] = Field(...)
     store_id: str = Field(..., index=True)
     accepted: bool = Field(...)
     rationale: str = Field(...)
@@ -23,7 +24,7 @@ class RecommendationDocument(BaseMongoDocument):
             store_id=self.store_id,
             accepted=self.accepted,
             rationale=self.rationale,
-            created_at=self.created_at
+            created_at=self.created_at,
         )
 
     @classmethod
@@ -37,5 +38,5 @@ class RecommendationDocument(BaseMongoDocument):
             store_id=entity.store_id,
             accepted=entity.accepted,
             rationale=entity.rationale,
-            created_at=entity.created_at
+            created_at=entity.created_at,
         )

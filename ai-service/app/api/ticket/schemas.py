@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -15,28 +15,28 @@ class OrderSchema(BaseModel):
     currency: str
     financial_status: str
     created_at: datetime
-    line_items: List[LineItemSchema] = Field(default_factory=list)
+    line_items: list[LineItemSchema] = Field(default_factory=list)
 
 
 class CustomerProfileSchema(BaseModel):
     id: str
-    email: Optional[str] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    phone: Optional[str] = None
+    email: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
 
 
 class ConversationSummarySchema(BaseModel):
     message_count: int
-    last_message_at: Optional[datetime] = None
-    recent_messages: List[str] = Field(default_factory=list)
+    last_message_at: datetime | None = None
+    recent_messages: list[str] = Field(default_factory=list)
 
 
 class TicketCreateSchema(BaseModel):
     store_id: str
     customer_id: str
-    conversation_id: Optional[str] = None
-    messages: List[str] = Field(default_factory=list, max_length=50)
+    conversation_id: str | None = None
+    messages: list[str] = Field(default_factory=list, max_length=50)
 
 
 class TicketResponseSchema(BaseModel):
@@ -54,13 +54,13 @@ class TicketResponseSchema(BaseModel):
     analyzed_at: datetime
     created_at: datetime
     updated_at: datetime
-    customer: Optional[CustomerProfileSchema] = None
-    recent_orders: List[OrderSchema] = Field(default_factory=list)
-    conversation: Optional[ConversationSummarySchema] = None
+    customer: CustomerProfileSchema | None = None
+    recent_orders: list[OrderSchema] = Field(default_factory=list)
+    conversation: ConversationSummarySchema | None = None
 
 
 class TicketListResponseSchema(BaseModel):
-    items: List[TicketResponseSchema]
+    items: list[TicketResponseSchema]
     total: int
     page: int
     page_size: int
@@ -68,7 +68,7 @@ class TicketListResponseSchema(BaseModel):
 
 class TicketStatusUpdateSchema(BaseModel):
     status: str = Field(..., pattern=r"^(open|in_progress|resolved|closed)$")
-    resolution_type: Optional[str] = Field(default=None, pattern=r"^(ai|human|unresolved|escalated)$")
+    resolution_type: str | None = Field(default=None, pattern=r"^(ai|human|unresolved|escalated)$")
 
 
 class DeleteResponseSchema(BaseModel):

@@ -1,10 +1,9 @@
 import logging
-from datetime import datetime, UTC
-from typing import List, Optional
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.application.services.conversation_service import ConversationService
-from app.application.ticket.dto.sentiment_dto import SentimentAnalysisRequest, SentimentAnalysisResult
+from app.application.ticket.dto.sentiment_dto import SentimentAnalysisRequest
 from app.application.ticket.dto.ticket_dto import (
     ConversationSummaryDTO,
     CustomerProfileDTO,
@@ -29,9 +28,9 @@ class TicketService:
         self,
         ticket_repository: TicketRepository,
         sentiment_service: SentimentAnalysisService,
-        conversation_service: Optional[ConversationService] = None,
-        order_repository: Optional[OrderRepository] = None,
-        customer_repository: Optional[ICustomerRepository] = None,
+        conversation_service: ConversationService | None = None,
+        order_repository: OrderRepository | None = None,
+        customer_repository: ICustomerRepository | None = None,
     ):
         self._ticket_repo = ticket_repository
         self._sentiment = sentiment_service
@@ -49,8 +48,8 @@ class TicketService:
         )
 
         customer = None
-        orders: List[OrderDTO] = []
-        conversation: Optional[ConversationSummaryDTO] = None
+        orders: list[OrderDTO] = []
+        conversation: ConversationSummaryDTO | None = None
 
         if self._customer_repo:
             try:
@@ -91,9 +90,7 @@ class TicketService:
                 history = await self._conversation_service.get_conversation_history(dto.conversation_id)
                 conversation = ConversationSummaryDTO(
                     message_count=len(history),
-                    recent_messages=[
-                        str(m.content)[:200] for m in history[-5:]
-                    ],
+                    recent_messages=[str(m.content)[:200] for m in history[-5:]],
                 )
             except Exception as e:
                 logger.warning("Failed to fetch conversation %s: %s", dto.conversation_id, e)
@@ -118,14 +115,14 @@ class TicketService:
 
         return self._to_dto(created, customer, orders, conversation)
 
-    async def get_ticket(self, ticket_id: str) -> Optional[TicketDTO]:
+    async def get_ticket(self, ticket_id: str) -> TicketDTO | None:
         entity = await self._ticket_repo.find_by_ticket_id(ticket_id)
         if entity is None:
             return None
 
         customer = None
-        orders: List[OrderDTO] = []
-        conversation: Optional[ConversationSummaryDTO] = None
+        orders: list[OrderDTO] = []
+        conversation: ConversationSummaryDTO | None = None
 
         if self._customer_repo:
             try:
@@ -146,12 +143,12 @@ class TicketService:
     async def list_tickets(
         self,
         store_id: str,
-        status: Optional[str] = None,
-        priority: Optional[str] = None,
-        sentiment: Optional[str] = None,
+        status: str | None = None,
+        priority: str | None = None,
+        sentiment: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[List[TicketDTO], int]:
+    ) -> tuple[list[TicketDTO], int]:
         filters: dict = {"store_id": store_id}
         if status:
             filters["status"] = status
@@ -167,7 +164,7 @@ class TicketService:
         )
         return [self._to_dto(item) for item in items], total
 
-    async def update_status(self, ticket_id: str, dto: TicketStatusUpdateDTO) -> Optional[TicketDTO]:
+    async def update_status(self, ticket_id: str, dto: TicketStatusUpdateDTO) -> TicketDTO | None:
         entity = await self._ticket_repo.find_by_id(ticket_id)
         if entity is None:
             return None
@@ -203,9 +200,9 @@ class TicketService:
     @staticmethod
     def _to_dto(
         entity: TicketAnalysis,
-        customer: Optional[CustomerProfileDTO] = None,
-        orders: Optional[List[OrderDTO]] = None,
-        conversation: Optional[ConversationSummaryDTO] = None,
+        customer: CustomerProfileDTO | None = None,
+        orders: list[OrderDTO] | None = None,
+        conversation: ConversationSummaryDTO | None = None,
     ) -> TicketDTO:
         return TicketDTO(
             id=entity.id,

@@ -1,13 +1,13 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, UTC
 
-from app.shared.mediator.behaviors.logging import LoggingBehavior
-from app.shared.mediator.behaviors.validation import ValidationBehavior
-from app.shared.mediator.behaviors.authorization import AuthorizationBehavior
-from app.shared.mediator.behaviors.unit_of_work import UnitOfWorkBehavior
-from app.shared.mediator.behaviors.event_publisher import EventPublisherBehavior
+import pytest
+
 from app.shared.cqrs.command import Command
+from app.shared.mediator.behaviors.authorization import AuthorizationBehavior
+from app.shared.mediator.behaviors.event_publisher import EventPublisherBehavior
+from app.shared.mediator.behaviors.logging import LoggingBehavior
+from app.shared.mediator.behaviors.unit_of_work import UnitOfWorkBehavior
+from app.shared.mediator.behaviors.validation import ValidationBehavior
 
 
 class TestCommand(Command):

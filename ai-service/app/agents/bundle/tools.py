@@ -1,7 +1,7 @@
 import json
 import logging
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.application.recommendation.dto.recommendation_dto import (
@@ -37,18 +37,21 @@ def _get_llm() -> BaseLLMProvider:
 
 async def parse_budget(
     query: str,
-    llm: Optional[BaseLLMProvider] = None,
-) -> Tuple[Optional[float], List[str]]:
+    llm: BaseLLMProvider | None = None,
+) -> tuple[float | None, list[str]]:
     provider = llm or _get_llm()
     request = ChatRequest(
         messages=[
-            MessageDTO(role="system", content="You extract budget and shopping intent from user queries. Return only valid JSON."),
+            MessageDTO(
+                role="system",
+                content="You extract budget and shopping intent from user queries. Return only valid JSON.",
+            ),
             MessageDTO(role="user", content=BUDGET_PARSE_PROMPT.format(query=query)),
         ],
         model="gpt-4o-mini",
         json_mode=True,
     )
-    response = await provider.structured_output(request, Dict[str, Any])
+    response = await provider.structured_output(request, dict[str, Any])
     data = json.loads(response.message.content)
     budget = data.get("budget")
     desired_items = data.get("desired_items", [])
@@ -56,14 +59,14 @@ async def parse_budget(
 
 
 async def find_candidates(
-    desired_items: List[str],
+    desired_items: list[str],
     store_id: str,
     product_repo: ProductRepository,
-) -> Dict[str, List[Product]]:
+) -> dict[str, list[Product]]:
     if not desired_items:
         return {}
 
-    candidates_by_type: Dict[str, List[Product]] = {}
+    candidates_by_type: dict[str, list[Product]] = {}
 
     for item in desired_items:
         products = await product_repo.find_many(
@@ -75,10 +78,7 @@ async def find_candidates(
                 {"store_id": store_id, "title": {"$regex": item, "$options": "i"}},
                 limit=50,
             )
-        in_stock = [
-            p for p in products
-            if any(v.inventory_quantity > 0 for v in p.variants)
-        ]
+        in_stock = [p for p in products if any(v.inventory_quantity > 0 for v in p.variants)]
         if in_stock:
             candidates_by_type[item] = in_stock[:20]
 
@@ -91,10 +91,10 @@ def _min_price(product: Product) -> Decimal:
 
 
 def knapsack_bundles(
-    candidates_by_type: Dict[str, List[Product]],
+    candidates_by_type: dict[str, list[Product]],
     budget: float,
-) -> List[List[Product]]:
-    all_products: List[Product] = []
+) -> list[list[Product]]:
+    all_products: list[Product] = []
     for products in candidates_by_type.values():
         all_products.extend(products)
 
@@ -102,19 +102,19 @@ def knapsack_bundles(
     unique.sort(key=lambda p: _min_price(p))
 
     affordable = [p for p in unique if _min_price(p) <= Decimal(str(budget))]
-    bundles: List[List[Product]] = []
+    bundles: list[list[Product]] = []
 
     for i, p1 in enumerate(affordable):
         price1 = _min_price(p1)
         if price1 <= Decimal(str(budget)):
             bundles.append([p1])
 
-        for p2 in affordable[i + 1:]:
+        for p2 in affordable[i + 1 :]:
             price2 = _min_price(p2)
             if price1 + price2 <= Decimal(str(budget)):
                 bundles.append([p1, p2])
 
-            for p3 in affordable[i + 2:]:
+            for p3 in affordable[i + 2 :]:
                 price3 = _min_price(p3)
                 total = price1 + price2 + price3
                 if total <= Decimal(str(budget)):
@@ -126,15 +126,15 @@ def knapsack_bundles(
 
 
 def score_bundles(
-    bundles: List[List[Product]],
+    bundles: list[list[Product]],
     budget: float,
-    candidates_by_type: Dict[str, List[Product]],
-) -> List[BundleCandidate]:
-    scored: List[BundleCandidate] = []
+    candidates_by_type: dict[str, list[Product]],
+) -> list[BundleCandidate]:
+    scored: list[BundleCandidate] = []
 
     for bundle in bundles:
         total_original = Decimal("0")
-        discount_infos: List[DiscountInfo] = []
+        discount_infos: list[DiscountInfo] = []
 
         for product in bundle:
             price = _min_price(product)
@@ -144,14 +144,16 @@ def score_bundles(
             discount_pct = float(product.metadata.get("max_discount_pct", 0.0) or 0.0)
             discount_amount = price * Decimal(str(discount_pct / 100))
 
-            discount_infos.append(DiscountInfo(
-                product_id=product.id,
-                product_title=product.title,
-                original_price=price,
-                discount_pct=discount_pct,
-                discount_amount=discount_amount,
-                price_after_discount=price - discount_amount,
-            ))
+            discount_infos.append(
+                DiscountInfo(
+                    product_id=product.id,
+                    product_title=product.title,
+                    original_price=price,
+                    discount_pct=discount_pct,
+                    discount_amount=discount_amount,
+                    price_after_discount=price - discount_amount,
+                )
+            )
             total_original += price
 
         if not discount_infos:
@@ -161,38 +163,39 @@ def score_bundles(
         total_after = total_original - total_discount
         remaining = float(budget) - float(total_after)
 
-        scored.append(BundleCandidate(
-            products=discount_infos,
-            total_original=total_original,
-            total_discount=total_discount,
-            total_after_discount=total_after,
-            remaining_budget=max(0.0, remaining),
-            within_budget=remaining >= 0,
-        ))
+        scored.append(
+            BundleCandidate(
+                products=discount_infos,
+                total_original=total_original,
+                total_discount=total_discount,
+                total_after_discount=total_after,
+                remaining_budget=max(0.0, remaining),
+                within_budget=remaining >= 0,
+            )
+        )
 
-    scored.sort(key=lambda b: (
-        float(b.total_discount),  # higher discount first (desc)
-        -b.remaining_budget,  # lower remaining budget is better (asc)
-    ))
+    scored.sort(
+        key=lambda b: (
+            float(b.total_discount),  # higher discount first (desc)
+            -b.remaining_budget,  # lower remaining budget is better (asc)
+        )
+    )
     scored.sort(key=lambda b: b.remaining_budget / budget if budget > 0 else 1.0)
 
     return scored[:5]
 
 
 async def get_or_create_promo(
-    selected: List[BundleCandidate],
-    product_ids: List[str],
+    selected: list[BundleCandidate],
+    product_ids: list[str],
     store_id: str,
     promo_service: PromoCodeService,
-) -> Tuple[Optional[str], List[BundleCandidate]]:
+) -> tuple[str | None, list[BundleCandidate]]:
     if not selected:
         return None, selected
 
     best = selected[0]
-    total_discount_pct = float(
-        best.total_discount / best.total_original * 100
-        if best.total_original > 0 else 0
-    )
+    total_discount_pct = float(best.total_discount / best.total_original * 100 if best.total_original > 0 else 0)
 
     code = await promo_service.generate_code(
         store_id=store_id,
@@ -210,10 +213,10 @@ async def get_or_create_promo(
 def build_bundle_response(
     query: str,
     store_id: str,
-    customer_id: Optional[str],
+    customer_id: str | None,
     budget: float,
-    selected: List[BundleCandidate],
-    promo_code: Optional[str],
+    selected: list[BundleCandidate],
+    promo_code: str | None,
 ) -> BundleResponse:
 
     total_count = len(selected)
@@ -229,10 +232,7 @@ def build_bundle_response(
             rationale += f" Use promo code {promo_code} to get this discount."
     else:
         budget_str = f"${budget:.2f}" if budget and budget > 0 else "your budget"
-        rationale = (
-            f"No bundles found within {budget_str}. "
-            "Try increasing your budget or choosing different products."
-        )
+        rationale = f"No bundles found within {budget_str}. Try increasing your budget or choosing different products."
 
     return BundleResponse(
         query=query,

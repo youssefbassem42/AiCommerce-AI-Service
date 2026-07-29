@@ -27,7 +27,6 @@ def service(mock_repo):
 
 
 class TestCategoryService:
-
     async def test_create_category(self, service, mock_repo):
         data = CategoryCreateDTO(
             store_id="store1",
@@ -44,9 +43,7 @@ class TestCategoryService:
         assert result.name == "Electronics"
 
     async def test_get_category_found(self, service, mock_repo):
-        mock_repo.find_by_id.return_value = Category(
-            id="c1", store_id="s1", org_id="o1", name="Test"
-        )
+        mock_repo.find_by_id.return_value = Category(id="c1", store_id="s1", org_id="o1", name="Test")
         result = await service.get_by_id("c1")
         assert result.name == "Test"
 
@@ -66,9 +63,7 @@ class TestCategoryService:
     async def test_update_category(self, service, mock_repo):
         existing = Category(id="c1", store_id="s1", org_id="o1", name="Old")
         mock_repo.find_by_id.return_value = existing
-        mock_repo.update.return_value = Category(
-            id="c1", store_id="s1", org_id="o1", name="Updated"
-        )
+        mock_repo.update.return_value = Category(id="c1", store_id="s1", org_id="o1", name="Updated")
         result = await service.update("c1", CategoryUpdateDTO(name="Updated"))
         assert result.name == "Updated"
 
@@ -81,9 +76,7 @@ class TestCategoryService:
         assert result[0].name == "Child"
 
     async def test_get_root_categories(self, service, mock_repo):
-        mock_repo.find_root.return_value = [
-            Category(id="c1", store_id="s1", org_id="o1", name="Root")
-        ]
+        mock_repo.find_root.return_value = [Category(id="c1", store_id="s1", org_id="o1", name="Root")]
         result = await service.get_root_categories("s1")
         assert len(result) == 1
         assert result[0].name == "Root"

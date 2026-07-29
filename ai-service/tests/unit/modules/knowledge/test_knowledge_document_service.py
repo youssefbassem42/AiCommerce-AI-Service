@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock
 
+import pytest
+
+from app.application.knowledge.dto import KnowledgeDocumentUpdateDTO
 from app.application.knowledge.services import KnowledgeDocumentService
-from app.application.knowledge.dto import KnowledgeDocumentCreateDTO, KnowledgeDocumentUpdateDTO
 from app.domain.knowledge.exceptions import KnowledgeDocumentNotFoundException
 
 

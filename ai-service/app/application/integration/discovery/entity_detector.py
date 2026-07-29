@@ -1,6 +1,5 @@
 import logging
 import re
-from typing import Optional
 
 from app.application.integration.discovery.synonyms import COMMON_SYNONYMS
 
@@ -81,7 +80,7 @@ FIELD_SYNONYMS: dict[str, set[str]] = {k: set(v) for k, v in COMMON_SYNONYMS.ite
 class EntityDetectionResult:
     def __init__(
         self,
-        entity_type: Optional[str],
+        entity_type: str | None,
         confidence: float,
         matched_fields: list[str],
     ):
@@ -103,11 +102,9 @@ class EntityDetector:
     SUBSTRING_WEIGHT = 0.6
     SYNONYM_WEIGHT = 0.4
 
-    def detect(
-        self, external_fields: set[str], entity_type_hint: Optional[str] = None
-    ) -> EntityDetectionResult:
+    def detect(self, external_fields: set[str], entity_type_hint: str | None = None) -> EntityDetectionResult:
         candidates = [entity_type_hint] if entity_type_hint else list(CANONICAL_FIELDS.keys())
-        best_type: Optional[str] = None
+        best_type: str | None = None
         best_score = 0.0
         best_matched: list[str] = []
 
@@ -153,7 +150,7 @@ class EntityDetector:
         tokens_b = self._field_tokens(b)
         return bool(tokens_a & tokens_b)
 
-    def _score_field(self, ext_field: str, canonical_set: set[str]) -> tuple[float, Optional[str]]:
+    def _score_field(self, ext_field: str, canonical_set: set[str]) -> tuple[float, str | None]:
         cleaned = ext_field.replace(" ", "_").strip()
         if cleaned in canonical_set:
             return self.EXACT_WEIGHT, cleaned

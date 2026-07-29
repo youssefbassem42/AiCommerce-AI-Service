@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
 
 from redis.asyncio import Redis
 
@@ -12,7 +12,7 @@ class RedisClient:
     """Asynchronous Redis client wrapper with connection management."""
 
     _instance: Optional["RedisClient"] = None
-    _redis: Optional[Redis] = None
+    _redis: Redis | None = None
 
     def __new__(cls) -> "RedisClient":
         if cls._instance is None:
@@ -42,10 +42,10 @@ class RedisClient:
             logger.info("Redis client disconnected.")
 
     @property
-    def client(self) -> Optional[Redis]:
+    def client(self) -> Redis | None:
         return self._redis
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         if not self._redis:
             return None
         try:
@@ -54,7 +54,7 @@ class RedisClient:
             logger.warning(f"Redis GET failed: {e}")
             return None
 
-    async def set(self, key: str, value: str, expire: Optional[int] = None) -> bool:
+    async def set(self, key: str, value: str, expire: int | None = None) -> bool:
         if not self._redis:
             return False
         try:
@@ -73,7 +73,7 @@ class RedisClient:
             logger.warning(f"Redis DELETE failed: {e}")
             return False
 
-    async def incr(self, key: str) -> Optional[int]:
+    async def incr(self, key: str) -> int | None:
         if not self._redis:
             return None
         try:

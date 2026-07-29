@@ -1,18 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.admin.router import router as admin_router
 from app.api.ai.router import router as ai_router
 from app.api.auth.router import router as auth_router
-from app.api.integration.router import router as integration_router
 from app.api.chat.router import router as chat_router
 from app.api.commerce.router import router as commerce_router
+from app.api.integration.router import router as integration_router
 from app.api.knowledge.generation_router import router as knowledge_generation_router
-from app.api.knowledge.retrieval_router import router as knowledge_retrieval_router
 from app.api.knowledge.job_router import router as knowledge_job_router
+from app.api.knowledge.retrieval_router import router as knowledge_retrieval_router
 from app.api.knowledge.unified_router import router as knowledge_unified_router
 from app.api.rag.router import router as rag_router
 from app.api.recommendation.router import router as recommendation_router
-from app.api.admin.router import router as admin_router
 from app.api.ticket.router import router as ticket_router
 from app.core.config import settings
 from app.middleware.audit import AuditMiddleware

@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -14,4 +14,4 @@ class UploadDocumentCommand:
     organization_id: str
     store_id: str
     knowledge_scope: str = "general"
-    document_metadata: Optional[dict[str, Any]] = None
+    document_metadata: dict[str, Any] | None = None

@@ -3,11 +3,10 @@ End-to-end integration test: walks the full store-owner + consumer chain
 in one shot, mocking only external infrastructure (MongoDB, Redis, Qdrant,
 HTTP client, LLM providers). All application/domain logic is exercised.
 """
-import json
+
 import os
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
@@ -15,29 +14,23 @@ import yaml
 
 from app.application.commerce.dto.commerce_dto import (
     InventoryUpdateDTO,
-    LineItemDTO,
-    MoneyDTO,
-    OrderDTO,
-    ProductCreateDTO,
-    ProductDTO,
     ProductUpdateDTO,
 )
 from app.application.commerce.services import InventoryService, OrderService, ProductService
 from app.application.integration.discovery.entity_detector import CANONICAL_FIELDS, FIELD_SYNONYMS, EntityDetector
-from app.application.integration.discovery.field_suggester import FieldSuggester, SYNONYM_MAP
+from app.application.integration.discovery.field_suggester import SYNONYM_MAP, FieldSuggester
 from app.application.integration.openapi.parser import OpenApiParser
 from app.domain.commerce.aggregates.order import LineItem, Order
 from app.domain.commerce.aggregates.product import Product, ProductOption, Variant
 from app.domain.commerce.value_objects.audit import AuditInfo
 from app.domain.commerce.value_objects.money import Money
 
-
 # =============================================================================
 # PART 1: STORE OWNER — OpenAPI Spec Parsing & Entity Discovery
 # =============================================================================
 
-class TestPart1_SpecParsingAndDiscovery:
 
+class TestPart1_SpecParsingAndDiscovery:
     def test_1a_parse_real_openapi_spec(self):
         """Parse the real document.yml — exercise all parser features."""
         with open(os.path.join(os.path.dirname(__file__), "../../../document.yml")) as f:
@@ -183,6 +176,7 @@ class TestPart1_SpecParsingAndDiscovery:
     def test_1f_synonym_maps_are_unified(self):
         """Verify the fix: both maps derive from COMMON_SYNONYMS."""
         from app.application.integration.discovery.synonyms import COMMON_SYNONYMS
+
         for key in COMMON_SYNONYMS:
             entity_syns = FIELD_SYNONYMS.get(key, set())
             suggester_syns = set(SYNONYM_MAP.get(key, []))
@@ -196,20 +190,21 @@ class TestPart1_SpecParsingAndDiscovery:
         detector = EntityDetector()
         # These should NOT match as product fields
         result = detector.detect({"subtitle", "diagnosis_code", "identifier"})
-        assert result.entity_type is None, (
-            f"Non-commerce fields should not match. Got {result.entity_type}"
-        )
+        assert result.entity_type is None, f"Non-commerce fields should not match. Got {result.entity_type}"
         print(f"[1g] Token matching: non-commerce fields correctly rejected (result={result.entity_type})")
 
         # These should still match
         result2 = detector.detect({"product_title", "product_price"})
         assert result2.entity_type is not None
-        print(f"[1g] Token matching: commerce fields still detected: {result2.entity_type} (conf={result2.confidence:.2f})")
+        print(
+            f"[1g] Token matching: commerce fields still detected: {result2.entity_type} (conf={result2.confidence:.2f})"
+        )
 
 
 # =============================================================================
 # PART 2: STORE OWNER — Data Sync & Writing
 # =============================================================================
+
 
 @pytest.fixture
 def mock_mongo():
@@ -218,8 +213,12 @@ def mock_mongo():
     coll.update_one = AsyncMock(return_value=MagicMock(upserted_id="new_id", modified_count=1))
     patches = []
     for col_name in [
-        "get_products_collection", "get_orders_collection", "get_customers_collection",
-        "get_categories_collection", "get_inventory_collection", "get_entities_collection",
+        "get_products_collection",
+        "get_orders_collection",
+        "get_customers_collection",
+        "get_categories_collection",
+        "get_inventory_collection",
+        "get_entities_collection",
     ]:
         p = patch(f"app.application.integration.sync.writers.{col_name}", return_value=coll)
         p.start()
@@ -230,12 +229,15 @@ def mock_mongo():
 
 
 class TestPart2_SyncAndWriters:
-
     @pytest.mark.asyncio
     async def test_2a_all_writers_use_organization_id(self, mock_mongo):
         """Verify the fix: all writers use 'organization_id' not 'org_id'."""
         from app.application.integration.sync.writers import (
-            CategoryWriter, CustomerWriter, InventoryWriter, OrderWriter, ProductWriter,
+            CategoryWriter,
+            CustomerWriter,
+            InventoryWriter,
+            OrderWriter,
+            ProductWriter,
         )
 
         writers = [
@@ -255,7 +257,7 @@ class TestPart2_SyncAndWriters:
             assert "org_id" not in call_doc, (
                 f"{name}Writer doc should not use 'org_id', got keys: {list(call_doc.keys())}"
             )
-        print(f"[2a] All 5 writers use 'organization_id' instead of 'org_id'")
+        print("[2a] All 5 writers use 'organization_id' instead of 'org_id'")
 
     @pytest.mark.asyncio
     async def test_2b_order_writer_preserves_numeric_prices(self, mock_mongo):
@@ -264,8 +266,17 @@ class TestPart2_SyncAndWriters:
 
         writer = OrderWriter()
         await writer.upsert(
-            store_id="s1", org_id="o1", external_id="ext1",
-            data={"total": 99.99, "subtotal": 50.00, "tax": 10.50, "discount": 5.00, "shipping_price": 7.50, "currency": "USD"},
+            store_id="s1",
+            org_id="o1",
+            external_id="ext1",
+            data={
+                "total": 99.99,
+                "subtotal": 50.00,
+                "tax": 10.50,
+                "discount": 5.00,
+                "shipping_price": 7.50,
+                "currency": "USD",
+            },
         )
 
         call_doc = mock_mongo.update_one.call_args[0][1]["$set"]
@@ -277,7 +288,9 @@ class TestPart2_SyncAndWriters:
         )
         assert call_doc["total_price"] == 99.99
         assert call_doc["subtotal_price"] == 50.00
-        print(f"[2b] OrderWriter preserves numeric prices: total={call_doc['total_price']}, subtotal={call_doc['subtotal_price']}")
+        print(
+            f"[2b] OrderWriter preserves numeric prices: total={call_doc['total_price']}, subtotal={call_doc['subtotal_price']}"
+        )
 
     @pytest.mark.asyncio
     async def test_2c_dynamic_writer_pops_dates_from_data(self, mock_mongo):
@@ -286,15 +299,15 @@ class TestPart2_SyncAndWriters:
 
         writer = DynamicEntityWriter("test_entity")
         await writer.upsert(
-            store_id="s1", org_id="o1", external_id="ext1",
+            store_id="s1",
+            org_id="o1",
+            external_id="ext1",
             data={"title": "test", "created_at": "2024-01-01", "updated_at": "2024-01-02", "price": 100},
         )
 
         call_doc = mock_mongo.update_one.call_args[0][1]["$set"]
         stored_data = call_doc["data"]
-        assert "created_at" not in stored_data, (
-            "DynamicEntityWriter should pop created_at from data dict"
-        )
+        assert "created_at" not in stored_data, "DynamicEntityWriter should pop created_at from data dict"
         assert "updated_at" not in stored_data
         assert stored_data["title"] == "test"
         assert stored_data["price"] == 100
@@ -307,7 +320,7 @@ class TestPart2_SyncAndWriters:
             patch("app.application.integration.sync.orchestrator.PaginationIterator") as mock_iter_cls,
             patch("app.application.integration.sync.orchestrator.get_writer") as mock_get_writer,
             patch("app.application.integration.sync.orchestrator.MappingEngine") as mock_engine_cls,
-            patch.object(AsyncMock, "__aiter__", new_callable=PropertyMock) as mock_aiter,
+            patch.object(AsyncMock, "__aiter__", new_callable=PropertyMock),
         ):
             from app.application.integration.sync.orchestrator import SyncOrchestrator
 
@@ -353,7 +366,6 @@ class TestPart2_SyncAndWriters:
 
             # Mock _process_page to just count (avoid full processing)
             from app.application.integration.sync import orchestrator as orch_mod
-            original_process = orch_mod.SyncOrchestrator._process_page
 
             async def dummy_process(self, page, conn, em, er, writer, mapped_records):
                 pass
@@ -364,38 +376,55 @@ class TestPart2_SyncAndWriters:
             assert entity_result.total_fetched == 4, (
                 f"total_fetched should be 4 (3+1 records), got {entity_result.total_fetched}"
             )
-            print(f"[2d] Orchestrator total_fetched={entity_result.total_fetched} (expected 4) — counts records, not pages")
+            print(
+                f"[2d] Orchestrator total_fetched={entity_result.total_fetched} (expected 4) — counts records, not pages"
+            )
 
 
 # =============================================================================
 # PART 3: STORE OWNER — Commerce Services
 # =============================================================================
 
-class TestPart3_CommerceServices:
 
+class TestPart3_CommerceServices:
     def test_3a_order_to_dto_includes_line_items(self):
         """Verify the fix: Order._to_dto converts line items to LineItemDTO."""
-        from app.application.commerce.services import OrderService
 
         audit = AuditInfo(created_by="test")
         now = datetime.now(UTC)
 
-        service = OrderService(repository=MagicMock())
+        OrderService(repository=MagicMock())
         entity = Order(
             id="ord-1",
-            store_id="s1", org_id="o1",
-            customer_id="c1", customer_email="c@example.com",
+            store_id="s1",
+            org_id="o1",
+            customer_id="c1",
+            customer_email="c@example.com",
             line_items=[
-                LineItem(id="li-1", variant_id="v1", product_id="p1",
-                         title="Item 1", quantity=2,
-                         price=Money(amount="10.00", currency="USD")),
-                LineItem(id="li-2", variant_id="v2", product_id="p2",
-                         title="Item 2", quantity=1,
-                         price=Money(amount="25.00", currency="USD")),
+                LineItem(
+                    id="li-1",
+                    variant_id="v1",
+                    product_id="p1",
+                    title="Item 1",
+                    quantity=2,
+                    price=Money(amount="10.00", currency="USD"),
+                ),
+                LineItem(
+                    id="li-2",
+                    variant_id="v2",
+                    product_id="p2",
+                    title="Item 2",
+                    quantity=1,
+                    price=Money(amount="25.00", currency="USD"),
+                ),
             ],
-            financial_status="paid", fulfillment_status="fulfilled",
-            currency="USD", tags=[], audit=audit,
-            created_at=now, updated_at=now,
+            financial_status="paid",
+            fulfillment_status="fulfilled",
+            currency="USD",
+            tags=[],
+            audit=audit,
+            created_at=now,
+            updated_at=now,
         )
 
         dto = OrderService._to_dto(entity)
@@ -411,36 +440,44 @@ class TestPart3_CommerceServices:
 
     def test_3b_order_to_dto_empty_line_items(self):
         """Verify edge case: order with no line items."""
-        from app.application.commerce.services import OrderService
 
         audit = AuditInfo(created_by="test")
         now = datetime.now(UTC)
 
         entity = Order(
-            id="ord-2", store_id="s1", org_id="o1",
-            customer_id="c1", customer_email="c@example.com",
+            id="ord-2",
+            store_id="s1",
+            org_id="o1",
+            customer_id="c1",
+            customer_email="c@example.com",
             line_items=[],
-            financial_status="paid", fulfillment_status="fulfilled",
-            currency="USD", tags=[], audit=audit,
-            created_at=now, updated_at=now,
+            financial_status="paid",
+            fulfillment_status="fulfilled",
+            currency="USD",
+            tags=[],
+            audit=audit,
+            created_at=now,
+            updated_at=now,
         )
 
         dto = OrderService._to_dto(entity)
         assert len(dto.line_items) == 0
-        print(f"[3b] Order._to_dto with empty line_items: OK (0 items)")
+        print("[3b] Order._to_dto with empty line_items: OK (0 items)")
 
     def test_3c_product_update_preserves_variant_ids(self):
         """Verify the fix: existing variant IDs preserved on update."""
-        from app.application.commerce.services import ProductService
 
         original_variant_id = "variant-001"
         original_option_id = "option-001"
 
         entity = Product(
-            id="prod-1", store_id="s1", organization_id="o1",
+            id="prod-1",
+            store_id="s1",
+            organization_id="o1",
             title="Test Product",
-            variants=[Variant(id=original_variant_id, sku="SKU001", title="V1",
-                             price=Money(amount="10.00", currency="USD"))],
+            variants=[
+                Variant(id=original_variant_id, sku="SKU001", title="V1", price=Money(amount="10.00", currency="USD"))
+            ],
             options=[ProductOption(id=original_option_id, name="Size", values=["S", "M"])],
             audit=AuditInfo(created_by="test"),
         )
@@ -452,12 +489,18 @@ class TestPart3_CommerceServices:
         service = ProductService(repository=repo)
         update_data = ProductUpdateDTO(
             title="Updated",
-            variants=[{"id": original_variant_id, "sku": "SKU002", "title": "V2",
-                       "price": {"amount": "15.00", "currency": "USD"}}],
+            variants=[
+                {
+                    "id": original_variant_id,
+                    "sku": "SKU002",
+                    "title": "V2",
+                    "price": {"amount": "15.00", "currency": "USD"},
+                }
+            ],
             options=[{"id": original_option_id, "name": "Color", "values": ["Red", "Blue"]}],
         )
 
-        result = service.update("prod-1", update_data)
+        service.update("prod-1", update_data)
         updated_entity = repo.update.call_args[0][0]
 
         assert updated_entity.variants[0].id == original_variant_id, "Variant ID should be preserved"
@@ -466,11 +509,14 @@ class TestPart3_CommerceServices:
 
     def test_3d_product_update_new_variant_gets_new_id(self):
         """Verify new variants without ID get generated IDs."""
-        from app.application.commerce.services import ProductService
 
         entity = Product(
-            id="prod-1", store_id="s1", organization_id="o1",
-            title="Test Product", variants=[], options=[],
+            id="prod-1",
+            store_id="s1",
+            organization_id="o1",
+            title="Test Product",
+            variants=[],
+            options=[],
             audit=AuditInfo(created_by="test"),
         )
 
@@ -480,8 +526,7 @@ class TestPart3_CommerceServices:
 
         service = ProductService(repository=repo)
         update_data = ProductUpdateDTO(
-            variants=[{"sku": "NEW001", "title": "New V",
-                       "price": {"amount": "20.00", "currency": "USD"}}],
+            variants=[{"sku": "NEW001", "title": "New V", "price": {"amount": "20.00", "currency": "USD"}}],
         )
 
         service.update("prod-1", update_data)
@@ -494,9 +539,11 @@ class TestPart3_CommerceServices:
     def test_3e_inventory_bulk_update(self):
         """Verify the fix: bulk_update iterates and updates records."""
         repo = AsyncMock()
-        repo.find_many = AsyncMock(return_value=[
-            MagicMock(product_id="p1", audit=AuditInfo(created_by="test")),
-        ])
+        repo.find_many = AsyncMock(
+            return_value=[
+                MagicMock(product_id="p1", audit=AuditInfo(created_by="test")),
+            ]
+        )
         repo.update = AsyncMock(return_value=True)
 
         service = InventoryService(repository=repo)
@@ -512,13 +559,12 @@ class TestPart3_CommerceServices:
 # PART 4: STORE OWNER — Ticket Service
 # =============================================================================
 
-class TestPart4_TicketService:
 
+class TestPart4_TicketService:
     @pytest.mark.asyncio
     async def test_4a_get_ticket_uses_find_by_ticket_id(self):
         """Verify the fix: get_ticket calls find_by_ticket_id not find_by_id."""
         from app.application.ticket.services.ticket_service import TicketService
-        from app.domain.ticket.entities.ticket_analysis import TicketAnalysis
 
         repo = AsyncMock()
         repo.find_by_ticket_id = AsyncMock(return_value=None)
@@ -534,48 +580,64 @@ class TestPart4_TicketService:
 
         repo.find_by_ticket_id.assert_called_once_with("ticket-123")
         repo.find_by_id.assert_not_called()
-        print(f"[4a] TicketService.get_ticket uses find_by_ticket_id, not find_by_id")
+        print("[4a] TicketService.get_ticket uses find_by_ticket_id, not find_by_id")
 
     @pytest.mark.asyncio
     async def test_4b_create_ticket_with_full_enrichment(self):
         """Test ticket creation with customer, order, conversation enrichment."""
-        from app.application.ticket.services.ticket_service import TicketService
-        from app.application.ticket.dto.ticket_dto import TicketCreateDTO
-        from app.domain.ticket.entities.ticket_analysis import TicketAnalysis
         from app.application.dto.ai_dto import MessageDTO
+        from app.application.ticket.dto.ticket_dto import TicketCreateDTO
+        from app.application.ticket.services.ticket_service import TicketService
+        from app.domain.ticket.entities.ticket_analysis import TicketAnalysis
 
         ticket_id = "tkt-" + str(uuid.uuid4())
         entity = TicketAnalysis(
-            id="abc-123", ticket_id=ticket_id,
-            store_id="s1", customer_id="c1",
-            sentiment="negative", category="billing",
-            summary="Payment issue", priority="high",
-            status="open", suggested_response="Please check card details",
+            id="abc-123",
+            ticket_id=ticket_id,
+            store_id="s1",
+            customer_id="c1",
+            sentiment="negative",
+            category="billing",
+            summary="Payment issue",
+            priority="high",
+            status="open",
+            suggested_response="Please check card details",
         )
 
         repo = AsyncMock()
         repo.create = AsyncMock(return_value=entity)
 
         sentiment = AsyncMock()
-        sentiment.analyze = AsyncMock(return_value=MagicMock(
-            sentiment="negative", category="billing",
-            summary="Payment issue", priority="high",
-            suggested_response="Please check card details",
-        ))
+        sentiment.analyze = AsyncMock(
+            return_value=MagicMock(
+                sentiment="negative",
+                category="billing",
+                summary="Payment issue",
+                priority="high",
+                suggested_response="Please check card details",
+            )
+        )
 
         customer_repo = AsyncMock()
-        customer_repo.find_by_id = AsyncMock(return_value=MagicMock(
-            id="c1", email="cust@example.com", first_name="John",
-            last_name="Doe", phone="123-456-7890",
-        ))
+        customer_repo.find_by_id = AsyncMock(
+            return_value=MagicMock(
+                id="c1",
+                email="cust@example.com",
+                first_name="John",
+                last_name="Doe",
+                phone="123-456-7890",
+            )
+        )
 
         order_repo = AsyncMock()
         order_repo.find_by_customer = AsyncMock(return_value=[])
 
         conv_service = AsyncMock()
-        conv_service.get_conversation_history = AsyncMock(return_value=[
-            MessageDTO(role="user", content="My payment failed"),
-        ])
+        conv_service.get_conversation_history = AsyncMock(
+            return_value=[
+                MessageDTO(role="user", content="My payment failed"),
+            ]
+        )
 
         service = TicketService(
             ticket_repository=repo,
@@ -586,7 +648,8 @@ class TestPart4_TicketService:
         )
 
         dto = TicketCreateDTO(
-            store_id="s1", customer_id="c1",
+            store_id="s1",
+            customer_id="c1",
             messages=["My payment failed"],
             conversation_id="conv-1",
         )
@@ -601,29 +664,33 @@ class TestPart4_TicketService:
         assert result.customer.email == "cust@example.com"
         customer_repo.find_by_id.assert_called_once_with("c1")
         conv_service.get_conversation_history.assert_called_once_with("conv-1")
-        print(f"[4b] Ticket created: id={result.id}, ticket_id={result.ticket_id}, "
-              f"sentiment={result.sentiment}, priority={result.priority}, "
-              f"customer={result.customer.email if result.customer else 'None'}")
+        print(
+            f"[4b] Ticket created: id={result.id}, ticket_id={result.ticket_id}, "
+            f"sentiment={result.sentiment}, priority={result.priority}, "
+            f"customer={result.customer.email if result.customer else 'None'}"
+        )
 
 
 # =============================================================================
 # PART 5: CONSUMER — Conversation Service
 # =============================================================================
 
-class TestPart5_ConversationService:
 
+class TestPart5_ConversationService:
     @pytest.mark.asyncio
     async def test_5a_malformed_message_missing_content(self):
         """Verify the fix: missing 'content' key handled gracefully."""
         from app.application.services.conversation_service import ConversationService
 
         repo = AsyncMock()
-        repo.get_conversation = AsyncMock(return_value={
-            "messages": [
-                {"role": "user"},
-                {"role": "assistant", "content": "Hello"},
-            ]
-        })
+        repo.get_conversation = AsyncMock(
+            return_value={
+                "messages": [
+                    {"role": "user"},
+                    {"role": "assistant", "content": "Hello"},
+                ]
+            }
+        )
 
         service = ConversationService(repository=repo)
         messages = await service.get_conversation_history("conv-1")
@@ -636,19 +703,21 @@ class TestPart5_ConversationService:
     @pytest.mark.asyncio
     async def test_5b_full_conversation_flow(self):
         """Test conversation lifecycle: create, save interaction, retrieve."""
-        from app.application.services.conversation_service import ConversationService
         from app.application.dto.ai_dto import MessageDTO, UsageDTO
+        from app.application.services.conversation_service import ConversationService
 
         repo = AsyncMock()
-        repo.get_conversation = AsyncMock(side_effect=[
-            None,  # First call: not found
-            {  # Second call: history available
-                "messages": [
-                    {"role": "user", "content": "Hello"},
-                    {"role": "assistant", "content": "Hi there"},
-                ]
-            },
-        ])
+        repo.get_conversation = AsyncMock(
+            side_effect=[
+                None,  # First call: not found
+                {  # Second call: history available
+                    "messages": [
+                        {"role": "user", "content": "Hello"},
+                        {"role": "assistant", "content": "Hi there"},
+                    ]
+                },
+            ]
+        )
         repo.create_conversation = AsyncMock(return_value={"id": "conv-1"})
         repo.add_message = AsyncMock()
 
@@ -667,7 +736,7 @@ class TestPart5_ConversationService:
 
         await service.save_interaction("conv-1", user_msg, assistant_msg, usage=usage, latency_ms=150)
         assert repo.add_message.call_count == 2
-        print(f"[5b] Interaction saved: 2 messages stored")
+        print("[5b] Interaction saved: 2 messages stored")
 
         # Get history
         history = await service.get_conversation_history("conv-1")
@@ -681,14 +750,15 @@ class TestPart5_ConversationService:
 # PART 6: CONSUMER — Redis Event Bus
 # =============================================================================
 
-class TestPart6_EventBus:
 
+class TestPart6_EventBus:
     @pytest.mark.asyncio
     async def test_6a_publish_invokes_local_handlers(self):
         """Verify the fix: publish() invokes local handlers after Redis."""
         from pydantic import BaseModel
-        from app.shared.events.event_handler import IEventHandler
+
         from app.infrastructure.events.redis_event_bus import RedisEventBus
+        from app.shared.events.event_handler import IEventHandler
 
         class TestEvent(BaseModel):
             data: str
@@ -707,14 +777,15 @@ class TestPart6_EventBus:
         # Verify both Redis publish and local handler invocation
         assert redis.publish.called, "Should publish to Redis"
         handler.handle.assert_called_once_with(event)
-        print(f"[6a] EventBus publish: Redis published + local handler invoked")
+        print("[6a] EventBus publish: Redis published + local handler invoked")
 
     @pytest.mark.asyncio
     async def test_6b_handler_exception_does_not_block_others(self):
         """Verify one failing handler doesn't block other handlers."""
         from pydantic import BaseModel
-        from app.shared.events.event_handler import IEventHandler
+
         from app.infrastructure.events.redis_event_bus import RedisEventBus
+        from app.shared.events.event_handler import IEventHandler
 
         class TestEvent(BaseModel):
             data: str
@@ -737,14 +808,15 @@ class TestPart6_EventBus:
 
         handler1.handle.assert_called_once()
         handler2.handle.assert_called_once()
-        print(f"[6b] Handler exception isolation: handler1 errored, handler2 still called")
+        print("[6b] Handler exception isolation: handler1 errored, handler2 still called")
 
     @pytest.mark.asyncio
     async def test_6c_subscribe_unsubscribe_flow(self):
         """Test full subscribe/unsubscribe cycle."""
         from pydantic import BaseModel
-        from app.shared.events.event_handler import IEventHandler
+
         from app.infrastructure.events.redis_event_bus import RedisEventBus
+        from app.shared.events.event_handler import IEventHandler
 
         class TestEvent(BaseModel):
             data: str
@@ -763,25 +835,27 @@ class TestPart6_EventBus:
 
         await bus.publish(TestEvent(data="after-unsub"))
         handler.handle.assert_not_called()
-        print(f"[6c] Subscribe/unsubscribe: handler not invoked after unsubscribe")
+        print("[6c] Subscribe/unsubscribe: handler not invoked after unsubscribe")
 
 
 # =============================================================================
 # PART 7: REVISITING THE BUGS — All Previously Fixed
 # =============================================================================
 
-class TestPart7_AllBugsFixed:
 
+class TestPart7_AllBugsFixed:
     def test_7a_all_entity_detector_bugs_fixed(self):
         """Verify ALL entity detector bugs are fixed in one shot."""
         detector = EntityDetector()
 
         # Bug 1: substring over-match (subtitle -> title)
         r1 = detector.detect({"subtitle"})
-        assert r1.entity_type is None, f"Bug 1: subtitle should NOT match anything"
+        assert r1.entity_type is None, "Bug 1: subtitle should NOT match anything"
 
         # Bug 2: unbounded confidence
-        r2 = detector.detect({"title", "price", "sku", "description", "vendor", "product_type"}, entity_type_hint="product")
+        r2 = detector.detect(
+            {"title", "price", "sku", "description", "vendor", "product_type"}, entity_type_hint="product"
+        )
         assert r2.confidence <= 1.0, f"Bug 2: confidence {r2.confidence} > 1.0"
 
         # Bug 3: missing inventory type
@@ -792,9 +866,9 @@ class TestPart7_AllBugsFixed:
         # Bug 4: 'id' in any field shouldn't match product strongly
         r4 = detector.detect({"some_random_id_field_xyz"})
         if r4.entity_type is not None:
-            assert r4.confidence < 0.5, f"Bug 4: random id field should have low confidence"
+            assert r4.confidence < 0.5, "Bug 4: random id field should have low confidence"
 
-        print(f"[7a] All 4 entity detector bugs verified fixed")
+        print("[7a] All 4 entity detector bugs verified fixed")
 
     def test_7b_all_field_suggester_bugs_fixed(self):
         """Verify ALL field suggester bugs are fixed."""
@@ -804,19 +878,18 @@ class TestPart7_AllBugsFixed:
         suggestions = suggester.suggest({"subtitle", "item_title"}, "product")
         targets = {s.target for s in suggestions}
         assert "title" not in targets or len(targets) < 2, (
-            f"'subtitle'/'item_title' should not match 'title' via token matching"
+            "'subtitle'/'item_title' should not match 'title' via token matching"
         )
 
         # Synonym maps unified
         from app.application.integration.discovery.synonyms import COMMON_SYNONYMS
+
         for key in COMMON_SYNONYMS:
             assert key in FIELD_SYNONYMS, f"Key '{key}' missing from FIELD_SYNONYMS"
             assert key in SYNONYM_MAP, f"Key '{key}' missing from SYNONYM_MAP"
-            assert set(FIELD_SYNONYMS[key]) == set(SYNONYM_MAP[key]), (
-                f"Synonym mismatch for '{key}'"
-            )
+            assert set(FIELD_SYNONYMS[key]) == set(SYNONYM_MAP[key]), f"Synonym mismatch for '{key}'"
 
-        print(f"[7b] All field suggester bugs verified fixed")
+        print("[7b] All field suggester bugs verified fixed")
 
     def test_7c_all_openapi_parser_bugs_fixed(self):
         """Verify ALL OpenAPI parser bugs are fixed."""
@@ -826,31 +899,45 @@ class TestPart7_AllBugsFixed:
         assert not hasattr(parser, "MIN_ENDPOINTS"), "MIN_ENDPOINTS should not exist"
 
         # Bug: webhooks extracted
-        spec = {"openapi": "3.0.3", "info": {"title": "T", "version": "1"},
-                "webhooks": {"hook": {"post": {"operationId": "testHook", "responses": {"200": {"description": "OK"}}}}},
-                "paths": {}}
+        spec = {
+            "openapi": "3.0.3",
+            "info": {"title": "T", "version": "1"},
+            "webhooks": {"hook": {"post": {"operationId": "testHook", "responses": {"200": {"description": "OK"}}}}},
+            "paths": {},
+        }
         schema = parser.parse(spec, "test")
         webhook = [ep for ep in schema.endpoints if ep.operation_id == "testHook"]
         assert len(webhook) == 1, "Webhooks should be extracted"
 
         # Bug: path-level params merged
-        spec2 = {"openapi": "3.0.3", "info": {"title": "T", "version": "1"},
-                 "paths": {"/items/{id}": {"parameters": [{"name": "id", "in": "path"}],
-                                            "get": {"operationId": "getItem", "parameters": [{"name": "fields", "in": "query"}],
-                                                    "responses": {"200": {"description": "OK"}}}}}}
+        spec2 = {
+            "openapi": "3.0.3",
+            "info": {"title": "T", "version": "1"},
+            "paths": {
+                "/items/{id}": {
+                    "parameters": [{"name": "id", "in": "path"}],
+                    "get": {
+                        "operationId": "getItem",
+                        "parameters": [{"name": "fields", "in": "query"}],
+                        "responses": {"200": {"description": "OK"}},
+                    },
+                }
+            },
+        }
         schema2 = parser.parse(spec2, "test")
         get_item = [ep for ep in schema2.endpoints if ep.operation_id == "getItem"][0]
         param_names = [p["name"] for p in get_item.parameters]
         assert "id" in param_names, f"Path-level 'id' param should be merged: got {param_names}"
         assert "fields" in param_names, f"Operation-level 'fields' param should be preserved: got {param_names}"
 
-        print(f"[7c] All OpenAPI parser bugs verified fixed")
+        print("[7c] All OpenAPI parser bugs verified fixed")
 
     def test_7d_redis_event_bus_bugs_fixed(self):
         """Verify publish() invokes local handlers."""
         from pydantic import BaseModel
-        from app.shared.events.event_handler import IEventHandler
+
         from app.infrastructure.events.redis_event_bus import RedisEventBus
+        from app.shared.events.event_handler import IEventHandler
 
         class E(BaseModel):
             d: str
@@ -863,7 +950,7 @@ class TestPart7_AllBugsFixed:
         bus.publish(E(d="x"))
 
         h.handle.assert_called_once()
-        print(f"[7d] RedisEventBus publish() invokes local handlers — FIXED")
+        print("[7d] RedisEventBus publish() invokes local handlers — FIXED")
 
     def test_7e_conversation_service_bugs_fixed(self):
         """Verify missing 'content' key handled."""
@@ -876,17 +963,18 @@ class TestPart7_AllBugsFixed:
         msgs = svc.get_conversation_history("c1")
 
         assert msgs[0].content == ""
-        print(f"[7e] ConversationService missing content key handled — FIXED")
+        print("[7e] ConversationService missing content key handled — FIXED")
 
 
 # =============================================================================
 # RUN SUMMARY
 # =============================================================================
 
+
 def test_summary():
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("FULL INTEGRATION CHAIN — SUMMARY")
-    print("="*60)
+    print("=" * 60)
     print("Part 1: Store Owner — Spec Parsing & Discovery")
     print("  ✅ OpenAPI parser: endpoints, schemas, webhooks, auth, path params")
     print("  ✅ Entity detection: product, order, customer, category, inventory")

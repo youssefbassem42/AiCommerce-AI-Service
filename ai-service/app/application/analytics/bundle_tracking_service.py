@@ -2,8 +2,7 @@ import hashlib
 import json
 import logging
 from datetime import UTC, datetime
-from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.infrastructure.mongodb.collections import (
     get_bundle_tracking_collection,
@@ -16,7 +15,7 @@ DEFAULT_THRESHOLD = 5
 METRIC_NAME = "top_bundles"
 
 
-def _make_bundle_key(product_ids: List[str], discount_pct: float) -> str:
+def _make_bundle_key(product_ids: list[str], discount_pct: float) -> str:
     raw = json.dumps(sorted(product_ids), separators=(",", ":")) + f"|{discount_pct}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
@@ -34,11 +33,11 @@ class BundleTrackingService:
         self,
         store_id: str,
         promo_code: str,
-        product_ids: List[str],
+        product_ids: list[str],
         discount_pct: float,
         total_discount: float,
         total_original: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         bundle_key = _make_bundle_key(product_ids, discount_pct)
         now = datetime.now(UTC)
 
@@ -87,8 +86,8 @@ class BundleTrackingService:
         self,
         store_id: str,
         is_top_only: bool = False,
-    ) -> List[Dict[str, Any]]:
-        filters: Dict[str, Any] = {"store_id": store_id}
+    ) -> list[dict[str, Any]]:
+        filters: dict[str, Any] = {"store_id": store_id}
         if is_top_only:
             filters["is_top"] = True
 
@@ -103,7 +102,7 @@ class BundleTrackingService:
         self,
         store_id: str,
         bundle_key: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         doc = await self._tracking_collection.find_one(
             {"store_id": store_id, "bundle_key": bundle_key},
         )
@@ -137,7 +136,7 @@ class BundleTrackingService:
             await self._sync_to_dashboard(store_id)
         return result.modified_count > 0
 
-    async def get_config(self, store_id: str) -> Dict[str, Any]:
+    async def get_config(self, store_id: str) -> dict[str, Any]:
         doc = await self._insights_collection.find_one(
             {"store_id": store_id, "metadata.metric_name": METRIC_NAME},
             {"metadata.tracking_config": 1},
@@ -149,9 +148,9 @@ class BundleTrackingService:
     async def update_config(
         self,
         store_id: str,
-        threshold: Optional[int] = None,
-        enabled: Optional[bool] = None,
-    ) -> Dict[str, Any]:
+        threshold: int | None = None,
+        enabled: bool | None = None,
+    ) -> dict[str, Any]:
         current = await self.get_config(store_id)
         if threshold is not None:
             current["threshold"] = threshold
@@ -176,7 +175,7 @@ class BundleTrackingService:
         insight_data = {
             "store_id": store_id,
             "recommendations": [
-                f"Bundle #{i+1}: {', '.join(b['product_ids'])} "
+                f"Bundle #{i + 1}: {', '.join(b['product_ids'])} "
                 f"— copied {b['copy_count']} times "
                 f"(discount: {b.get('discount_pct', 0)}%)"
                 for i, b in enumerate(top_bundles)

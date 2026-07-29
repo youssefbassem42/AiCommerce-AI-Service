@@ -7,7 +7,6 @@ from app.domain.commerce.value_objects.money import Money
 
 
 class TestProductCreation:
-
     def test_valid_product(self):
         product = Product(
             id="p1",
@@ -92,7 +91,6 @@ class TestProductCreation:
 
 
 class TestProductVariantManagement:
-
     def test_add_variant(self):
         product = Product(id="p1", store_id="s1", organization_id="o1", title="Test")
         variant = Variant(
@@ -163,7 +161,6 @@ class TestProductVariantManagement:
 
 
 class TestProductStatusTransitions:
-
     def test_activate(self):
         product = Product(id="p1", store_id="s1", organization_id="o1", title="Test")
         assert product.status == "draft"

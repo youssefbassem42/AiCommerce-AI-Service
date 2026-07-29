@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -17,10 +17,10 @@ class EndpointSchema:
         self,
         path: str,
         method: str,
-        operation_id: Optional[str] = None,
-        parameters: Optional[list[dict]] = None,
-        response_schema_ref: Optional[str] = None,
-        summary: Optional[str] = None,
+        operation_id: str | None = None,
+        parameters: list[dict] | None = None,
+        response_schema_ref: str | None = None,
+        summary: str | None = None,
     ):
         self.path = path
         self.method = method.upper()
@@ -41,7 +41,7 @@ class IntegrationSchema:
         endpoints: list[EndpointSchema],
         schemas: dict[str, dict],
         auth_methods: list[AuthConfig],
-        pagination_info: Optional[dict] = None,
+        pagination_info: dict | None = None,
     ):
         self.platform_name = platform_name
         self.base_url = base_url
@@ -72,9 +72,7 @@ class OpenApiParser:
                     return parsed
             except yaml.YAMLError:
                 pass
-        raise InvalidSpecException(
-            "Spec must be a valid OpenAPI/Swagger specification in JSON or YAML format."
-        )
+        raise InvalidSpecException("Spec must be a valid OpenAPI/Swagger specification in JSON or YAML format.")
 
     def parse(self, spec: Any, platform_name: str) -> IntegrationSchema:
         raw = self.normalize_spec(spec)
@@ -84,9 +82,7 @@ class OpenApiParser:
         if raw.get("swagger"):
             return self._parse_v2(raw, platform_name)
 
-        raise InvalidSpecException(
-            "Spec must contain 'openapi' (v3) or 'swagger' (v2) key."
-        )
+        raise InvalidSpecException("Spec must contain 'openapi' (v3) or 'swagger' (v2) key.")
 
     def _parse_v3(self, spec: dict, platform_name: str) -> IntegrationSchema:
         base_url = self._extract_base_url_v3(spec)
@@ -141,9 +137,7 @@ class OpenApiParser:
         logger.warning("No host found in Swagger spec.")
         return ""
 
-    def _extract_paths(
-        self, paths: dict, spec: dict
-    ) -> list[EndpointSchema]:
+    def _extract_paths(self, paths: dict, spec: dict) -> list[EndpointSchema]:
         result: list[EndpointSchema] = []
         if not isinstance(paths, dict):
             logger.warning("'paths' is not a dict, got %s", type(paths).__name__)
@@ -195,7 +189,7 @@ class OpenApiParser:
                 )
         return result
 
-    def _extract_response_schema_ref(self, operation: dict) -> Optional[str]:
+    def _extract_response_schema_ref(self, operation: dict) -> str | None:
         responses = operation.get("responses", {})
         if not isinstance(responses, dict):
             return None

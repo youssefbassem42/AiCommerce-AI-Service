@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock
 
+import pytest
+
+from app.application.knowledge.dto import KnowledgeChunkUpdateDTO
 from app.application.knowledge.services import KnowledgeChunkService
-from app.application.knowledge.dto import KnowledgeChunkCreateDTO, KnowledgeChunkUpdateDTO
 from app.domain.knowledge.exceptions import KnowledgeChunkNotFoundException
 
 

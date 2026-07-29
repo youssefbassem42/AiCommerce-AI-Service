@@ -1,8 +1,11 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from jinja2 import Template
+
 from app.application.dto.ai_dto import MessageDTO
 
-#TODO: Review the promot service and make it more efficient.
+# TODO: Review the promot service and make it more efficient.
+
 
 class PromptTemplateService:
     """
@@ -13,30 +16,30 @@ class PromptTemplateService:
 
     def __init__(self):
         # In-memory template registry
-        self._templates: Dict[str, Dict[str, str]] = {
+        self._templates: dict[str, dict[str, str]] = {
             "customer_support": {
                 "system": "You are a customer support agent for AI-Commerce. Be polite and helpful. "
-                          "Customer context: {{ customer_name }}, history: {{ last_orders }}.",
-                "user": "I am having an issue: {{ user_issue }}"
+                "Customer context: {{ customer_name }}, history: {{ last_orders }}.",
+                "user": "I am having an issue: {{ user_issue }}",
             },
             "sales_pitch": {
                 "system": "You are an expert sales recommender. Target product category: {{ category }}.",
-                "user": "Recommend me products matching: {{ preferences }}. Limit to {{ limit }} items."
+                "user": "Recommend me products matching: {{ preferences }}. Limit to {{ limit }} items.",
             },
             "summarizer": {
                 "system": "Summarize the provided text concisely. Output format: {{ format }}.",
-                "user": "Text to summarize:\n{{ text }}"
-            }
+                "user": "Text to summarize:\n{{ text }}",
+            },
         }
 
-    def register_template(self, name: str, templates: Dict[str, str]) -> None:
+    def register_template(self, name: str, templates: dict[str, str]) -> None:
         """
         Register a new prompt template.
         templates: Dict mapping roles (system, user, developer, assistant) to template strings.
         """
         self._templates[name] = templates
 
-    def render(self, template_name: str, variables: Dict[str, Any]) -> List[MessageDTO]:
+    def render(self, template_name: str, variables: dict[str, Any]) -> list[MessageDTO]:
         """
         Render a registered template with variables and return a list of MessageDTOs.
         """
@@ -50,17 +53,12 @@ class PromptTemplateService:
             # Compile Jinja2 template
             template = Template(template_str)
             rendered_content = template.render(**variables)
-            
-            rendered_messages.append(
-                MessageDTO(
-                    role=role,
-                    content=rendered_content
-                )
-            )
+
+            rendered_messages.append(MessageDTO(role=role, content=rendered_content))
 
         return rendered_messages
 
-    def render_raw_string(self, template_str: str, variables: Dict[str, Any]) -> str:
+    def render_raw_string(self, template_str: str, variables: dict[str, Any]) -> str:
         """
         Compile and render a raw template string with variables.
         """

@@ -1,12 +1,14 @@
-import time
-import json
 import base64
+import json
 import logging
+import time
+from collections.abc import AsyncGenerator
+from typing import Any
+
 import httpx
-from typing import Any, AsyncGenerator, Dict, List, Optional
 from google import genai
 from google.genai import types
-from app.infrastructure.providers.base import BaseLLMProvider
+
 from app.application.dto.ai_dto import (
     ChatRequest,
     ChatResponse,
@@ -15,12 +17,13 @@ from app.application.dto.ai_dto import (
     HealthDTO,
     MessageDTO,
     StreamingChunkDTO,
-    UsageDTO,
     ToolCallDTO,
+    UsageDTO,
 )
 from app.core.ai_settings import ai_settings
+from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.security.key_manager import KeyManager
-from app.utils.ai_error_handler import map_provider_exception, execute_with_retry
+from app.utils.ai_error_handler import execute_with_retry, map_provider_exception
 from app.utils.token_utils import calculate_cost
 
 logger = logging.getLogger("ai_service")
@@ -32,7 +35,7 @@ class GeminiProvider(BaseLLMProvider):
     Supports Chat, Streaming, Embeddings, Tool Calling, Vision, and Structured Outputs.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = api_key or KeyManager().get_provider_api_key("gemini") or "mock-key"
         self.client = genai.Client(api_key=self.api_key)
 
@@ -48,18 +51,16 @@ class GeminiProvider(BaseLLMProvider):
             media_type = response.headers.get("content-type", "image/jpeg")
             return response.content, media_type
 
-    def _build_contents(
-        self, messages: List[MessageDTO]
-    ) -> tuple[Optional[str], List[types.Content]]:
+    def _build_contents(self, messages: list[MessageDTO]) -> tuple[str | None, list[types.Content]]:
         system_instruction = None
-        contents: List[types.Content] = []
+        contents: list[types.Content] = []
 
         for msg in messages:
             if msg.role in ("system", "developer"):
                 system_instruction = msg.content if isinstance(msg.content, str) else str(msg.content)
                 continue
 
-            parts: List[types.Part] = []
+            parts: list[types.Part] = []
 
             if msg.role == "tool":
                 parts.append(
@@ -72,11 +73,7 @@ class GeminiProvider(BaseLLMProvider):
                 for item in msg.content:
                     if isinstance(item, dict):
                         if item.get("type") == "image_url":
-                            parts.append(
-                                types.Part.from_text(
-                                    text=f"[Image: {item['image_url']['url']}]"
-                                )
-                            )
+                            parts.append(types.Part.from_text(text=f"[Image: {item['image_url']['url']}]"))
                         elif item.get("type") == "text":
                             parts.append(types.Part.from_text(text=item["text"]))
                     else:
@@ -103,7 +100,7 @@ class GeminiProvider(BaseLLMProvider):
 
         return system_instruction, contents
 
-    def _build_tools(self, request: ChatRequest) -> Optional[List[types.Tool]]:
+    def _build_tools(self, request: ChatRequest) -> list[types.Tool] | None:
         if not request.tools:
             return None
         declarations = []
@@ -118,7 +115,7 @@ class GeminiProvider(BaseLLMProvider):
         return [types.Tool(function_declarations=declarations)]
 
     def _build_config(self, request: ChatRequest) -> types.GenerateContentConfig:
-        config_kwargs: Dict[str, Any] = {}
+        config_kwargs: dict[str, Any] = {}
         if request.temperature is not None:
             config_kwargs["temperature"] = request.temperature
         if request.top_p is not None:
@@ -134,12 +131,10 @@ class GeminiProvider(BaseLLMProvider):
 
         return types.GenerateContentConfig(**config_kwargs)
 
-    def _parse_response(
-        self, response: Any, request: ChatRequest, start_time: float
-    ) -> ChatResponse:
+    def _parse_response(self, response: Any, request: ChatRequest, start_time: float) -> ChatResponse:
         latency = (time.perf_counter() - start_time) * 1000
         text_content = ""
-        tool_calls: List[ToolCallDTO] = []
+        tool_calls: list[ToolCallDTO] = []
 
         if response.candidates and response.candidates[0].content:
             for part in response.candidates[0].content.parts:
@@ -151,18 +146,14 @@ class GeminiProvider(BaseLLMProvider):
                             id=part.function_call.name,
                             type="function",
                             function_name=part.function_call.name,
-                            arguments=json.dumps(dict(part.function_call.args))
-                            if part.function_call.args
-                            else "{}",
+                            arguments=json.dumps(dict(part.function_call.args)) if part.function_call.args else "{}",
                         )
                     )
 
         usage_meta = getattr(response, "usage_metadata", None)
         prompt_tokens = getattr(usage_meta, "prompt_token_count", 0) or 0
         completion_tokens = getattr(usage_meta, "candidates_token_count", 0) or 0
-        total_tokens = getattr(usage_meta, "total_token_count", 0) or (
-            prompt_tokens + completion_tokens
-        )
+        total_tokens = getattr(usage_meta, "total_token_count", 0) or (prompt_tokens + completion_tokens)
         cost = calculate_cost(prompt_tokens, completion_tokens, request.model)
 
         return ChatResponse(
@@ -183,9 +174,7 @@ class GeminiProvider(BaseLLMProvider):
             latency_ms=latency,
         )
 
-    async def chat(
-        self, request: ChatRequest, timeout: Optional[float] = None
-    ) -> ChatResponse:
+    async def chat(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
         async def _run():
             start_time = time.perf_counter()
             system_instruction, contents = self._build_contents(request.messages)
@@ -201,12 +190,10 @@ class GeminiProvider(BaseLLMProvider):
             )
             return self._parse_response(response, request, start_time)
 
-        return await execute_with_retry(
-            "gemini", _run, max_retries=ai_settings.MAX_RETRIES
-        )
+        return await execute_with_retry("gemini", _run, max_retries=ai_settings.MAX_RETRIES)
 
     async def stream(
-        self, request: ChatRequest, timeout: Optional[float] = None
+        self, request: ChatRequest, timeout: float | None = None
     ) -> AsyncGenerator[StreamingChunkDTO, None]:
         system_instruction, contents = self._build_contents(request.messages)
         config = self._build_config(request)
@@ -250,9 +237,7 @@ class GeminiProvider(BaseLLMProvider):
         except Exception as e:
             raise map_provider_exception("gemini", e)
 
-    async def embeddings(
-        self, request: EmbeddingRequest, timeout: Optional[float] = None
-    ) -> EmbeddingResponse:
+    async def embeddings(self, request: EmbeddingRequest, timeout: float | None = None) -> EmbeddingResponse:
         async def _run():
             config = types.EmbedContentConfig(output_dimensionality=768)
             response = await self.client.aio.models.embed_content(
@@ -268,9 +253,7 @@ class GeminiProvider(BaseLLMProvider):
             elif hasattr(response, "embedding"):
                 embeddings_list.append(list(response.embedding.values))
 
-            input_list = (
-                [request.input] if isinstance(request.input, str) else request.input
-            )
+            input_list = [request.input] if isinstance(request.input, str) else request.input
             prompt_tokens = sum(len(text) // 4 for text in input_list)
             cost = calculate_cost(prompt_tokens, 0, request.model)
 
@@ -286,9 +269,7 @@ class GeminiProvider(BaseLLMProvider):
                 ),
             )
 
-        return await execute_with_retry(
-            "gemini", _run, max_retries=ai_settings.MAX_RETRIES
-        )
+        return await execute_with_retry("gemini", _run, max_retries=ai_settings.MAX_RETRIES)
 
     async def health_check(self) -> HealthDTO:
         start_time = time.perf_counter()
@@ -309,7 +290,7 @@ class GeminiProvider(BaseLLMProvider):
                 details=str(e),
             )
 
-    async def list_models(self) -> List[str]:
+    async def list_models(self) -> list[str]:
         from app.core.model_registry import ModelRegistry
 
         return [m.name for m in ModelRegistry.list_models_by_provider("gemini")]
@@ -318,13 +299,13 @@ class GeminiProvider(BaseLLMProvider):
         self,
         request: ChatRequest,
         response_schema: Any,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> ChatResponse:
         async def _run():
             start_time = time.perf_counter()
             system_instruction, contents = self._build_contents(request.messages)
 
-            config_kwargs: Dict[str, Any] = {
+            config_kwargs: dict[str, Any] = {
                 "response_mime_type": "application/json",
             }
             # If it's a Pydantic model, extract JSON schema
@@ -353,11 +334,7 @@ class GeminiProvider(BaseLLMProvider):
             )
             return self._parse_response(response, request, start_time)
 
-        return await execute_with_retry(
-            "gemini", _run, max_retries=ai_settings.MAX_RETRIES
-        )
+        return await execute_with_retry("gemini", _run, max_retries=ai_settings.MAX_RETRIES)
 
-    async def tool_call(
-        self, request: ChatRequest, timeout: Optional[float] = None
-    ) -> ChatResponse:
+    async def tool_call(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
         return await self.chat(request, timeout)

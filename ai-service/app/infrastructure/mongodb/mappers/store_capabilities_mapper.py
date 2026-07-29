@@ -3,7 +3,6 @@ from app.infrastructure.mongodb.documents.store_capabilities_document import Sto
 
 
 class StoreCapabilitiesMapper:
-
     @staticmethod
     def to_entity(doc: StoreCapabilitiesDocument) -> StoreCapabilities:
         return doc.to_entity()

@@ -1,8 +1,10 @@
-import time
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional
+import time
+from collections.abc import AsyncGenerator
+from typing import Any
+
 from openai import AsyncOpenAI
-from app.infrastructure.providers.base import BaseLLMProvider
+
 from app.application.dto.ai_dto import (
     ChatRequest,
     ChatResponse,
@@ -11,15 +13,17 @@ from app.application.dto.ai_dto import (
     HealthDTO,
     MessageDTO,
     StreamingChunkDTO,
-    UsageDTO,
     ToolCallDTO,
+    UsageDTO,
 )
 from app.core.ai_settings import ai_settings
+from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.security.key_manager import KeyManager
-from app.utils.ai_error_handler import map_provider_exception, execute_with_retry
+from app.utils.ai_error_handler import execute_with_retry, map_provider_exception
 from app.utils.token_utils import calculate_cost
 
 logger = logging.getLogger("ai_service")
+
 
 class DeepSeekProvider(BaseLLMProvider):
     """
@@ -27,7 +31,7 @@ class DeepSeekProvider(BaseLLMProvider):
     Handles Chat, Streaming, Tool Calling, and JSON Structured Outputs.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = api_key or KeyManager().get_provider_api_key("deepseek") or ""
         self.client = AsyncOpenAI(
             api_key=self.api_key,
@@ -35,15 +39,15 @@ class DeepSeekProvider(BaseLLMProvider):
             timeout=ai_settings.REQUEST_TIMEOUT,
         )
 
-    def _map_messages(self, messages: List[MessageDTO]) -> List[Dict[str, Any]]:
+    def _map_messages(self, messages: list[MessageDTO]) -> list[dict[str, Any]]:
         mapped = []
         for msg in messages:
-            msg_dict: Dict[str, Any] = {"role": msg.role}
+            msg_dict: dict[str, Any] = {"role": msg.role}
             if msg.name:
                 msg_dict["name"] = msg.name
             if msg.tool_call_id:
                 msg_dict["tool_call_id"] = msg.tool_call_id
-            
+
             # DeepSeek does not natively support multi-modal image inputs.
             # We map content to string format.
             if isinstance(msg.content, list):
@@ -75,7 +79,7 @@ class DeepSeekProvider(BaseLLMProvider):
             mapped.append(msg_dict)
         return mapped
 
-    def _map_tools(self, request: ChatRequest) -> Optional[List[Dict[str, Any]]]:
+    def _map_tools(self, request: ChatRequest) -> list[dict[str, Any]] | None:
         if not request.tools:
             return None
         return [
@@ -90,10 +94,10 @@ class DeepSeekProvider(BaseLLMProvider):
             for tool in request.tools
         ]
 
-    async def chat(self, request: ChatRequest, timeout: Optional[float] = None) -> ChatResponse:
+    async def chat(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
         async def _run():
             start_time = time.perf_counter()
-            kwargs: Dict[str, Any] = {
+            kwargs: dict[str, Any] = {
                 "model": request.model,
                 "messages": self._map_messages(request.messages),
             }
@@ -113,13 +117,11 @@ class DeepSeekProvider(BaseLLMProvider):
                     kwargs["tool_choice"] = request.tool_choice
 
             actual_timeout = timeout or ai_settings.REQUEST_TIMEOUT
-            response = await self.client.chat.completions.create(
-                **kwargs, timeout=actual_timeout
-            )
+            response = await self.client.chat.completions.create(**kwargs, timeout=actual_timeout)
             latency = (time.perf_counter() - start_time) * 1000
 
             choice = response.choices[0]
-            
+
             tool_calls = None
             if choice.message.tool_calls:
                 tool_calls = [
@@ -158,9 +160,9 @@ class DeepSeekProvider(BaseLLMProvider):
         return await execute_with_retry("deepseek", _run, max_retries=ai_settings.MAX_RETRIES)
 
     async def stream(
-        self, request: ChatRequest, timeout: Optional[float] = None
+        self, request: ChatRequest, timeout: float | None = None
     ) -> AsyncGenerator[StreamingChunkDTO, None]:
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "model": request.model,
             "messages": self._map_messages(request.messages),
             "stream": True,
@@ -175,25 +177,23 @@ class DeepSeekProvider(BaseLLMProvider):
             kwargs["response_format"] = {"type": "json_object"}
 
         actual_timeout = timeout or ai_settings.REQUEST_TIMEOUT
-        
+
         try:
-            response_stream = await self.client.chat.completions.create(
-                **kwargs, timeout=actual_timeout
-            )
+            response_stream = await self.client.chat.completions.create(**kwargs, timeout=actual_timeout)
             async for chunk in response_stream:
                 if not chunk.choices:
                     continue
                 choice = chunk.choices[0]
                 content = choice.delta.content or ""
                 finish_reason = choice.finish_reason if hasattr(choice, "finish_reason") else None
-                
+
                 usage = None
                 if hasattr(chunk, "usage") and chunk.usage:
                     usage = UsageDTO(
                         prompt_tokens=chunk.usage.prompt_tokens,
                         completion_tokens=chunk.usage.completion_tokens,
                         total_tokens=chunk.usage.total_tokens,
-                        cost=calculate_cost(chunk.usage.prompt_tokens, chunk.usage.completion_tokens, request.model)
+                        cost=calculate_cost(chunk.usage.prompt_tokens, chunk.usage.completion_tokens, request.model),
                     )
 
                 yield StreamingChunkDTO(
@@ -207,9 +207,7 @@ class DeepSeekProvider(BaseLLMProvider):
         except Exception as e:
             raise map_provider_exception("deepseek", e)
 
-    async def embeddings(
-        self, request: EmbeddingRequest, timeout: Optional[float] = None
-    ) -> EmbeddingResponse:
+    async def embeddings(self, request: EmbeddingRequest, timeout: float | None = None) -> EmbeddingResponse:
         raise NotImplementedError("DeepSeek does not support embedding models.")
 
     async def health_check(self) -> HealthDTO:
@@ -232,18 +230,20 @@ class DeepSeekProvider(BaseLLMProvider):
                 details=str(e),
             )
 
-    async def list_models(self) -> List[str]:
+    async def list_models(self) -> list[str]:
         from app.core.model_registry import ModelRegistry
+
         return [m.name for m in ModelRegistry.list_models_by_provider("deepseek")]
 
     async def structured_output(
-        self, request: ChatRequest, response_schema: Any, timeout: Optional[float] = None
+        self, request: ChatRequest, response_schema: Any, timeout: float | None = None
     ) -> ChatResponse:
         """
         Generate structured output. For DeepSeek, we prompt the model with the schema description
         and enforce JSON format, as DeepSeek doesn't natively support beta.chat.completions.parse yet.
         """
         import json
+
         if hasattr(response_schema, "model_json_schema"):
             schema_desc = json.dumps(response_schema.model_json_schema())
         elif hasattr(response_schema, "schema"):
@@ -253,7 +253,7 @@ class DeepSeekProvider(BaseLLMProvider):
 
         request_copy = ChatRequest(**request.model_dump())
         request_copy.json_mode = True
-        
+
         instruction = f"\nReturn a JSON object matching this schema:\n{schema_desc}"
         if request_copy.messages:
             last_msg = request_copy.messages[-1]
@@ -261,10 +261,8 @@ class DeepSeekProvider(BaseLLMProvider):
                 last_msg.content += instruction
             else:
                 last_msg.content.append({"type": "text", "text": instruction})
-        
+
         return await self.chat(request_copy, timeout)
 
-    async def tool_call(
-        self, request: ChatRequest, timeout: Optional[float] = None
-    ) -> ChatResponse:
+    async def tool_call(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
         return await self.chat(request, timeout)

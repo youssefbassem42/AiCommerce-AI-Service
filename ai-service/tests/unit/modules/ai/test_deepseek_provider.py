@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from app.infrastructure.providers.deepseek_provider import DeepSeekProvider
+
+import pytest
+
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
+from app.infrastructure.providers.deepseek_provider import DeepSeekProvider
 
 
 @pytest.fixture

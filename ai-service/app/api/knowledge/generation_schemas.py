@@ -1,13 +1,13 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class GenerateBusinessSummaryRequestSchema(BaseModel):
-    model: Optional[str] = Field(default=None, description="LLM model override")
-    temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
-    max_tokens: Optional[int] = Field(default=None, ge=256)
+    model: str | None = Field(default=None, description="LLM model override")
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, ge=256)
 
 
 class BusinessSummarySectionSchema(BaseModel):
@@ -30,7 +30,7 @@ class BusinessSummaryGenerationResponseSchema(BaseModel):
     metadata: dict[str, Any]
     sections: dict[str, str] = Field(default_factory=dict)
     document_count: int = 0
-    model: Optional[str] = None
+    model: str | None = None
     created_at: datetime
     updated_at: datetime
 

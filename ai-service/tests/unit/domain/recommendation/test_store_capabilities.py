@@ -1,5 +1,5 @@
-from datetime import datetime, UTC
 import pytest
+
 from app.domain.recommendation.entities.store_capabilities import StoreCapabilities
 
 

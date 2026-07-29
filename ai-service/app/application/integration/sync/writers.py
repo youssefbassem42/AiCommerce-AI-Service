@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from app.infrastructure.mongodb.collections import (
     get_categories_collection,
@@ -17,12 +17,10 @@ logger = logging.getLogger(__name__)
 
 class EntityWriter(ABC):
     @abstractmethod
-    async def upsert(self, store_id: str, org_id: str, external_id: str, data: dict[str, Any]) -> bool:
-        ...
+    async def upsert(self, store_id: str, org_id: str, external_id: str, data: dict[str, Any]) -> bool: ...
 
     @abstractmethod
-    def collection_name(self) -> str:
-        ...
+    def collection_name(self) -> str: ...
 
 
 class ProductWriter(EntityWriter):
@@ -198,7 +196,9 @@ class DynamicEntityWriter(EntityWriter):
     async def upsert(self, store_id: str, org_id: str, external_id: str, data: dict[str, Any]) -> bool:
         collection = get_entities_collection()
         now = datetime.now(UTC)
-        cleaned_data = {k: v for k, v in data.items() if k not in ("created_at", "updated_at", "deleted_at", "synced_at")}
+        cleaned_data = {
+            k: v for k, v in data.items() if k not in ("created_at", "updated_at", "deleted_at", "synced_at")
+        }
         doc = {
             "store_id": store_id,
             "organization_id": org_id,
@@ -230,7 +230,7 @@ WRITER_MAP: dict[str, EntityWriter] = {
 }
 
 
-def get_writer(entity_type: str) -> Optional[EntityWriter]:
+def get_writer(entity_type: str) -> EntityWriter | None:
     writer = WRITER_MAP.get(entity_type)
     if writer is not None:
         return writer

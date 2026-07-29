@@ -1,7 +1,6 @@
 import base64
 import logging
 import os
-from typing import Optional
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -18,7 +17,7 @@ def generate_encryption_key() -> str:
 class EncryptionService:
     """AES-256-GCM encryption/decryption service."""
 
-    def __init__(self, key: Optional[str] = None):
+    def __init__(self, key: str | None = None):
         if key is None:
             key = os.getenv("ENCRYPTION_KEY", "")
         if not key:

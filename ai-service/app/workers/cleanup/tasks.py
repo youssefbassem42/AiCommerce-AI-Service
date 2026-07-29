@@ -1,10 +1,9 @@
 import logging
-from typing import Optional
 
 from app.core.celery_app import celery_app
 from app.domain.job.value_objects import JobStatus
 from app.infrastructure.mongodb.collections import get_knowledge_jobs_collection
-from app.infrastructure.tasks.helpers import _run_async, requeue_dead_letter, update_job_progress
+from app.infrastructure.tasks.helpers import _run_async, requeue_dead_letter
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +20,13 @@ def process_dead_letter_queue_task(self, max_items: int = 50) -> dict:
         async def _async_run():
             collection = get_knowledge_jobs_collection()
 
-            cursor = collection.find(
-                {"status": JobStatus.DEAD_LETTER.value},
-            ).sort("created_at", -1).limit(max_items)
+            cursor = (
+                collection.find(
+                    {"status": JobStatus.DEAD_LETTER.value},
+                )
+                .sort("created_at", -1)
+                .limit(max_items)
+            )
 
             dead_letters = await cursor.to_list(length=max_items)
             requeued = 0
@@ -47,4 +50,4 @@ def process_dead_letter_queue_task(self, max_items: int = 50) -> dict:
         return _run()
     except Exception as exc:
         logger.error("process_dead_letter_queue failed: %s", exc, exc_info=True)
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries * 60)
+        raise self.retry(exc=exc, countdown=2**self.request.retries * 60)

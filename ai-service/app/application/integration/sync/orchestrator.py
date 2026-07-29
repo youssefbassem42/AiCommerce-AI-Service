@@ -1,16 +1,15 @@
 import logging
 from datetime import UTC, datetime
-from typing import Any, Optional
 
-from app.application.integration.mapping.engine import MappingEngine, MappedRecord
-from app.application.integration.sync.knowledge_bridge import CommerceKnowledgeBridge, EntityVectorSyncResult
+from app.application.integration.mapping.engine import MappedRecord, MappingEngine
+from app.application.integration.sync.knowledge_bridge import CommerceKnowledgeBridge
 from app.application.integration.sync.writers import EntityWriter, get_writer
 from app.domain.integration.entities.integration_connection import IntegrationConnection
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.pagination_config import PaginationConfig, PaginationStyle
 from app.infrastructure.http.auth.auth_handler import AuthHandler
 from app.infrastructure.http.clients.base_client import ConnectionConfig, ExternalApiClient
-from app.infrastructure.http.pagination import PaginationIterator, PagePayload
+from app.infrastructure.http.pagination import PagePayload, PaginationIterator
 from app.infrastructure.mongodb.repositories.integration_connection_repository import (
     IntegrationConnectionMongoRepository,
 )
@@ -26,7 +25,7 @@ class EntitySyncResult:
         self.total_mapped = 0
         self.total_upserted = 0
         self.errors: list[str] = []
-        self.vector_sync: Optional[dict] = None
+        self.vector_sync: dict | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -44,13 +43,13 @@ class SyncResult:
         self.connection_id = connection_id
         self.store_id = store_id
         self.started_at = datetime.now(UTC)
-        self.completed_at: Optional[datetime] = None
+        self.completed_at: datetime | None = None
         self.status = "running"
         self.entity_results: list[EntitySyncResult] = []
-        self.error: Optional[str] = None
+        self.error: str | None = None
 
     @property
-    def total_duration_seconds(self) -> Optional[float]:
+    def total_duration_seconds(self) -> float | None:
         if self.completed_at and self.started_at:
             return (self.completed_at - self.started_at).total_seconds()
         return None
@@ -71,11 +70,11 @@ class SyncResult:
 class SyncOrchestrator:
     def __init__(
         self,
-        repository: Optional[IntegrationConnectionMongoRepository] = None,
-        mapping_engine: Optional[MappingEngine] = None,
-        key_manager: Optional[KeyManager] = None,
-        auth_handler: Optional[AuthHandler] = None,
-        knowledge_bridge: Optional[CommerceKnowledgeBridge] = None,
+        repository: IntegrationConnectionMongoRepository | None = None,
+        mapping_engine: MappingEngine | None = None,
+        key_manager: KeyManager | None = None,
+        auth_handler: AuthHandler | None = None,
+        knowledge_bridge: CommerceKnowledgeBridge | None = None,
         vector_sync_enabled: bool = True,
     ):
         self._repository = repository or IntegrationConnectionMongoRepository()
@@ -215,7 +214,7 @@ class SyncOrchestrator:
         entity_mapping: EntityMapping,
         entity_result: EntitySyncResult,
         writer: EntityWriter,
-        mapped_records: Optional[list[dict]] = None,
+        mapped_records: list[dict] | None = None,
     ) -> None:
         items = page.data
         if not isinstance(items, list):
@@ -273,7 +272,9 @@ class SyncOrchestrator:
         except Exception as e:
             logger.warning(
                 "Vector sync skipped for entity '%s' (store=%s): %s",
-                entity_type, connection.store_id, e,
+                entity_type,
+                connection.store_id,
+                e,
             )
             entity_result.vector_sync = {
                 "entity_type": entity_type,

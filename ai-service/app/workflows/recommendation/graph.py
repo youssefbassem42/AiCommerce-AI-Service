@@ -1,8 +1,6 @@
 import logging
-from typing import Optional
 
 from app.agents.recommendation.agent import RecommendationAgent
-from app.agents.recommendation.state import RecommendationState
 from app.application.knowledge.retrieval.service import RetrieverService
 from app.application.recommendation.dto.recommendation_dto import RecommendationResponse
 from app.domain.commerce.repositories import ProductRepository
@@ -28,7 +26,7 @@ class RecommendationWorkflow:
         self,
         query: str,
         store_id: str,
-        customer_id: Optional[str] = None,
+        customer_id: str | None = None,
     ) -> RecommendationResponse:
         return await self._agent.run(
             query=query,

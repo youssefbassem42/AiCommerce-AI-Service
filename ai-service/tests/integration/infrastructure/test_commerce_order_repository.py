@@ -31,7 +31,10 @@ def mock_collection():
 
 @pytest.fixture
 def repo(mock_collection):
-    with patch("app.infrastructure.mongodb.repositories.commerce_order_repository.get_orders_collection", return_value=mock_collection):
+    with patch(
+        "app.infrastructure.mongodb.repositories.commerce_order_repository.get_orders_collection",
+        return_value=mock_collection,
+    ):
         r = CommerceOrderRepository()
         r.collection = mock_collection
         return r
@@ -68,7 +71,6 @@ _base_doc = {
 
 
 class TestCommerceOrderRepository:
-
     async def test_create_order(self, repo, mock_collection):
         order = Order(id="507f1f77bcf86cd799439011", store_id="s1", org_id="o1")
         result = await repo.create(order)

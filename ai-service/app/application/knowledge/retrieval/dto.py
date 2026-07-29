@@ -1,5 +1,4 @@
-from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -13,8 +12,8 @@ class RetrievedChunkDTO(BaseModel):
     score: float
     rank: int
     metadata: dict[str, Any] = Field(default_factory=dict)
-    language: Optional[str] = None
-    source_type: Optional[str] = None
+    language: str | None = None
+    source_type: str | None = None
 
 
 class RetrievalQueryDTO(BaseModel):

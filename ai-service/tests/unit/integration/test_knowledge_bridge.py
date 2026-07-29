@@ -1,7 +1,14 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from app.application.integration.sync.formatters import format_product, format_order, format_customer, format_record, get_formatter
+import pytest
+
+from app.application.integration.sync.formatters import (
+    format_customer,
+    format_order,
+    format_product,
+    format_record,
+    get_formatter,
+)
 from app.application.integration.sync.knowledge_bridge import CommerceKnowledgeBridge, EntityVectorSyncResult
 
 
@@ -143,12 +150,14 @@ class TestCommerceKnowledgeBridge:
     @pytest.fixture
     def mock_llm(self):
         llm = AsyncMock()
-        llm.embeddings = AsyncMock(return_value=MagicMock(
-            embeddings=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
-            model="gemini-embedding-001",
-            provider="mock",
-            usage=MagicMock(),
-        ))
+        llm.embeddings = AsyncMock(
+            return_value=MagicMock(
+                embeddings=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
+                model="gemini-embedding-001",
+                provider="mock",
+                usage=MagicMock(),
+            )
+        )
         return llm
 
     @pytest.fixture

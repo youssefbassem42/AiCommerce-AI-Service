@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import random
-from typing import Optional
 
 import httpx
 
@@ -38,8 +37,8 @@ class RetryHandler:
         *args,
         **kwargs,
     ) -> "httpx.Response":
-        last_exception: Optional[Exception] = None
-        last_response: Optional[httpx.Response] = None
+        last_exception: Exception | None = None
+        last_response: httpx.Response | None = None
         for attempt in range(self.max_retries + 1):
             try:
                 response = await request_func(*args, **kwargs)
@@ -49,8 +48,7 @@ class RetryHandler:
                 if response.status_code in RETRYABLE_STATUS_CODES and attempt < self.max_retries:
                     delay = self._backoff(attempt)
                     logger.warning(
-                        "Retryable status %d on attempt %d/%d. "
-                        "Retrying in %.2fs...",
+                        "Retryable status %d on attempt %d/%d. Retrying in %.2fs...",
                         response.status_code,
                         attempt + 1,
                         self.max_retries,
@@ -60,8 +58,7 @@ class RetryHandler:
                     continue
                 if response.status_code in RETRYABLE_STATUS_CODES:
                     raise RetryExhaustedError(
-                        f"Request failed with retryable status {response.status_code} "
-                        f"after {self.max_retries} retries."
+                        f"Request failed with retryable status {response.status_code} after {self.max_retries} retries."
                     )
                 return response
             except httpx.TransportError as e:
@@ -72,9 +69,7 @@ class RetryHandler:
                         self.max_retries,
                         str(e),
                     )
-                    raise RetryExhaustedError(
-                        f"Request failed after {self.max_retries} retries: {e}"
-                    ) from e
+                    raise RetryExhaustedError(f"Request failed after {self.max_retries} retries: {e}") from e
                 delay = self._backoff(attempt)
                 logger.warning(
                     "Transport error on attempt %d/%d: %s. Retrying in %.2fs...",
@@ -86,21 +81,16 @@ class RetryHandler:
                 await asyncio.sleep(delay)
 
         if last_exception:
-            raise RetryExhaustedError(
-                f"Request failed after {self.max_retries} retries."
-            ) from last_exception
+            raise RetryExhaustedError(f"Request failed after {self.max_retries} retries.") from last_exception
 
         if last_response and last_response.status_code in RETRYABLE_STATUS_CODES:
             raise RetryExhaustedError(
-                f"Request failed with retryable status {last_response.status_code} "
-                f"after {self.max_retries} retries."
+                f"Request failed with retryable status {last_response.status_code} after {self.max_retries} retries."
             )
 
-        raise RetryExhaustedError(
-            f"Request failed after {self.max_retries} retries (exhausted)."
-        )
+        raise RetryExhaustedError(f"Request failed after {self.max_retries} retries (exhausted).")
 
     def _backoff(self, attempt: int) -> float:
-        delay = min(self.base_delay * (2 ** attempt), self.max_delay)
+        delay = min(self.base_delay * (2**attempt), self.max_delay)
         jitter = random.uniform(0, delay * 0.1)
         return delay + jitter

@@ -1,4 +1,5 @@
 """Tests for AES-256-GCM encryption service."""
+
 import pytest
 
 from app.infrastructure.security.encryption import EncryptionService, generate_encryption_key

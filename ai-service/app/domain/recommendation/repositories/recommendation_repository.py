@@ -1,19 +1,20 @@
 from abc import ABC, abstractmethod
-from typing import List
-from app.shared.kernel.repository import AsyncRepository
-from app.domain.recommendation.entities.recommendation import Recommendation
+
 from app.domain.recommendation.entities.bundle_suggestion import BundleSuggestion
+from app.domain.recommendation.entities.recommendation import Recommendation
+from app.shared.kernel.repository import AsyncRepository
+
 
 class RecommendationRepository(AsyncRepository[Recommendation, str], ABC):
     """Domain repository interface for Recommendation Aggregate."""
 
     @abstractmethod
-    async def find_by_customer_id(self, customer_id: str, limit: int = 10) -> List[Recommendation]:
+    async def find_by_customer_id(self, customer_id: str, limit: int = 10) -> list[Recommendation]:
         """Get past recommendations for a customer."""
         pass
 
     @abstractmethod
-    async def get_active_bundles(self, store_id: str) -> List[BundleSuggestion]:
+    async def get_active_bundles(self, store_id: str) -> list[BundleSuggestion]:
         """Retrieve active product bundle suggestions for a store."""
         pass
 

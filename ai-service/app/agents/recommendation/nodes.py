@@ -1,6 +1,5 @@
 import logging
-import time
-from typing import Any, Dict
+from typing import Any
 
 from app.agents.recommendation.state import RecommendationState
 from app.agents.recommendation.tools import (
@@ -18,7 +17,7 @@ from app.infrastructure.providers.base import BaseLLMProvider
 logger = logging.getLogger(__name__)
 
 
-async def parse_intent_node(state: RecommendationState, llm: BaseLLMProvider) -> Dict[str, Any]:
+async def parse_intent_node(state: RecommendationState, llm: BaseLLMProvider) -> dict[str, Any]:
     try:
         intent = await parse_intent(state["user_query"], llm=llm)
         return {"intent": intent, "error": None}
@@ -30,7 +29,7 @@ async def parse_intent_node(state: RecommendationState, llm: BaseLLMProvider) ->
 async def search_candidates_node(
     state: RecommendationState,
     retriever_service: RetrieverService,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if state.get("error"):
         return {"candidates": []}
 
@@ -53,7 +52,7 @@ async def search_candidates_node(
 async def filter_inventory_node(
     state: RecommendationState,
     product_repo: ProductRepository,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     candidates = state.get("candidates", [])
     if not candidates:
         return {"filtered": []}
@@ -71,7 +70,7 @@ async def filter_inventory_node(
         return {"filtered": candidates}
 
 
-async def format_response_node(state: RecommendationState) -> Dict[str, Any]:
+async def format_response_node(state: RecommendationState) -> dict[str, Any]:
     filtered = state.get("filtered", [])
     query = state.get("user_query", "")
     store_id = state.get("store_id", "")
@@ -81,15 +80,9 @@ async def format_response_node(state: RecommendationState) -> Dict[str, Any]:
 
     total_count = len(product_cards)
     if product_cards:
-        rationale = (
-            f"Found {total_count} product(s) matching your request. "
-            f"Top pick: {product_cards[0].title}."
-        )
+        rationale = f"Found {total_count} product(s) matching your request. Top pick: {product_cards[0].title}."
     else:
-        rationale = (
-            "No products matched your criteria. Try adjusting your requirements "
-            "or browsing our full catalog."
-        )
+        rationale = "No products matched your criteria. Try adjusting your requirements or browsing our full catalog."
 
     response = RecommendationResponse(
         query=query,

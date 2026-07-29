@@ -46,7 +46,7 @@ class MarkdownChunker(BaseChunker):
     def _split_large_section(self, text: str, config: ChunkingConfig) -> list[str]:
         chunks = []
         for i in range(0, len(text), config.chunk_size - config.overlap):
-            seg = text[i:i + config.chunk_size]
+            seg = text[i : i + config.chunk_size]
             if seg.strip():
                 chunks.append(seg.strip())
         return chunks

@@ -1,7 +1,9 @@
-from datetime import datetime, UTC
-from typing import Optional, Any, Annotated
+from datetime import UTC, datetime
+from typing import Annotated, Any
+
 from bson import ObjectId
-from pydantic import BaseModel, Field, ConfigDict, BeforeValidator, PlainSerializer, WithJsonSchema
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, WithJsonSchema
+
 
 def validate_object_id(v: Any) -> str:
     if isinstance(v, ObjectId):
@@ -10,6 +12,7 @@ def validate_object_id(v: Any) -> str:
         return v
     raise ValueError(f"Invalid ObjectId: {v}")
 
+
 PyObjectId = Annotated[
     str,
     BeforeValidator(validate_object_id),
@@ -17,18 +20,16 @@ PyObjectId = Annotated[
     WithJsonSchema({"type": "string", "example": "60b8d2f5f1d8c92d88a4e8d3"}),
 ]
 
+
 class BaseMongoDocument(BaseModel):
     """Base MongoDB Document class with standard audit fields and ObjectId handling."""
+
     id: PyObjectId = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    deleted_at: Optional[datetime] = Field(None)
+    deleted_at: datetime | None = Field(None)
 
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str}
-    )
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={ObjectId: str})
 
     def to_mongo_dict(self) -> dict[str, Any]:
         """Convert the model into a standard dictionary suitable for Mongo driver."""

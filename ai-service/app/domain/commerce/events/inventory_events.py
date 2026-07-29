@@ -1,4 +1,5 @@
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+
 from pydantic import Field
 
 from app.shared.kernel.domain_event import DomainEvent

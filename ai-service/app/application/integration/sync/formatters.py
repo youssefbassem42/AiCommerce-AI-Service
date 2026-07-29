@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 
 def _val(data: dict, key: str, default: str = "") -> str:
@@ -98,13 +98,7 @@ def format_customer(data: dict) -> str:
 def format_dynamic(data: dict) -> str:
     """Fallback formatter — iterates all keys on the data dict to render text for any entity type."""
     lines: list[str] = []
-    title = (
-        data.get("title")
-        or data.get("name")
-        or data.get("external_id")
-        or data.get("id")
-        or "(unnamed)"
-    )
+    title = data.get("title") or data.get("name") or data.get("external_id") or data.get("id") or "(unnamed)"
     lines.append(f"{title}")
     for key, value in data.items():
         if key in ("external_id", "id", "title", "name"):
@@ -122,13 +116,13 @@ FORMATTER_MAP: dict[str, Any] = {
 }
 
 
-def get_formatter(entity_type: str) -> Optional[Any]:
+def get_formatter(entity_type: str) -> Any | None:
     formatter = FORMATTER_MAP.get(entity_type)
     if formatter is not None:
         return formatter
     return format_dynamic
 
 
-def format_record(entity_type: str, data: dict) -> Optional[str]:
+def format_record(entity_type: str, data: dict) -> str | None:
     formatter = get_formatter(entity_type)
     return formatter(data)

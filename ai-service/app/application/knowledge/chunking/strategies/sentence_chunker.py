@@ -33,7 +33,7 @@ class SentenceChunker(BaseChunker):
                     current = sentence
                 else:
                     for start in range(0, len(sentence), config.chunk_size - config.overlap):
-                        seg = sentence[start:start + config.chunk_size]
+                        seg = sentence[start : start + config.chunk_size]
                         if seg:
                             chunks.append(seg)
                     current = ""

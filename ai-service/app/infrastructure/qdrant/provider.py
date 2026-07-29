@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
@@ -54,9 +54,9 @@ def _qdrant_distance(name: str) -> models.Distance:
 
 
 def _build_filter(
-    must: Optional[list[dict[str, Any]]] = None,
-    must_not: Optional[list[dict[str, Any]]] = None,
-) -> Optional[models.Filter]:
+    must: list[dict[str, Any]] | None = None,
+    must_not: list[dict[str, Any]] | None = None,
+) -> models.Filter | None:
     conditions: list[models.Condition] = []
     not_conditions: list[models.Condition] = []
 
@@ -85,50 +85,66 @@ def _parse_conditions(filters: list[dict[str, Any]]) -> list[models.Condition]:
             continue
 
         if op == "eq":
-            conditions.append(models.FieldCondition(
-                key=key,
-                match=models.MatchValue(value=value),
-            ))
+            conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    match=models.MatchValue(value=value),
+                )
+            )
         elif op == "any":
-            conditions.append(models.FieldCondition(
-                key=key,
-                match=models.MatchAny(any=value),
-            ))
+            conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    match=models.MatchAny(any=value),
+                )
+            )
         elif op == "except":
-            conditions.append(models.FieldCondition(
-                key=key,
-                match=models.MatchExcept(except_=value),
-            ))
+            conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    match=models.MatchExcept(except_=value),
+                )
+            )
         elif op == "gt":
-            conditions.append(models.FieldCondition(
-                key=key,
-                range=models.Range(gt=value),
-            ))
+            conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    range=models.Range(gt=value),
+                )
+            )
         elif op == "gte":
-            conditions.append(models.FieldCondition(
-                key=key,
-                range=models.Range(gte=value),
-            ))
+            conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    range=models.Range(gte=value),
+                )
+            )
         elif op == "lt":
-            conditions.append(models.FieldCondition(
-                key=key,
-                range=models.Range(lt=value),
-            ))
+            conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    range=models.Range(lt=value),
+                )
+            )
         elif op == "lte":
-            conditions.append(models.FieldCondition(
-                key=key,
-                range=models.Range(lte=value),
-            ))
+            conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    range=models.Range(lte=value),
+                )
+            )
         elif op == "range":
-            conditions.append(models.FieldCondition(
-                key=key,
-                range=models.Range(
-                    gt=value.get("gt"),
-                    gte=value.get("gte"),
-                    lt=value.get("lt"),
-                    lte=value.get("lte"),
-                ),
-            ))
+            conditions.append(
+                models.FieldCondition(
+                    key=key,
+                    range=models.Range(
+                        gt=value.get("gt"),
+                        gte=value.get("gte"),
+                        lt=value.get("lt"),
+                        lte=value.get("lte"),
+                    ),
+                )
+            )
         elif op == "is_null":
             conditions.append(models.IsNullCondition(is_null=models.PayloadField(key=key)))
         elif op == "is_empty":
@@ -140,11 +156,12 @@ def _parse_conditions(filters: list[dict[str, Any]]) -> list[models.Condition]:
 
 CONNECT_TIMEOUT = 5
 
+
 class QdrantProvider(VectorStore):
     def __init__(
         self,
-        url: Optional[str] = None,
-        api_key: Optional[str] = None,
+        url: str | None = None,
+        api_key: str | None = None,
         prefer_grpc: bool = False,
         timeout: int = 60,
         connect_timeout: int = CONNECT_TIMEOUT,
@@ -154,7 +171,7 @@ class QdrantProvider(VectorStore):
         self._prefer_grpc = prefer_grpc
         self._timeout = timeout
         self._connect_timeout = connect_timeout
-        self._client: Optional[QdrantClient] = None
+        self._client: QdrantClient | None = None
 
     async def connect(self) -> None:
         if self._client is not None:
@@ -171,12 +188,10 @@ class QdrantProvider(VectorStore):
                 timeout=self._connect_timeout,
             )
             logger.info("Connected to Qdrant at '%s'", self._url)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Qdrant connection timed out at '%s' (%ds)", self._url, self._connect_timeout)
             self._client = None
-            raise ConnectionError(
-                f"Qdrant unreachable at {self._url} after {self._connect_timeout}s"
-            )
+            raise ConnectionError(f"Qdrant unreachable at {self._url} after {self._connect_timeout}s")
         except Exception:
             logger.error("Failed to connect to Qdrant at '%s'", self._url, exc_info=True)
             raise
@@ -225,14 +240,18 @@ class QdrantProvider(VectorStore):
             )
             logger.info(
                 "Created collection '%s' (size=%d, distance=%s)",
-                collection_name, vector_size, distance,
+                collection_name,
+                vector_size,
+                distance,
             )
         except UnexpectedResponse as e:
             if e.status_code == 409:
                 logger.debug("Collection '%s' already exists", collection_name)
                 return
             logger.error(
-                "Failed to create collection '%s': %s", collection_name, e,
+                "Failed to create collection '%s': %s",
+                collection_name,
+                e,
             )
             raise
 
@@ -265,7 +284,7 @@ class QdrantProvider(VectorStore):
             logger.error("Failed to list collections", exc_info=True)
             raise
 
-    async def get_collection_info(self, collection_name: str) -> Optional[CollectionInfo]:
+    async def get_collection_info(self, collection_name: str) -> CollectionInfo | None:
         client = self._ensure_client()
         try:
             info = await self._run(client.get_collection, collection_name=collection_name)
@@ -291,11 +310,10 @@ class QdrantProvider(VectorStore):
             return 0
         client = self._ensure_client()
         qdrant_points = [
-            models.PointStruct(id=_to_qdrant_point_id(p.id), vector=p.vector, payload=p.payload)
-            for p in points
+            models.PointStruct(id=_to_qdrant_point_id(p.id), vector=p.vector, payload=p.payload) for p in points
         ]
         try:
-            result = await self._run(
+            await self._run(
                 client.upsert,
                 collection_name=collection_name,
                 points=qdrant_points,
@@ -305,7 +323,9 @@ class QdrantProvider(VectorStore):
             return len(points)
         except Exception:
             logger.error(
-                "Failed to upsert %d points into '%s'", len(points), collection_name,
+                "Failed to upsert %d points into '%s'",
+                len(points),
+                collection_name,
                 exc_info=True,
             )
             raise
@@ -328,7 +348,9 @@ class QdrantProvider(VectorStore):
             return len(point_ids)
         except Exception:
             logger.error(
-                "Failed to delete %d points from '%s'", len(point_ids), collection_name,
+                "Failed to delete %d points from '%s'",
+                len(point_ids),
+                collection_name,
                 exc_info=True,
             )
             raise
@@ -336,8 +358,8 @@ class QdrantProvider(VectorStore):
     async def delete_by_filter(
         self,
         collection_name: str,
-        must: Optional[list[dict[str, Any]]] = None,
-        must_not: Optional[list[dict[str, Any]]] = None,
+        must: list[dict[str, Any]] | None = None,
+        must_not: list[dict[str, Any]] | None = None,
     ) -> int:
         client = self._ensure_client()
         qdrant_filter = _build_filter(must=must, must_not=must_not)
@@ -355,7 +377,9 @@ class QdrantProvider(VectorStore):
             return 1
         except Exception:
             logger.error(
-                "Failed to delete by filter from '%s'", collection_name, exc_info=True,
+                "Failed to delete by filter from '%s'",
+                collection_name,
+                exc_info=True,
             )
             raise
 
@@ -364,9 +388,9 @@ class QdrantProvider(VectorStore):
         collection_name: str,
         vector: list[float],
         limit: int = 10,
-        must: Optional[list[dict[str, Any]]] = None,
-        must_not: Optional[list[dict[str, Any]]] = None,
-        score_threshold: Optional[float] = None,
+        must: list[dict[str, Any]] | None = None,
+        must_not: list[dict[str, Any]] | None = None,
+        score_threshold: float | None = None,
     ) -> list[SearchResult]:
         client = self._ensure_client()
         qdrant_filter = _build_filter(must=must, must_not=must_not)
@@ -392,7 +416,9 @@ class QdrantProvider(VectorStore):
             ]
         except Exception:
             logger.error(
-                "Search failed on '%s' (limit=%d)", collection_name, limit,
+                "Search failed on '%s' (limit=%d)",
+                collection_name,
+                limit,
                 exc_info=True,
             )
             raise
@@ -424,7 +450,9 @@ class QdrantProvider(VectorStore):
             )
             logger.info(
                 "Created payload index on '%s/%s' (type=%s)",
-                collection_name, field_name, field_type,
+                collection_name,
+                field_name,
+                field_type,
             )
         except UnexpectedResponse as e:
             if e.status_code == 409:

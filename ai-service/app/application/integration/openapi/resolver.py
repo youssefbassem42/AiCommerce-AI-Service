@@ -1,6 +1,6 @@
 import logging
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +16,8 @@ class ResolvedField:
         name: str,
         field_type: str,
         required: bool = False,
-        format: Optional[str] = None,
-        description: Optional[str] = None,
+        format: str | None = None,
+        description: str | None = None,
     ):
         self.name = name
         self.field_type = field_type
@@ -33,7 +33,7 @@ class ResolvedSchema:
         self,
         fields: list[ResolvedField],
         raw_schema: dict,
-        resolved_name: Optional[str] = None,
+        resolved_name: str | None = None,
     ):
         self.fields = fields
         self.raw_schema = raw_schema
@@ -185,10 +185,10 @@ class RefResolver:
         return result
 
     @staticmethod
-    def _extract_schema_name(ref: str) -> Optional[str]:
+    def _extract_schema_name(ref: str) -> str | None:
         for prefix in (REF_PREFIX_V3, REF_PREFIX_V2):
             if ref.startswith(prefix):
-                return ref[len(prefix):]
+                return ref[len(prefix) :]
         if ref.startswith("#/"):
             parts = ref.split("/")
             return parts[-1] if len(parts) >= 3 else None

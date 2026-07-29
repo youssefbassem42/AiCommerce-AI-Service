@@ -1,16 +1,12 @@
-from typing import Optional
-
 from fastapi import Depends
 
+from app.agents.integration.agent import IntegrationMappingAgent
 from app.application.integration.mapping.services import IntegrationApplicationService
 from app.application.integration.sync.orchestrator import SyncOrchestrator
 from app.infrastructure.mongodb.repositories.integration_connection_repository import (
     IntegrationConnectionMongoRepository,
 )
-from app.infrastructure.providers.base import BaseLLMProvider
-from app.infrastructure.providers.factory import LLMProviderFactory
 from app.infrastructure.security.key_manager import KeyManager
-from app.agents.integration.agent import IntegrationMappingAgent
 from app.workflows.integration.graph import IntegrationWorkflow
 
 

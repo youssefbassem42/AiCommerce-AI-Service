@@ -1,12 +1,10 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from app.domain.commerce.aggregates.order import Fulfillment, LineItem, Order, TaxLine
 from app.domain.commerce.value_objects.address import Address
-from app.domain.commerce.value_objects.audit import AuditInfo
-from app.domain.commerce.value_objects.money import Money
 from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 from app.infrastructure.mongodb.documents.product_document import AuditInfoModel, MoneyModel
 
@@ -15,12 +13,12 @@ class AddressModel(BaseModel):
     first_name: str
     last_name: str
     line1: str
-    line2: Optional[str] = None
+    line2: str | None = None
     city: str
     state: str
     zip: str
     country: str
-    phone: Optional[str] = None
+    phone: str | None = None
 
     def to_vo(self) -> Address:
         return Address(
@@ -67,8 +65,8 @@ class TaxLineModel(BaseModel):
 class FulfillmentModel(BaseModel):
     id: str
     status: str = "pending"
-    tracking_company: Optional[str] = None
-    tracking_number: Optional[str] = None
+    tracking_company: str | None = None
+    tracking_number: str | None = None
 
     def to_entity(self) -> Fulfillment:
         return Fulfillment(
@@ -90,8 +88,8 @@ class FulfillmentModel(BaseModel):
 
 class LineItemModel(BaseModel):
     id: str
-    variant_id: Optional[str] = None
-    product_id: Optional[str] = None
+    variant_id: str | None = None
+    product_id: str | None = None
     title: str
     quantity: int
     price: MoneyModel
@@ -127,23 +125,23 @@ class LineItemModel(BaseModel):
 class OrderDocument(BaseMongoDocument):
     store_id: str = Field(..., index=True)
     org_id: str = Field(...)
-    external_id: Optional[str] = None
-    customer_id: Optional[str] = None
-    customer_email: Optional[str] = None
+    external_id: str | None = None
+    customer_id: str | None = None
+    customer_email: str | None = None
     line_items: list[LineItemModel] = Field(default_factory=list)
-    shipping_address: Optional[AddressModel] = None
-    billing_address: Optional[AddressModel] = None
-    subtotal_price: Optional[MoneyModel] = None
-    total_price: Optional[MoneyModel] = None
-    total_tax: Optional[MoneyModel] = None
-    total_discount: Optional[MoneyModel] = None
-    shipping_price: Optional[MoneyModel] = None
+    shipping_address: AddressModel | None = None
+    billing_address: AddressModel | None = None
+    subtotal_price: MoneyModel | None = None
+    total_price: MoneyModel | None = None
+    total_tax: MoneyModel | None = None
+    total_discount: MoneyModel | None = None
+    shipping_price: MoneyModel | None = None
     financial_status: str = "pending"
-    fulfillment_status: Optional[str] = None
+    fulfillment_status: str | None = None
     currency: str = "USD"
-    notes: Optional[str] = None
+    notes: str | None = None
     tags: list[str] = Field(default_factory=list)
-    cancelled_at: Optional[datetime] = None
+    cancelled_at: datetime | None = None
     audit: AuditInfoModel = Field(default_factory=AuditInfoModel)
     metadata: dict[str, Any] = Field(default_factory=dict)
 

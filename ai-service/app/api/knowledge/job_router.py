@@ -1,10 +1,8 @@
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.knowledge.job_schemas import JobCreateResponseSchema, JobResponseSchema, PaginatedJobResponseSchema
-from app.domain.job.entities.knowledge_job import KnowledgeJob
 from app.domain.job.exceptions import JobNotFoundException
 from app.domain.job.repositories.job_repository import JobRepository
 from app.domain.job.value_objects import JobStatus, JobType
@@ -24,10 +22,10 @@ def get_job_repository() -> JobRepository:
 async def create_document_processing_job(
     document_id: str = Query(...),
     file_path: str = Query(...),
-    mime_type: Optional[str] = Query(default=None),
-    store_id: Optional[str] = Query(default=None),
-    organization_id: Optional[str] = Query(default=None),
-    triggered_by: Optional[str] = Query(default=None),
+    mime_type: str | None = Query(default=None),
+    store_id: str | None = Query(default=None),
+    organization_id: str | None = Query(default=None),
+    triggered_by: str | None = Query(default=None),
 ) -> JobCreateResponseSchema:
     try:
         from app.workers.ingestion.tasks import process_document_task
@@ -49,8 +47,9 @@ async def create_document_processing_job(
             mime_type=mime_type,
             job_id=job.id,
         )
-        _run_async(job._set_celery_task_id(job.id, task.id) if hasattr(job, '_set_celery_task_id') else None)
+        _run_async(job._set_celery_task_id(job.id, task.id) if hasattr(job, "_set_celery_task_id") else None)
         from app.infrastructure.tasks.helpers import set_celery_task_id
+
         _run_async(set_celery_task_id(job.id, task.id))
 
         return JobCreateResponseSchema(
@@ -70,9 +69,9 @@ async def create_chunk_generation_job(
     strategy: str = Query(default="recursive_character"),
     chunk_size: int = Query(default=1000, ge=100, le=5000),
     overlap: int = Query(default=200, ge=0, le=1000),
-    store_id: Optional[str] = Query(default=None),
-    organization_id: Optional[str] = Query(default=None),
-    triggered_by: Optional[str] = Query(default=None),
+    store_id: str | None = Query(default=None),
+    organization_id: str | None = Query(default=None),
+    triggered_by: str | None = Query(default=None),
 ) -> JobCreateResponseSchema:
     try:
         from app.workers.ingestion.tasks import generate_chunks_task
@@ -97,6 +96,7 @@ async def create_chunk_generation_job(
             job_id=job.id,
         )
         from app.infrastructure.tasks.helpers import set_celery_task_id
+
         _run_async(set_celery_task_id(job.id, task.id))
 
         return JobCreateResponseSchema(
@@ -113,9 +113,9 @@ async def create_chunk_generation_job(
 @router.post("/summary-generation", response_model=JobCreateResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_summary_generation_job(
     store_id: str = Query(...),
-    model: Optional[str] = Query(default=None),
-    organization_id: Optional[str] = Query(default=None),
-    triggered_by: Optional[str] = Query(default=None),
+    model: str | None = Query(default=None),
+    organization_id: str | None = Query(default=None),
+    triggered_by: str | None = Query(default=None),
 ) -> JobCreateResponseSchema:
     try:
         from app.workers.summarization.tasks import generate_summary_task
@@ -136,6 +136,7 @@ async def create_summary_generation_job(
             job_id=job.id,
         )
         from app.infrastructure.tasks.helpers import set_celery_task_id
+
         _run_async(set_celery_task_id(job.id, task.id))
 
         return JobCreateResponseSchema(
@@ -153,9 +154,9 @@ async def create_summary_generation_job(
 async def create_embedding_generation_job(
     chunk_ids: list[str] = Query(...),
     model: str = Query(default="gemini-embedding-001"),
-    store_id: Optional[str] = Query(default=None),
-    organization_id: Optional[str] = Query(default=None),
-    triggered_by: Optional[str] = Query(default=None),
+    store_id: str | None = Query(default=None),
+    organization_id: str | None = Query(default=None),
+    triggered_by: str | None = Query(default=None),
 ) -> JobCreateResponseSchema:
     try:
         from app.workers.embedding.tasks import generate_embeddings_task
@@ -176,6 +177,7 @@ async def create_embedding_generation_job(
             job_id=job.id,
         )
         from app.infrastructure.tasks.helpers import set_celery_task_id
+
         _run_async(set_celery_task_id(job.id, task.id))
 
         return JobCreateResponseSchema(
@@ -194,9 +196,9 @@ async def create_vector_sync_job(
     chunk_ids: list[str] = Query(...),
     collection_name: str = Query(default="kb_default"),
     model: str = Query(default="gemini-embedding-001"),
-    store_id: Optional[str] = Query(default=None),
-    organization_id: Optional[str] = Query(default=None),
-    triggered_by: Optional[str] = Query(default=None),
+    store_id: str | None = Query(default=None),
+    organization_id: str | None = Query(default=None),
+    triggered_by: str | None = Query(default=None),
 ) -> JobCreateResponseSchema:
     try:
         from app.workers.embedding.tasks import sync_vectors_task
@@ -219,6 +221,7 @@ async def create_vector_sync_job(
             job_id=job.id,
         )
         from app.infrastructure.tasks.helpers import set_celery_task_id
+
         _run_async(set_celery_task_id(job.id, task.id))
 
         return JobCreateResponseSchema(
@@ -271,9 +274,9 @@ async def get_job_status(
 async def list_jobs(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    status_filter: Optional[str] = Query(default=None, alias="status"),
-    job_type: Optional[str] = Query(default=None),
-    store_id: Optional[str] = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+    job_type: str | None = Query(default=None),
+    store_id: str | None = Query(default=None),
     repo: JobRepository = Depends(get_job_repository),
 ) -> PaginatedJobResponseSchema:
     try:

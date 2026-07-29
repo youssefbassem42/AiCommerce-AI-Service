@@ -1,18 +1,19 @@
-from typing import Generic, Optional, TypeVar
+from typing import TypeVar
+
 from pydantic import BaseModel
 
 T = TypeVar("T")
 
 
-class CommandResult(BaseModel, Generic[T]):
+class CommandResult[T](BaseModel):
     success: bool
-    data: Optional[T] = None
-    error: Optional[str] = None
-    correlation_id: Optional[str] = None
+    data: T | None = None
+    error: str | None = None
+    correlation_id: str | None = None
 
 
-class QueryResult(BaseModel, Generic[T]):
+class QueryResult[T](BaseModel):
     success: bool
-    data: Optional[T] = None
-    error: Optional[str] = None
-    correlation_id: Optional[str] = None
+    data: T | None = None
+    error: str | None = None
+    correlation_id: str | None = None

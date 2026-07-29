@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.application.analytics.bundle_tracking_service import (
-    BundleTrackingService,
     DEFAULT_THRESHOLD,
+    BundleTrackingService,
     _make_bundle_key,
 )
 
@@ -103,9 +103,7 @@ class TestBundleTrackingService:
             "is_top": False,
             "promoted_at": None,
         }
-        mock_insights.find_one.return_value = {
-            "metadata": {"tracking_config": {"threshold": 5, "enabled": True}}
-        }
+        mock_insights.find_one.return_value = {"metadata": {"tracking_config": {"threshold": 5, "enabled": True}}}
 
         result = await service.track_copy_event(
             store_id="s1",
@@ -122,23 +120,25 @@ class TestBundleTrackingService:
 
     async def test_get_tracked_bundles(self, service, mock_tracking):
         now = datetime.now(UTC)
-        mock_tracking.find.return_value.sort.return_value = _make_find_cursor([
-            {
-                "_id": "doc1",
-                "store_id": "s1",
-                "bundle_key": "key1",
-                "product_ids": ["p1", "p2"],
-                "discount_pct": 10.0,
-                "total_original": 500.0,
-                "total_discount": 50.0,
-                "promo_code": "B1",
-                "copy_count": 5,
-                "is_top": True,
-                "first_copied_at": now,
-                "last_copied_at": now,
-                "promoted_at": now,
-            },
-        ])
+        mock_tracking.find.return_value.sort.return_value = _make_find_cursor(
+            [
+                {
+                    "_id": "doc1",
+                    "store_id": "s1",
+                    "bundle_key": "key1",
+                    "product_ids": ["p1", "p2"],
+                    "discount_pct": 10.0,
+                    "total_original": 500.0,
+                    "total_discount": 50.0,
+                    "promo_code": "B1",
+                    "copy_count": 5,
+                    "is_top": True,
+                    "first_copied_at": now,
+                    "last_copied_at": now,
+                    "promoted_at": now,
+                },
+            ]
+        )
 
         bundles = await service.get_tracked_bundles("s1")
 
@@ -147,27 +147,27 @@ class TestBundleTrackingService:
         assert bundles[0]["id"] == "doc1"
 
     async def test_get_tracked_bundles_top_only(self, service, mock_tracking):
-        mock_tracking.find.return_value.sort.return_value = _make_find_cursor([
-            {
-                "_id": "doc1",
-                "store_id": "s1",
-                "bundle_key": "top1",
-                "product_ids": ["p1"],
-                "discount_pct": 10.0,
-                "total_original": 100.0,
-                "total_discount": 10.0,
-                "promo_code": "B1",
-                "copy_count": 5,
-                "is_top": True,
-            },
-        ])
+        mock_tracking.find.return_value.sort.return_value = _make_find_cursor(
+            [
+                {
+                    "_id": "doc1",
+                    "store_id": "s1",
+                    "bundle_key": "top1",
+                    "product_ids": ["p1"],
+                    "discount_pct": 10.0,
+                    "total_original": 100.0,
+                    "total_discount": 10.0,
+                    "promo_code": "B1",
+                    "copy_count": 5,
+                    "is_top": True,
+                },
+            ]
+        )
 
         bundles = await service.get_tracked_bundles("s1", is_top_only=True)
 
         assert len(bundles) == 1
-        mock_tracking.find.assert_called_once_with(
-            {"store_id": "s1", "is_top": True}
-        )
+        mock_tracking.find.assert_called_once_with({"store_id": "s1", "is_top": True})
 
     async def test_get_tracked_bundle_found(self, service, mock_tracking):
         mock_tracking.find_one.return_value = {
@@ -198,9 +198,7 @@ class TestBundleTrackingService:
 
     async def test_promote_bundle(self, service, mock_tracking, mock_insights):
         mock_tracking.update_one.return_value.modified_count = 1
-        mock_insights.find_one.return_value = {
-            "metadata": {"tracking_config": {"threshold": 5, "enabled": True}}
-        }
+        mock_insights.find_one.return_value = {"metadata": {"tracking_config": {"threshold": 5, "enabled": True}}}
 
         result = await service.promote_bundle("s1", "key1")
 
@@ -216,9 +214,7 @@ class TestBundleTrackingService:
 
     async def test_demote_bundle(self, service, mock_tracking, mock_insights):
         mock_tracking.update_one.return_value.modified_count = 1
-        mock_insights.find_one.return_value = {
-            "metadata": {"tracking_config": {"threshold": 5, "enabled": True}}
-        }
+        mock_insights.find_one.return_value = {"metadata": {"tracking_config": {"threshold": 5, "enabled": True}}}
 
         result = await service.demote_bundle("s1", "key1")
 

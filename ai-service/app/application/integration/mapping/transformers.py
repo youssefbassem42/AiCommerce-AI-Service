@@ -1,7 +1,8 @@
 import logging
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +92,9 @@ class TransformerRegistry:
     @staticmethod
     def _unix_timestamp(value: Any) -> Any:
         if isinstance(value, (int, float)):
-            return datetime.fromtimestamp(value, tz=timezone.utc)
+            return datetime.fromtimestamp(value, tz=UTC)
         if isinstance(value, str) and value.isdigit():
-            return datetime.fromtimestamp(int(value), tz=timezone.utc)
+            return datetime.fromtimestamp(int(value), tz=UTC)
         return value
 
     @staticmethod

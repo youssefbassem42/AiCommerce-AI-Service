@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -40,16 +40,22 @@ def ticket_service(ticket_repo, sentiment_service):
 class TestTicketService:
     async def test_create_ticket_with_minimal_data(self, ticket_service, ticket_repo, sentiment_service):
         ticket_repo.create.return_value = TicketAnalysis(
-            id="ticket-1", ticket_id="ticket-1",
-            store_id="s1", customer_id="c1",
-            sentiment="negative", category="billing",
-            summary="Test summary", priority="high", status="open",
+            id="ticket-1",
+            ticket_id="ticket-1",
+            store_id="s1",
+            customer_id="c1",
+            sentiment="negative",
+            category="billing",
+            summary="Test summary",
+            priority="high",
+            status="open",
             suggested_response="Test response",
         )
 
         result = await ticket_service.create_ticket(
             TicketCreateDTO(
-                store_id="s1", customer_id="c1",
+                store_id="s1",
+                customer_id="c1",
                 messages=["I have a problem"],
             )
         )
@@ -64,16 +70,22 @@ class TestTicketService:
         ticket_service._conversation_service = conv_service
 
         ticket_repo.create.return_value = TicketAnalysis(
-            id="ticket-2", ticket_id="ticket-2",
-            store_id="s1", customer_id="c1",
-            sentiment="negative", category="shipping",
-            summary="Shipping issue", priority="high", status="open",
+            id="ticket-2",
+            ticket_id="ticket-2",
+            store_id="s1",
+            customer_id="c1",
+            sentiment="negative",
+            category="shipping",
+            summary="Shipping issue",
+            priority="high",
+            status="open",
             suggested_response="We'll check your shipment",
         )
 
         result = await ticket_service.create_ticket(
             TicketCreateDTO(
-                store_id="s1", customer_id="c1",
+                store_id="s1",
+                customer_id="c1",
                 conversation_id="conv_1",
                 messages=["Where is my order?"],
             )
@@ -95,7 +107,10 @@ class TestTicketService:
     async def test_list_tickets_with_filters(self, ticket_service, ticket_repo):
         ticket_repo.paginate.return_value = ([], 0)
         await ticket_service.list_tickets(
-            store_id="s1", status="open", priority="high", sentiment="negative",
+            store_id="s1",
+            status="open",
+            priority="high",
+            sentiment="negative",
         )
         ticket_repo.paginate.assert_called_once()
         call_filters = ticket_repo.paginate.call_args[1]["filters"]
@@ -111,10 +126,15 @@ class TestTicketService:
 
     async def test_update_status_success(self, ticket_service, ticket_repo):
         entity = TicketAnalysis(
-            id="ticket-1", ticket_id="ticket-1",
-            store_id="s1", customer_id="c1",
-            sentiment="negative", category="billing",
-            summary="issue", priority="high", status="open",
+            id="ticket-1",
+            ticket_id="ticket-1",
+            store_id="s1",
+            customer_id="c1",
+            sentiment="negative",
+            category="billing",
+            summary="issue",
+            priority="high",
+            status="open",
             suggested_response="response",
         )
         ticket_repo.find_by_id.return_value = entity
@@ -130,16 +150,19 @@ class TestTicketService:
         ticket_service._customer_repo = customer_repo
 
         ticket_repo.create.return_value = TicketAnalysis(
-            id="ticket-3", ticket_id="ticket-3",
-            store_id="s1", customer_id="c1",
-            sentiment="neutral", category="general",
-            summary="Test", priority="low", status="open",
+            id="ticket-3",
+            ticket_id="ticket-3",
+            store_id="s1",
+            customer_id="c1",
+            sentiment="neutral",
+            category="general",
+            summary="Test",
+            priority="low",
+            status="open",
             suggested_response="OK",
         )
 
-        result = await ticket_service.create_ticket(
-            TicketCreateDTO(store_id="s1", customer_id="c1", messages=["hi"])
-        )
+        result = await ticket_service.create_ticket(TicketCreateDTO(store_id="s1", customer_id="c1", messages=["hi"]))
         assert result is not None
         assert result.customer is None
 
@@ -149,10 +172,15 @@ class TestTicketService:
         ticket_service._order_repo = order_repo
 
         ticket_repo.create.return_value = TicketAnalysis(
-            id="ticket-4", ticket_id="ticket-4",
-            store_id="s1", customer_id="c1",
-            sentiment="negative", category="billing",
-            summary="Billing issue", priority="high", status="open",
+            id="ticket-4",
+            ticket_id="ticket-4",
+            store_id="s1",
+            customer_id="c1",
+            sentiment="negative",
+            category="billing",
+            summary="Billing issue",
+            priority="high",
+            status="open",
             suggested_response="We'll fix it",
         )
 

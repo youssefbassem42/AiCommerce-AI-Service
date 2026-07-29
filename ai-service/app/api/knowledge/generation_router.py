@@ -117,9 +117,7 @@ async def list_business_summary_history(
     handler: "ListBusinessSummaryHistoryHandler" = Depends(get_list_history_handler),
 ):
     try:
-        query = ListBusinessSummaryHistoryQuery(
-            store_id=store_id, page=page, page_size=page_size
-        )
+        query = ListBusinessSummaryHistoryQuery(store_id=store_id, page=page, page_size=page_size)
         result = await handler.handle(query)
         items = [
             BusinessSummaryGenerationResponseSchema(

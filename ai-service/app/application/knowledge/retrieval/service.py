@@ -1,6 +1,5 @@
 import logging
 import time
-import math
 from typing import Any, Optional
 
 from qdrant_client.http import models as qdrant_models
@@ -22,8 +21,8 @@ class RetrieverService:
         self,
         vector_store: VectorStore,
         llm_provider: BaseLLMProvider,
-        reranker: Optional[ReRanker] = None,
-        default_config: Optional[RetrievalConfig] = None,
+        reranker: ReRanker | None = None,
+        default_config: RetrievalConfig | None = None,
         tenant: Optional["TenantContext"] = None,
     ):
         self._vector_store = vector_store
@@ -36,8 +35,8 @@ class RetrieverService:
     async def search(
         self,
         query: str,
-        filters: Optional[RetrievalFilters] = None,
-        config: Optional[RetrievalConfig] = None,
+        filters: RetrievalFilters | None = None,
+        config: RetrievalConfig | None = None,
     ) -> UnifiedRetrievalResult:
         cfg = config or self._default_config
         filters = self._enforce_tenant_scope(filters or RetrievalFilters())
@@ -89,7 +88,7 @@ class RetrieverService:
 
         return UnifiedRetrievalResult(
             query=query,
-            results=results[:cfg.top_k],
+            results=results[: cfg.top_k],
             total_count=len(results),
             strategy=strategy,
             latency_ms=latency,
@@ -99,8 +98,8 @@ class RetrieverService:
     async def search_by_embedding(
         self,
         embedding: list[float],
-        filters: Optional[RetrievalFilters] = None,
-        config: Optional[RetrievalConfig] = None,
+        filters: RetrievalFilters | None = None,
+        config: RetrievalConfig | None = None,
         query_text: str = "",
     ) -> UnifiedRetrievalResult:
         cfg = config or self._default_config
@@ -134,7 +133,7 @@ class RetrieverService:
 
         return UnifiedRetrievalResult(
             query=query_text,
-            results=results[:cfg.top_k],
+            results=results[: cfg.top_k],
             total_count=len(results),
             strategy="embedding",
             latency_ms=latency,
@@ -146,7 +145,7 @@ class RetrieverService:
         collection_name: str,
         query_embedding: list[float],
         cfg: RetrievalConfig,
-        must: Optional[list[dict[str, Any]]] = None,
+        must: list[dict[str, Any]] | None = None,
     ) -> list[RetrievedChunkDTO]:
         raw = await self._vector_store.search(
             collection_name=collection_name,
@@ -163,7 +162,7 @@ class RetrieverService:
         query_embedding: list[float],
         query_text: str,
         cfg: RetrievalConfig,
-        must: Optional[list[dict[str, Any]]] = None,
+        must: list[dict[str, Any]] | None = None,
     ) -> list[RetrievedChunkDTO]:
         limit = cfg.top_k * 2
 
@@ -194,7 +193,7 @@ class RetrieverService:
         collection_name: str,
         query_text: str,
         limit: int,
-        must: Optional[list[dict[str, Any]]] = None,
+        must: list[dict[str, Any]] | None = None,
     ) -> list[RetrievedChunkDTO]:
         from app.infrastructure.qdrant.provider import QdrantProvider
 
@@ -216,6 +215,7 @@ class RetrieverService:
         )
         if must:
             from app.infrastructure.qdrant.provider import _build_filter
+
             parsed = _build_filter(must=must)
             if parsed and parsed.must:
                 scroll_filter.must.extend(parsed.must)
@@ -234,11 +234,13 @@ class RetrieverService:
 
         results = []
         for pt in points:
-            results.append(SearchResult(
-                id=str(pt.id),
-                score=1.0,
-                payload=pt.payload or {},
-            ))
+            results.append(
+                SearchResult(
+                    id=str(pt.id),
+                    score=1.0,
+                    payload=pt.payload or {},
+                )
+            )
         return self._to_dtos(results)
 
     def _reciprocal_rank_fusion(
@@ -264,7 +266,7 @@ class RetrieverService:
 
         sorted_ids = sorted(score_map, key=score_map.get, reverse=True)
         fused = [seen[cid] for cid in sorted_ids[:top_k]]
-        for i, dto in enumerate(fused):
+        for _i, dto in enumerate(fused):
             dto.score = score_map[dto.chunk_id]
         return fused
 
@@ -274,10 +276,7 @@ class RetrieverService:
         results: list[RetrievedChunkDTO],
         cfg: RetrievalConfig,
     ) -> list[RetrievedChunkDTO]:
-        candidate_embeddings = [
-            dto.metadata.get("_embedding", query_embedding)
-            for dto in results
-        ]
+        candidate_embeddings = [dto.metadata.get("_embedding", query_embedding) for dto in results]
         candidate_scores = [dto.score for dto in results]
 
         indices = mmr_rerank(
@@ -317,7 +316,7 @@ class RetrieverService:
     def _build_filter_conditions(
         self,
         filters: RetrievalFilters,
-    ) -> Optional[list[dict[str, Any]]]:
+    ) -> list[dict[str, Any]] | None:
         conditions: list[dict[str, Any]] = []
 
         if filters.organization_id:
@@ -361,18 +360,20 @@ class RetrieverService:
         dtos = []
         for i, r in enumerate(results):
             payload = r.payload or {}
-            dtos.append(RetrievedChunkDTO(
-                chunk_id=r.id,
-                document_id=payload.get("document_id", ""),
-                document_title=payload.get("document_title", ""),
-                chunk_index=payload.get("chunk_index", 0),
-                content=payload.get("content", ""),
-                score=r.score,
-                rank=i + 1,
-                metadata=payload,
-                language=payload.get("language"),
-                source_type=payload.get("source_type"),
-            ))
+            dtos.append(
+                RetrievedChunkDTO(
+                    chunk_id=r.id,
+                    document_id=payload.get("document_id", ""),
+                    document_title=payload.get("document_title", ""),
+                    chunk_index=payload.get("chunk_index", 0),
+                    content=payload.get("content", ""),
+                    score=r.score,
+                    rank=i + 1,
+                    metadata=payload,
+                    language=payload.get("language"),
+                    source_type=payload.get("source_type"),
+                )
+            )
         return dtos
 
     @staticmethod

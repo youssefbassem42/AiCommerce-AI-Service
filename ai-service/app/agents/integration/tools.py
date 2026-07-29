@@ -1,18 +1,16 @@
 import json
 import logging
 import traceback
-import yaml
-from typing import Any, Optional
+from typing import Any
 
+import yaml
 from pydantic import ValidationError
 
 from app.agents.integration.prompts import ANALYZE_SPEC_PROMPT, ERROR_EXPLANATION_PROMPT, FEATURE_GAP_PROMPT
 from app.agents.integration.schemas import (
     AuthInfo,
-    DiscoveredEntityInfo,
     FeatureAnalysis,
     IntegrationMappingReport,
-    PaginationInfo,
 )
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.core.model_registry import ModelRegistry
@@ -22,11 +20,30 @@ from app.infrastructure.providers.factory import LLMProviderFactory
 logger = logging.getLogger(__name__)
 
 CANONICAL_ENTITIES = {
-    "product", "order", "customer", "category", "inventory",
-    "coupon", "review", "shipment", "payment", "refund",
-    "variant", "collection", "discount", "tax", "shipping_zone",
-    "webhook", "blog_post", "page", "theme", "gift_card",
-    "location", "store_setting", "redirect", "script_tag",
+    "product",
+    "order",
+    "customer",
+    "category",
+    "inventory",
+    "coupon",
+    "review",
+    "shipment",
+    "payment",
+    "refund",
+    "variant",
+    "collection",
+    "discount",
+    "tax",
+    "shipping_zone",
+    "webhook",
+    "blog_post",
+    "page",
+    "theme",
+    "gift_card",
+    "location",
+    "store_setting",
+    "redirect",
+    "script_tag",
 }
 
 E_COMMERCE_FEATURES = [
@@ -75,14 +92,8 @@ def _select_best_provider() -> tuple[BaseLLMProvider, str]:
 
 def _summarize_spec(spec: dict) -> dict:
     paths = spec.get("paths", {})
-    schemas = (
-        spec.get("components", {}).get("schemas", {})
-        or spec.get("definitions", {})
-    )
-    auth_schemes = (
-        spec.get("components", {}).get("securitySchemes", {})
-        or spec.get("securityDefinitions", {})
-    )
+    schemas = spec.get("components", {}).get("schemas", {}) or spec.get("definitions", {})
+    auth_schemes = spec.get("components", {}).get("securitySchemes", {}) or spec.get("securityDefinitions", {})
     servers = spec.get("servers", [])
     base_url = servers[0].get("url", "") if servers else ""
     if not base_url:
@@ -193,8 +204,8 @@ def _build_fallback_report(summary: dict, platform_name: str) -> IntegrationMapp
 async def analyze_spec_with_llm(
     spec: dict,
     platform_name: str,
-    provider: Optional[BaseLLMProvider] = None,
-    model: Optional[str] = None,
+    provider: BaseLLMProvider | None = None,
+    model: str | None = None,
 ) -> IntegrationMappingReport:
     if provider is None:
         provider, model = _select_best_provider()
@@ -268,12 +279,14 @@ async def analyze_spec_with_llm(
             last_error = f"{type(e).__name__}: {e}"
             logger.warning(
                 "LLM response validation failed (attempt %d/%d): %s",
-                attempt + 1, MAX_RETRIES, last_error,
+                attempt + 1,
+                MAX_RETRIES,
+                last_error,
             )
             if attempt == MAX_RETRIES - 1:
                 logger.error("All %d retries exhausted for agent-parse", MAX_RETRIES)
                 return _build_fallback_report(summary, platform_name)
-        except Exception as e:
+        except Exception:
             logger.error("Unexpected error in agent-parse: %s", traceback.format_exc())
             return _build_fallback_report(summary, platform_name)
 
@@ -285,12 +298,15 @@ async def analyze_feature_gaps(
     endpoints_summary: str,
     provider: BaseLLMProvider,
     model: str,
-) -> Optional[FeatureAnalysis]:
+) -> FeatureAnalysis | None:
     try:
-        entities_summary = "\n".join(
-            f"  {e.entity_type} [{e.display_name}]: list={e.list_path}, detail={e.detail_path}"
-            for e in entities
-        ) if entities else "  (none discovered)"
+        entities_summary = (
+            "\n".join(
+                f"  {e.entity_type} [{e.display_name}]: list={e.list_path}, detail={e.detail_path}" for e in entities
+            )
+            if entities
+            else "  (none discovered)"
+        )
 
         prompt = FEATURE_GAP_PROMPT.format(
             endpoints_summary=endpoints_summary,
@@ -299,7 +315,9 @@ async def analyze_feature_gaps(
 
         request = ChatRequest(
             messages=[
-                MessageDTO(role="system", content="You are an e-commerce feature analyst. Return ONLY valid JSON. No markdown."),
+                MessageDTO(
+                    role="system", content="You are an e-commerce feature analyst. Return ONLY valid JSON. No markdown."
+                ),
                 MessageDTO(role="user", content=prompt),
             ],
             model=model,
@@ -320,8 +338,8 @@ async def create_user_friendly_error(
     error: str,
     platform_name: str,
     spec: Any,
-    provider: Optional[BaseLLMProvider] = None,
-    model: Optional[str] = None,
+    provider: BaseLLMProvider | None = None,
+    model: str | None = None,
 ) -> str:
     if provider is None:
         provider, model = _select_best_provider()
@@ -343,7 +361,10 @@ async def create_user_friendly_error(
 
     request = ChatRequest(
         messages=[
-            MessageDTO(role="system", content="You explain technical API integration issues in plain language for non-technical users."),
+            MessageDTO(
+                role="system",
+                content="You explain technical API integration issues in plain language for non-technical users.",
+            ),
             MessageDTO(role="user", content=prompt),
         ],
         model=model,
@@ -372,9 +393,8 @@ async def detect_store_capabilities(
         "has_shipments": "shipment" in entity_types or "fulfillment" in entity_types,
         "has_payments": "payment" in entity_types,
         "has_webhooks": "webhook" in entity_types,
-        "has_promo_codes": "promo_codes_coupons" not in unsupported_names and any(
-            e.entity_type in ("coupon", "discount") for e in report.entities
-        ),
+        "has_promo_codes": "promo_codes_coupons" not in unsupported_names
+        and any(e.entity_type in ("coupon", "discount") for e in report.entities),
         "has_gift_cards": "gift_card" in entity_types,
         "has_discounts": "discount" in entity_types,
         "has_taxes": "tax" in entity_types,

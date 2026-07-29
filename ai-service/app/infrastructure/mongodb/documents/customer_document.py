@@ -1,9 +1,8 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
 from app.domain.customer.entities.customer import Customer
-from app.domain.commerce.value_objects.audit import AuditInfo
 from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 from app.infrastructure.mongodb.documents.product_document import AuditInfoModel
 
@@ -11,13 +10,13 @@ from app.infrastructure.mongodb.documents.product_document import AuditInfoModel
 class CustomerDocument(BaseMongoDocument):
     store_id: str = Field(..., index=True)
     organization_id: str = Field(...)
-    external_id: Optional[str] = None
-    email: Optional[str] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    phone: Optional[str] = None
+    external_id: str | None = None
+    email: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
     tags: list[str] = Field(default_factory=list)
-    notes: Optional[str] = None
+    notes: str | None = None
     accepts_marketing: bool = False
     audit: AuditInfoModel = Field(default_factory=AuditInfoModel)
     metadata: dict[str, Any] = Field(default_factory=dict)

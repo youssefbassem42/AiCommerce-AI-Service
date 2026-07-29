@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from app.application.dto.ai_dto import ChatRequest, EmbeddingRequest, MessageDTO
 from app.infrastructure.providers.openai_provider import OpenAIProvider
-from app.application.dto.ai_dto import ChatRequest, MessageDTO, EmbeddingRequest
 
 
 @pytest.fixture

@@ -1,14 +1,13 @@
-from datetime import datetime, UTC
-from typing import Dict
 from pydantic import Field
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+
 from app.domain.recommendation.entities.store_capabilities import StoreCapabilities
+from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 
 
 class StoreCapabilitiesDocument(BaseMongoDocument):
     store_id: str = Field(..., index=True, unique=True)
-    capabilities: Dict[str, bool] = Field(default_factory=lambda: {"has_promo_codes": False})
-    auto_detected: Dict[str, bool] = Field(default_factory=dict)
+    capabilities: dict[str, bool] = Field(default_factory=lambda: {"has_promo_codes": False})
+    auto_detected: dict[str, bool] = Field(default_factory=dict)
 
     def to_entity(self) -> StoreCapabilities:
         return StoreCapabilities(

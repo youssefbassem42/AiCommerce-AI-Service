@@ -1,5 +1,29 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 
+from app.api.knowledge.dependencies import (
+    get_business_summary_service,
+    get_document_upload_service,
+    get_knowledge_chunk_service,
+    get_knowledge_document_service,
+    write_upload_temp,
+)
+from app.api.knowledge.schemas import (
+    BusinessSummaryCreateSchema,
+    BusinessSummaryResponseSchema,
+    BusinessSummaryUpdateSchema,
+    DeleteResponseSchema,
+    KnowledgeChunkCreateSchema,
+    KnowledgeChunkResponseSchema,
+    KnowledgeChunkUpdateSchema,
+    KnowledgeDocumentCreateSchema,
+    KnowledgeDocumentResponseSchema,
+    KnowledgeDocumentUpdateSchema,
+    PaginatedBusinessSummaryResponseSchema,
+    PaginatedKnowledgeChunkResponseSchema,
+    PaginatedKnowledgeDocumentResponseSchema,
+    PaginatedUploadResponseSchema,
+    UploadResponseSchema,
+)
 from app.application.knowledge.commands.upload_command import UploadDocumentCommand
 from app.application.knowledge.dto import (
     BusinessSummaryCreateDTO,
@@ -24,30 +48,6 @@ from app.domain.knowledge.exceptions import (
     KnowledgeDocumentNotFoundException,
     KnowledgeDomainException,
     UploadNotFoundException,
-)
-from app.api.knowledge.dependencies import (
-    get_business_summary_service,
-    get_document_upload_service,
-    get_knowledge_chunk_service,
-    get_knowledge_document_service,
-    write_upload_temp,
-)
-from app.api.knowledge.schemas import (
-    BusinessSummaryCreateSchema,
-    BusinessSummaryResponseSchema,
-    BusinessSummaryUpdateSchema,
-    DeleteResponseSchema,
-    KnowledgeChunkCreateSchema,
-    KnowledgeChunkResponseSchema,
-    KnowledgeChunkUpdateSchema,
-    KnowledgeDocumentCreateSchema,
-    KnowledgeDocumentResponseSchema,
-    KnowledgeDocumentUpdateSchema,
-    PaginatedBusinessSummaryResponseSchema,
-    PaginatedKnowledgeChunkResponseSchema,
-    PaginatedKnowledgeDocumentResponseSchema,
-    PaginatedUploadResponseSchema,
-    UploadResponseSchema,
 )
 
 router = APIRouter(prefix=knowledge_settings.route_prefix, tags=["Knowledge Base"])
@@ -167,7 +167,9 @@ async def list_chunks(
     service: KnowledgeChunkService = Depends(get_knowledge_chunk_service),
 ) -> PaginatedKnowledgeChunkResponseSchema:
     try:
-        result = await service.list(page=page, page_size=page_size, document_id=document_id, version_number=version_number)
+        result = await service.list(
+            page=page, page_size=page_size, document_id=document_id, version_number=version_number
+        )
         return PaginatedKnowledgeChunkResponseSchema(**result.model_dump())
     except Exception as exc:
         _handle_exception(exc)
@@ -230,7 +232,9 @@ async def list_summaries(
     service: BusinessSummaryService = Depends(get_business_summary_service),
 ) -> PaginatedBusinessSummaryResponseSchema:
     try:
-        result = await service.list(page=page, page_size=page_size, document_id=document_id, version_number=version_number)
+        result = await service.list(
+            page=page, page_size=page_size, document_id=document_id, version_number=version_number
+        )
         return PaginatedBusinessSummaryResponseSchema(**result.model_dump())
     except Exception as exc:
         _handle_exception(exc)
@@ -274,6 +278,7 @@ async def upload_document(
         mime_type = file.content_type or "application/octet-stream"
         file_size = 0
         import os as _os
+
         try:
             file_size = _os.path.getsize(temp_path)
         except OSError:

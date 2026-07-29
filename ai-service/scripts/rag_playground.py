@@ -20,8 +20,6 @@ import logging
 import os
 import sys
 import time
-import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Optional
 
@@ -134,9 +132,7 @@ def debug_dump(label: str, obj: Any) -> None:
             text = json.dumps(obj.model_dump(), default=str, indent=2, ensure_ascii=False)
         elif hasattr(obj, "dict"):
             text = json.dumps(obj.dict(), default=str, indent=2, ensure_ascii=False)
-        elif isinstance(obj, (list, tuple)):
-            text = json.dumps(obj, default=str, indent=2, ensure_ascii=False)
-        elif isinstance(obj, dict):
+        elif isinstance(obj, (list, tuple, dict)):
             text = json.dumps(obj, default=str, indent=2, ensure_ascii=False)
         else:
             text = str(obj)
@@ -151,6 +147,7 @@ def _patch_settings() -> None:
     """Workaround for production bug: client.py reads settings.MONGO_URI
     but Settings nests it under MONGO_SETTINGS."""
     from app.core.config import settings
+
     for attr, nested in [("MONGO_URI", "MONGO_URI"), ("MONGO_DB", "MONGO_DB")]:
         if not hasattr(settings, attr):
             val = getattr(settings.MONGO_SETTINGS, nested)
@@ -159,6 +156,7 @@ def _patch_settings() -> None:
 
 
 _last_llm_call: float = 0.0
+
 
 async def _throttle_if_needed() -> None:
     """Prevent hitting Gemini free-tier rate limit (5 req/min = 12s spacing)."""
@@ -178,6 +176,7 @@ async def _throttle_if_needed() -> None:
 def _estimate_tokens(text: str) -> int:
     try:
         import tiktoken
+
         enc = tiktoken.get_encoding("cl100k_base")
         return len(enc.encode(text))
     except Exception:
@@ -187,10 +186,7 @@ def _estimate_tokens(text: str) -> int:
 async def step1_load_pdfs(store_slug: str = "") -> list[Path]:
     print_header("STEP 1: Load PDFs")
 
-    if store_slug:
-        store_dir = PROJECT_ROOT / "resources" / "stores" / store_slug
-    else:
-        store_dir = RESOURCES_DIR
+    store_dir = PROJECT_ROOT / "resources" / "stores" / store_slug if store_slug else RESOURCES_DIR
     pdf_files = sorted(store_dir.glob("*.pdf"))
     if not pdf_files:
         print_warning(f"No PDFs found in {store_dir}")
@@ -207,11 +203,13 @@ async def step1_load_pdfs(store_slug: str = "") -> list[Path]:
         pages = "?"
         try:
             from pdfminer.pdfpage import PDFPage
+
             with open(f, "rb") as fh:
                 pages = sum(1 for _ in PDFPage.get_pages(fh))
         except ImportError:
             try:
                 import PyPDF2
+
                 with open(f, "rb") as fh:
                     reader = PyPDF2.PdfReader(fh)
                     pages = len(reader.pages)
@@ -237,10 +235,11 @@ async def step2_process_documents(
 ) -> list[dict]:
     print_header("STEP 2: Document Processing")
 
+    from bson import ObjectId
+
     from app.application.knowledge.processing.processor import DocumentProcessor
     from app.domain.knowledge.entities.knowledge_document import KnowledgeDocument
     from app.domain.knowledge.value_objects import DocumentMetadata, DocumentVersion
-    from bson import ObjectId
 
     processor = DocumentProcessor(
         repository=knowledge_repo,
@@ -305,7 +304,7 @@ async def step3_chunk_documents(
 ) -> list[dict]:
     print_header("STEP 3: Chunking")
 
-    from app.application.knowledge.chunking.chunking_service import ChunkingService, ChunkingConfig
+    from app.application.knowledge.chunking.chunking_service import ChunkingService
     from app.application.knowledge.chunking.config import ChunkingConfig as ChunkConfig
 
     chunking_service = ChunkingService(
@@ -387,12 +386,14 @@ async def step4_generate_embeddings(
             debug_dump("EmbeddingResponse", response)
 
             dim = len(response.embeddings[0]) if response.embeddings else 0
-            all_embeddings.append({
-                "doc_id": entry["doc_id"],
-                "chunks": chunks,
-                "embeddings": response.embeddings,
-                "elapsed": elapsed,
-            })
+            all_embeddings.append(
+                {
+                    "doc_id": entry["doc_id"],
+                    "chunks": chunks,
+                    "embeddings": response.embeddings,
+                    "elapsed": elapsed,
+                }
+            )
 
             print_success(f"Model: {os.getenv('RAG_EMBEDDING_MODEL', 'gemini-embedding-001')}")
             print_label("  Embedding dimension", str(dim))
@@ -436,21 +437,23 @@ async def step5_insert_vectors(
         cprint(Color.BOLD, f"\n  ── Inserting vectors for doc {entry['doc_id'][:8]}... ──")
 
         points = []
-        for chunk, emb in zip(entry["chunks"], entry["embeddings"]):
-            points.append(VectorRecord(
-                id=chunk.id,
-                vector=emb,
-                payload={
-                    "chunk_id": chunk.id,
-                    "document_id": chunk.document_id,
-                    "content": chunk.content[:2000],
-                    "chunk_index": chunk.chunk_index,
-                    "store_id": STORE_ID,
-                    "organization_id": ORG_ID,
-                    "language": chunk.metadata.get("language", "en"),
-                    "source_type": chunk.metadata.get("source_type", ""),
-                },
-            ))
+        for chunk, emb in zip(entry["chunks"], entry["embeddings"], strict=False):
+            points.append(
+                VectorRecord(
+                    id=chunk.id,
+                    vector=emb,
+                    payload={
+                        "chunk_id": chunk.id,
+                        "document_id": chunk.document_id,
+                        "content": chunk.content[:2000],
+                        "chunk_index": chunk.chunk_index,
+                        "store_id": STORE_ID,
+                        "organization_id": ORG_ID,
+                        "language": chunk.metadata.get("language", "en"),
+                        "source_type": chunk.metadata.get("source_type", ""),
+                    },
+                )
+            )
 
         try:
             inserted = await vector_store.upsert(collection_name, points)
@@ -472,11 +475,11 @@ async def step6_generate_summary(
     knowledge_repo,
     summary_repo,
     provider,
-) -> Optional[dict]:
+) -> dict | None:
     print_header("STEP 6: Business Summary Generation")
 
-    from app.application.knowledge.generation.service import BusinessSummaryGenerationService
     from app.application.knowledge.generation.config import GenerationConfig
+    from app.application.knowledge.generation.service import BusinessSummaryGenerationService
 
     gen_service = BusinessSummaryGenerationService(
         knowledge_repository=knowledge_repo,
@@ -484,7 +487,9 @@ async def step6_generate_summary(
         provider=provider,
     )
 
-    config = GenerationConfig(model=os.getenv("RAG_LLM_MODEL", "gemini-flash-lite-latest"), temperature=0.3, max_tokens=4096)
+    config = GenerationConfig(
+        model=os.getenv("RAG_LLM_MODEL", "gemini-flash-lite-latest"), temperature=0.3, max_tokens=4096
+    )
 
     try:
         await _throttle_if_needed()
@@ -517,8 +522,8 @@ async def step6_generate_summary(
 async def step7_semantic_search(
     query: str,
     retriever,
-) -> Optional[dict]:
-    print_header(f"STEP 7: Semantic Search — \"{query}\"")
+) -> dict | None:
+    print_header(f'STEP 7: Semantic Search — "{query}"')
 
     from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
 
@@ -571,17 +576,20 @@ async def step7_semantic_search(
 async def step8_build_rag_prompt(
     query: str,
     retriever,
-    summary_data: Optional[dict],
-) -> Optional[dict]:
+    summary_data: dict | None,
+) -> dict | None:
     print_header("STEP 8: RAG Prompt Construction")
 
     from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
-    from app.application.rag.prompt import build_rag_messages
     from app.application.rag.dedup import deduplicate_chunks
+    from app.application.rag.prompt import build_rag_messages
 
     config = RetrievalConfig(
-        top_k=5, score_threshold=0.0, use_hybrid=False,
-        use_mmr=False, rerank=False,
+        top_k=5,
+        score_threshold=0.0,
+        use_hybrid=False,
+        use_mmr=False,
+        rerank=False,
         embedding_model=os.getenv("RAG_EMBEDDING_MODEL", "gemini-embedding-001"),
     )
     filters = RetrievalFilters(organization_id=ORG_ID, store_id=STORE_ID)
@@ -605,9 +613,7 @@ async def step8_build_rag_prompt(
     for i, c in enumerate(chunks[:MAX_CHUNKS_IN_CONTEXT]):
         snippet = c.content[:MAX_CHUNK_CHARS]
         chunks_context_lines.append(
-            f"\n### Retrieved Knowledge Chunk [{i + 1}]\n"
-            f"**Source:** {c.document_title}\n"
-            f"{snippet}\n"
+            f"\n### Retrieved Knowledge Chunk [{i + 1}]\n**Source:** {c.document_title}\n{snippet}\n"
         )
     chunks_context = "\n".join(chunks_context_lines)
 
@@ -618,7 +624,7 @@ async def step8_build_rag_prompt(
         business_summary_version=summary_version,
     )
 
-    from app.application.rag.prompt import RAG_SYSTEM_PROMPT, CONTEXT_PLACEHOLDER
+    from app.application.rag.prompt import CONTEXT_PLACEHOLDER, RAG_SYSTEM_PROMPT
 
     print()
     print_label("SYSTEM PROMPT (base rules)", "")
@@ -648,11 +654,7 @@ async def step8_build_rag_prompt(
     print()
 
     print_label("FINAL PROMPT SENT TO MODEL", "")
-    full_prompt = (
-        f"System: {system_content}\n\n"
-        f"---\n\n"
-        f"User: {user_content}"
-    )
+    full_prompt = f"System: {system_content}\n\n---\n\nUser: {user_content}"
     print(f"{full_prompt}\n")
 
     return {
@@ -663,9 +665,9 @@ async def step8_build_rag_prompt(
 
 
 async def step9_chat_completion(
-    rag_prompt_data: Optional[dict],
+    rag_prompt_data: dict | None,
     chat_service,
-) -> Optional[dict]:
+) -> dict | None:
     print_header("STEP 9: Chat Completion")
 
     from app.application.dto.ai_dto import ChatRequest, MessageDTO
@@ -730,17 +732,17 @@ async def step10_interactive_mode(
     tenant: "TenantContext",
     retriever,
     chat_service,
-    summary_data: Optional[dict],
+    summary_data: dict | None,
 ) -> None:
     print_header("STEP 10: Interactive Mode")
 
-    from app.application.dto.ai_dto import MessageDTO, ChatRequest
+    from app.application.dto.ai_dto import ChatRequest
     from app.application.rag.context_builder import ContextBuilder
     from app.application.rag.prompt_builder import PromptBuilder
-    from app.infrastructure.mongodb.repositories.knowledge_repository import KnowledgeRepository
     from app.infrastructure.mongodb.repositories.business_summary_repository import (
         BusinessSummaryRepository,
     )
+    from app.infrastructure.mongodb.repositories.knowledge_repository import KnowledgeRepository
 
     knowledge_repo = KnowledgeRepository()
     summary_repo = BusinessSummaryRepository()
@@ -773,11 +775,10 @@ async def step10_interactive_mode(
         try:
             retrieval_start = time.perf_counter()
             ctx = await builder.build(question)
-            retrieval_elapsed = time.perf_counter() - retrieval_start
+            time.perf_counter() - retrieval_start
         except Exception as e:
             print_warning(f"Context builder failed: {e}")
             ctx = None
-            retrieval_elapsed = 0
 
         print()
         if ctx:
@@ -785,7 +786,7 @@ async def step10_interactive_mode(
             for i, c in enumerate(ctx.chunks[:3]):
                 print_label(f"  Chunk [{i + 1}] score", f"{c.score:.4f}")
                 preview = c.content[:120].replace("\n", " ")
-                print_label(f"    Preview", f"{preview}...")
+                print_label("    Preview", f"{preview}...")
 
         messages = prompt_builder.build(
             user_message=question,
@@ -831,28 +832,29 @@ async def step10_interactive_mode(
 
 def _resolve_tenant_from_slug(slug: str) -> "TenantContext":
     from app.application.rag.resolver import TenantContextResolver
+
     resolver = TenantContextResolver(store_registry=STORE_REGISTRY)
     return resolver.from_slug(slug)
 
 
 async def step0_sync_coordinator(
     tenant: "TenantContext",
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Run KnowledgeSyncCoordinator — detect changes, sync knowledge, bump version."""
     print_header("STEP 0: Knowledge Sync Coordinator")
 
     from app.application.knowledge.coordinator import KnowledgeSyncCoordinator
     from app.application.knowledge.services import (
-        KnowledgeDocumentService,
-        KnowledgeChunkService,
         BusinessSummaryService,
+        KnowledgeChunkService,
+        KnowledgeDocumentService,
     )
-    from app.infrastructure.mongodb.repositories.knowledge_repository import (
-        KnowledgeRepository,
-    )
-    from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
     from app.infrastructure.mongodb.repositories.business_summary_repository import (
         BusinessSummaryRepository,
+    )
+    from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
+    from app.infrastructure.mongodb.repositories.knowledge_repository import (
+        KnowledgeRepository,
     )
 
     knowledge_repo = KnowledgeRepository()
@@ -884,7 +886,9 @@ async def step0_sync_coordinator(
         print_label("Embeddings Generated", str(report.embeddings_generated))
         print_label("Summary Updated", str(report.summary_updated))
         print_label("Vectors Synced", str(report.vectors_synced))
-        print_label("Sync Status", report.sync_status, Color.GREEN if report.sync_status == "completed" else Color.YELLOW)
+        print_label(
+            "Sync Status", report.sync_status, Color.GREEN if report.sync_status == "completed" else Color.YELLOW
+        )
         if report.errors:
             print_warning(f"Errors: {len(report.errors)}")
             for e in report.errors:
@@ -903,7 +907,7 @@ async def step11_resolve_tenant(
 ) -> None:
     """Display resolved tenant context."""
     print_header("STEP 11: Tenant Resolution")
-    print_success(f"Tenant resolved automatically")
+    print_success("Tenant resolved automatically")
     print_label("  Organization", tenant.organization_id)
     print_label("  Store ID", tenant.store_id)
     print_label("  Store Slug", tenant.store_slug, Color.BOLD)
@@ -919,7 +923,7 @@ async def step11_resolve_tenant(
 async def step12_load_knowledge_version(
     tenant: "TenantContext",
     knowledge_repo,
-) -> Optional[int]:
+) -> int | None:
     """Load the active knowledge version for the current tenant."""
     print_header("STEP 12: Active Knowledge Version")
 
@@ -929,9 +933,13 @@ async def step12_load_knowledge_version(
     )
 
     col = get_knowledge_versions_collection()
-    cursor = col.find(
-        {"organization_id": tenant.organization_id, "store_id": tenant.store_id},
-    ).sort("version_number", -1).limit(1)
+    cursor = (
+        col.find(
+            {"organization_id": tenant.organization_id, "store_id": tenant.store_id},
+        )
+        .sort("version_number", -1)
+        .limit(1)
+    )
     latest = await cursor.to_list(length=1)
 
     if latest:
@@ -974,7 +982,7 @@ async def step13_context_builder(
         ctx = await builder.build(query)
         elapsed = time.perf_counter() - start
 
-        print_success(f"Context built in {elapsed*1000:.1f}ms")
+        print_success(f"Context built in {elapsed * 1000:.1f}ms")
         print_label("  Knowledge Version", str(ctx.active_version_number))
         print_label("  Business Summary", f"{'✓' if ctx.business_summary else '✗'} loaded")
         print_label("  Chunks Retrieved", str(ctx.total_chunks_retrieved))
@@ -989,10 +997,10 @@ async def step13_context_builder(
         print()
         for i, c in enumerate(ctx.chunks[:5]):
             print_label(f"  Chunk [{i + 1}]", c.document_title)
-            print_label(f"    Score", f"{c.score:.4f}")
-            print_label(f"    Rank", str(c.rank))
+            print_label("    Score", f"{c.score:.4f}")
+            print_label("    Rank", str(c.rank))
             preview = c.content[:150].replace("\n", " ")
-            print_label(f"    Preview", f"{preview}...")
+            print_label("    Preview", f"{preview}...")
 
         return ctx
 
@@ -1005,8 +1013,8 @@ async def step13_context_builder(
 async def step14_prompt_builder(
     built_context: Optional["BuiltContext"],
     query: str,
-    conversation_history: Optional[list] = None,
-) -> Optional[dict]:
+    conversation_history: list | None = None,
+) -> dict | None:
     """Build final prompt using PromptBuilder and display all components."""
     print_header("STEP 14: Prompt Builder")
 
@@ -1062,9 +1070,9 @@ async def step14_prompt_builder(
 
 
 async def step15_chat_completion_with_display(
-    prompt_data: Optional[dict],
+    prompt_data: dict | None,
     chat_service,
-) -> Optional[dict]:
+) -> dict | None:
     """Call ChatService with the final prompt and display full results."""
     print_header("STEP 15: Chat Completion")
 
@@ -1098,11 +1106,13 @@ async def step15_chat_completion_with_display(
         context = prompt_data.get("context")
         if context and context.chunks:
             for c in context.chunks[:10]:
-                chunk_refs.append({
-                    "chunk_id": c.chunk_id,
-                    "document_title": c.document_title,
-                    "score": c.score,
-                })
+                chunk_refs.append(
+                    {
+                        "chunk_id": c.chunk_id,
+                        "document_title": c.document_title,
+                        "score": c.score,
+                    }
+                )
 
         print_success(f"Provider: {response.provider}")
         print_label("  Model", response.model)
@@ -1199,24 +1209,24 @@ async def main() -> None:
     if not pdfs:
         return
 
+    from app.application.knowledge.processing.pipeline import ProcessingPipeline
+    from app.application.knowledge.retrieval.reranker import LLMCrossEncoderReRanker
+    from app.application.knowledge.retrieval.service import RetrieverService
+    from app.application.services.chat_service import ChatService
+    from app.infrastructure.knowledge.extractors import ExtractorFactory
     from app.infrastructure.mongodb.client import MongoClientManager
-    from app.infrastructure.qdrant.provider import QdrantProvider
-    from app.infrastructure.providers.factory import LLMProviderFactory
-    from app.infrastructure.mongodb.repositories.knowledge_repository import KnowledgeRepository
-    from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
     from app.infrastructure.mongodb.repositories.business_summary_repository import (
         BusinessSummaryRepository,
     )
-    from app.infrastructure.knowledge.extractors import ExtractorFactory
-    from app.application.knowledge.processing.pipeline import ProcessingPipeline
-    from app.application.knowledge.retrieval.service import RetrieverService
-    from app.application.knowledge.retrieval.reranker import LLMCrossEncoderReRanker
-    from app.application.services.chat_service import ChatService
+    from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
+    from app.infrastructure.mongodb.repositories.knowledge_repository import KnowledgeRepository
+    from app.infrastructure.providers.factory import LLMProviderFactory
+    from app.infrastructure.qdrant.provider import QdrantProvider
 
     await MongoClientManager.connect()
     print_success("MongoDB connected")
 
-    vector_store: Optional[QdrantProvider] = None
+    vector_store: QdrantProvider | None = None
     qdrant_connected = False
     try:
         vector_store = QdrantProvider()
@@ -1250,14 +1260,15 @@ async def main() -> None:
 
         knowledge_version = await step12_load_knowledge_version(tenant, knowledge_repo)
         if knowledge_version:
-            tenant = tenant.__class__(
-                **{**tenant.model_dump(), "knowledge_version": knowledge_version}
-            )
+            tenant = tenant.__class__(**{**tenant.model_dump(), "knowledge_version": knowledge_version})
 
-        sync_report = await step0_sync_coordinator(tenant)
+        await step0_sync_coordinator(tenant)
 
         processed = await step2_process_documents(
-            pdfs, knowledge_repo, ExtractorFactory(), ProcessingPipeline(),
+            pdfs,
+            knowledge_repo,
+            ExtractorFactory(),
+            ProcessingPipeline(),
         )
         if not processed:
             print_warning("No documents were processed successfully. Exiting.")
@@ -1284,7 +1295,7 @@ async def main() -> None:
             if qdrant_connected:
                 await step7_semantic_search(q, retriever)
             else:
-                print_header(f"STEP 7: Semantic Search — \"{q}\" (skipped — Qdrant unavailable)")
+                print_header(f'STEP 7: Semantic Search — "{q}" (skipped — Qdrant unavailable)')
 
         rag_prompt = await step8_build_rag_prompt(
             "What are your shipping options and return policy?",
@@ -1302,14 +1313,23 @@ async def main() -> None:
         test_question = "What are your shipping options and return policy?"
 
         built_context = await step13_context_builder(
-            tenant, retriever, knowledge_repo, summary_repo, test_question,
+            tenant,
+            retriever,
+            knowledge_repo,
+            summary_repo,
+            test_question,
         )
 
         from app.application.dto.ai_dto import MessageDTO
-        history = [
-            MessageDTO(role="user", content="Hello"),
-            MessageDTO(role="assistant", content="Hi! How can I help you today?"),
-        ] if knowledge_version else None
+
+        history = (
+            [
+                MessageDTO(role="user", content="Hello"),
+                MessageDTO(role="assistant", content="Hi! How can I help you today?"),
+            ]
+            if knowledge_version
+            else None
+        )
 
         prompt_data = await step14_prompt_builder(built_context, test_question, history)
 

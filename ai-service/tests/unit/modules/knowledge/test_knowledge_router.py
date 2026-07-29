@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -48,13 +49,13 @@ def mock_summary_service():
 
 @pytest.fixture(autouse=True)
 def override_deps_and_app(mock_doc_service, mock_chunk_service, mock_summary_service):
-    from app.main import app
     from app.api.knowledge.dependencies import (
-        get_knowledge_document_service,
-        get_knowledge_chunk_service,
         get_business_summary_service,
+        get_knowledge_chunk_service,
+        get_knowledge_document_service,
     )
     from app.api.knowledge.router import router as knowledge_router
+    from app.main import app
 
     app.dependency_overrides.clear()
     overrides = {
@@ -72,6 +73,7 @@ def override_deps_and_app(mock_doc_service, mock_chunk_service, mock_summary_ser
 @pytest.fixture
 def client():
     from fastapi.testclient import TestClient
+
     from app.main import app
 
     return TestClient(app)
@@ -80,13 +82,23 @@ def client():
 class TestKnowledgeDocumentEndpoints:
     def _make_doc_dto(self, **overrides):
         from datetime import datetime
-        from app.application.knowledge.dto import DocumentMetadataDTO, DocumentVersionDTO, KnowledgeDocumentDTO
 
-        defaults = dict(
-            id="doc-1", store_id="store-1", title="Test Doc", status="draft", language="en",
-            metadata=DocumentMetadataDTO(), versions=[], current_version=1, chunks=[],
-            chunking_strategy="manual", created_at=datetime.now(), updated_at=datetime.now(),
-        )
+        from app.application.knowledge.dto import DocumentMetadataDTO, KnowledgeDocumentDTO
+
+        defaults = {
+            "id": "doc-1",
+            "store_id": "store-1",
+            "title": "Test Doc",
+            "status": "draft",
+            "language": "en",
+            "metadata": DocumentMetadataDTO(),
+            "versions": [],
+            "current_version": 1,
+            "chunks": [],
+            "chunking_strategy": "manual",
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
         defaults.update(overrides)
         return KnowledgeDocumentDTO(**defaults)
 
@@ -146,12 +158,19 @@ class TestKnowledgeDocumentEndpoints:
 class TestKnowledgeChunkEndpoints:
     def _make_chunk_dto(self, **overrides):
         from datetime import datetime
+
         from app.application.knowledge.dto import KnowledgeChunkDTO
 
-        defaults = dict(
-            id="chunk-1", document_id="doc-1", version_number=1, chunk_index=0,
-            content="Hello", metadata={}, created_at=datetime.now(), updated_at=datetime.now(),
-        )
+        defaults = {
+            "id": "chunk-1",
+            "document_id": "doc-1",
+            "version_number": 1,
+            "chunk_index": 0,
+            "content": "Hello",
+            "metadata": {},
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
         defaults.update(overrides)
         return KnowledgeChunkDTO(**defaults)
 
@@ -210,13 +229,19 @@ class TestKnowledgeChunkEndpoints:
 class TestBusinessSummaryEndpoints:
     def _make_summary_dto(self, **overrides):
         from datetime import datetime
+
         from app.application.knowledge.dto import BusinessSummaryDTO
 
-        defaults = dict(
-            id="sum-1", document_id="doc-1", version_number=1,
-            title="Summary", summary="Body", metadata={},
-            created_at=datetime.now(), updated_at=datetime.now(),
-        )
+        defaults = {
+            "id": "sum-1",
+            "document_id": "doc-1",
+            "version_number": 1,
+            "title": "Summary",
+            "summary": "Body",
+            "metadata": {},
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
         defaults.update(overrides)
         return BusinessSummaryDTO(**defaults)
 

@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field, field_validator
 
@@ -20,33 +20,33 @@ class Variant(AggregateRoot[str]):
     sku: str = Field(..., min_length=1)
     title: str = Field(..., min_length=1)
     price: Money
-    compare_at_price: Optional[Money] = None
+    compare_at_price: Money | None = None
     inventory_quantity: int = Field(default=0, ge=0)
-    weight: Optional[Decimal] = Field(default=None, ge=0)
-    dimensions: Optional[str] = None
+    weight: Decimal | None = Field(default=None, ge=0)
+    dimensions: str | None = None
 
 
 class Product(AggregateRoot[str]):
     store_id: str = Field(..., min_length=1)
     organization_id: str = Field(..., min_length=1)
-    external_id: Optional[str] = None
+    external_id: str | None = None
     title: str = Field(..., min_length=1)
-    description: Optional[str] = None
-    handle: Optional[str] = None
+    description: str | None = None
+    handle: str | None = None
     status: str = Field(default="draft")
-    product_type: Optional[str] = None
-    vendor: Optional[str] = None
+    product_type: str | None = None
+    vendor: str | None = None
     tags: list[str] = Field(default_factory=list)
     images: list[Image] = Field(default_factory=list)
     variants: list[Variant] = Field(default_factory=list)
     options: list[ProductOption] = Field(default_factory=list)
     seo: SEO = Field(default_factory=SEO)
-    category_id: Optional[str] = None
+    category_id: str | None = None
     audit: AuditInfo = Field(default_factory=AuditInfo)
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    deleted_at: Optional[datetime] = Field(default=None)
+    deleted_at: datetime | None = Field(default=None)
 
     @field_validator("status")
     @classmethod

@@ -1,17 +1,14 @@
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
-import pytest
-
 from app.agents.recommendation.tools import (
+    apply_budget_filter,
     build_product_cards,
+    filter_inventory,
     parse_intent,
     search_spec_vectors,
-    filter_inventory,
-    apply_budget_filter,
 )
 from app.application.recommendation.dto.recommendation_dto import (
-    ProductCard,
     RecommendationIntent,
     ScoredProduct,
 )
@@ -79,14 +76,22 @@ class TestFilterInventory:
             ScoredProduct(product_id="p2", title="P2", store_id="s1"),
         ]
 
-        p1 = Product(id="p1", store_id="s1", organization_id="o1", title="P1",
-                     variants=[Variant(id="v1", sku="S1", title="V1",
-                                       price=Money(amount=Decimal("10")))])
+        p1 = Product(
+            id="p1",
+            store_id="s1",
+            organization_id="o1",
+            title="P1",
+            variants=[Variant(id="v1", sku="S1", title="V1", price=Money(amount=Decimal("10")))],
+        )
         p1.variants[0].inventory_quantity = 0
 
-        p2 = Product(id="p2", store_id="s1", organization_id="o1", title="P2",
-                     variants=[Variant(id="v2", sku="S2", title="V2",
-                                       price=Money(amount=Decimal("20")))])
+        p2 = Product(
+            id="p2",
+            store_id="s1",
+            organization_id="o1",
+            title="P2",
+            variants=[Variant(id="v2", sku="S2", title="V2", price=Money(amount=Decimal("20")))],
+        )
         p2.variants[0].inventory_quantity = 5
 
         repo.find_by_id.side_effect = [p1, p2]
@@ -110,14 +115,20 @@ class TestApplyBudgetFilter:
             ScoredProduct(product_id="p2", title="P2", store_id="s1"),
         ]
         repo.find_by_id.side_effect = [
-            Product(id="p1", store_id="s1", organization_id="o1", title="P1",
-                    variants=[Variant(id="v1", sku="S1", title="V1",
-                                      price=Money(amount=Decimal("1000")))],
-                    ),
-            Product(id="p2", store_id="s1", organization_id="o1", title="P2",
-                    variants=[Variant(id="v2", sku="S2", title="V2",
-                                      price=Money(amount=Decimal("100")))],
-                    ),
+            Product(
+                id="p1",
+                store_id="s1",
+                organization_id="o1",
+                title="P1",
+                variants=[Variant(id="v1", sku="S1", title="V1", price=Money(amount=Decimal("1000")))],
+            ),
+            Product(
+                id="p2",
+                store_id="s1",
+                organization_id="o1",
+                title="P2",
+                variants=[Variant(id="v2", sku="S2", title="V2", price=Money(amount=Decimal("100")))],
+            ),
         ]
 
         result = await apply_budget_filter(candidates, 500.0, repo)

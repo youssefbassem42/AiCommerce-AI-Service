@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +13,6 @@ class BusinessSummaryGenerationResponseDTO(BaseModel):
     metadata: dict[str, Any]
     sections: dict[str, str] = Field(default_factory=dict)
     document_count: int = 0
-    model: Optional[str] = None
+    model: str | None = None
     created_at: datetime
     updated_at: datetime

@@ -1,14 +1,14 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, UTC
+
+import pytest
 
 from app.application.knowledge.event_handlers.product_sync_handler import (
-    ProductSyncHandler,
     ProductDeletedHandler,
+    ProductSyncHandler,
 )
-from app.domain.commerce.events.product_events import ProductSynced, ProductDeleted
-from app.domain.knowledge.entities.knowledge_document import KnowledgeDocument
+from app.domain.commerce.events.product_events import ProductDeleted, ProductSynced
 from app.domain.knowledge.entities.knowledge_chunk import KnowledgeChunk
+from app.domain.knowledge.entities.knowledge_document import KnowledgeDocument
 
 
 @pytest.mark.asyncio
@@ -85,9 +85,7 @@ class TestProductSyncHandler:
 
         await handler.handle(event)
 
-        knowledge_repo.find_many.assert_called_once_with(
-            {"store_id": "store-1", "status": "active"}
-        )
+        knowledge_repo.find_many.assert_called_once_with({"store_id": "store-1", "status": "active"})
 
 
 @pytest.mark.asyncio
@@ -112,9 +110,7 @@ class TestProductDeletedHandler:
 
         await handler.handle(event)
 
-        chunk_repo.find_many.assert_called_once_with(
-            {"store_id": "store-1", "product_id": "prod-1"}
-        )
+        chunk_repo.find_many.assert_called_once_with({"store_id": "store-1", "product_id": "prod-1"})
         chunk_repo.delete.assert_any_call("chunk-1")
         chunk_repo.delete.assert_any_call("chunk-2")
         assert chunk_repo.delete.call_count == 2

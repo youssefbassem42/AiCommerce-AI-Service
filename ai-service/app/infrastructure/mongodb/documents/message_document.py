@@ -1,19 +1,23 @@
-from datetime import datetime, UTC
-from typing import Dict, Any, Optional
+from datetime import UTC, datetime
+from typing import Any
+
 from pydantic import Field
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+
 from app.domain.conversation.entities.message import Message
+from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+
 
 class MessageDocument(BaseMongoDocument):
     """MongoDB document model representing a Message."""
+
     conversation_id: str = Field(..., index=True)
     role: str = Field(...)
     content: str = Field(...)
     sender: str = Field(...)
-    sentiment: Optional[str] = Field(None)
-    intent: Optional[str] = Field(None)
+    sentiment: str | None = Field(None)
+    intent: str | None = Field(None)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     def to_entity(self) -> Message:
         """Map the Mongo document back to domain Entity."""
@@ -26,7 +30,7 @@ class MessageDocument(BaseMongoDocument):
             sentiment=self.sentiment,
             intent=self.intent,
             timestamp=self.timestamp,
-            metadata=self.metadata
+            metadata=self.metadata,
         )
 
     @classmethod
@@ -41,5 +45,5 @@ class MessageDocument(BaseMongoDocument):
             sentiment=entity.sentiment,
             intent=entity.intent,
             timestamp=entity.timestamp,
-            metadata=entity.metadata
+            metadata=entity.metadata,
         )

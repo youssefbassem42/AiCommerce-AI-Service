@@ -1,8 +1,9 @@
-from app.domain.recommendation.entities.recommendation import Recommendation
+from app.application.recommendation.dto.recommendation_dto import BundleSuggestionDTO, RecommendationDTO
 from app.domain.recommendation.entities.bundle_suggestion import BundleSuggestion
-from app.infrastructure.mongodb.documents.recommendation_document import RecommendationDocument
+from app.domain.recommendation.entities.recommendation import Recommendation
 from app.infrastructure.mongodb.documents.bundle_document import BundleSuggestionDocument
-from app.application.recommendation.dto.recommendation_dto import RecommendationDTO, BundleSuggestionDTO
+from app.infrastructure.mongodb.documents.recommendation_document import RecommendationDocument
+
 
 class RecommendationMapper:
     """Maps Recommendation Aggregate between Mongo Documents, Domain Entities, and DTOs."""
@@ -28,7 +29,7 @@ class RecommendationMapper:
             store_id=entity.store_id,
             accepted=entity.accepted,
             rationale=entity.rationale,
-            created_at=entity.created_at
+            created_at=entity.created_at,
         )
 
     @staticmethod
@@ -53,5 +54,5 @@ class RecommendationMapper:
             discount_percentage=entity.discount_percentage,
             status=entity.status,
             created_at=entity.created_at,
-            updated_at=entity.updated_at
+            updated_at=entity.updated_at,
         )

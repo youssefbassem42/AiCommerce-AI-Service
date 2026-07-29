@@ -1,5 +1,6 @@
 """Tests for AuditMiddleware."""
-from unittest.mock import AsyncMock, Mock, patch
+
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import Request, Response
@@ -28,7 +29,6 @@ class TestAuditMiddleware:
         request = create_mock_request(path="/health/")
         middleware = AuditMiddleware(lambda app: None)
 
-
         with patch.object(middleware, "_log_audit_entry") as mock_log:
             call_next = AsyncMock(return_value=Response("OK", status_code=200))
             response = await middleware.dispatch(request, call_next)
@@ -40,7 +40,6 @@ class TestAuditMiddleware:
         """Preconditions: GET request. Input: GET /api/v1/data. Execution: Dispatch. Expected: No audit log."""
         request = create_mock_request(path="/api/v1/data", method="GET")
         middleware = AuditMiddleware(lambda app: None)
-
 
         with patch.object(middleware, "_log_audit_entry") as mock_log:
             call_next = AsyncMock(return_value=Response("OK", status_code=200))
@@ -54,7 +53,6 @@ class TestAuditMiddleware:
         request = create_mock_request(path="/api/v1/chat", method="POST")
         middleware = AuditMiddleware(lambda app: None)
 
-
         with patch.object(middleware, "_log_audit_entry") as mock_log:
             call_next = AsyncMock(return_value=Response("OK", status_code=200))
             response = await middleware.dispatch(request, call_next)
@@ -66,7 +64,6 @@ class TestAuditMiddleware:
         """Preconditions: Request that fails. Input: POST causing 500. Execution: Dispatch. Expected: Audit log for failure."""
         request = create_mock_request(path="/api/v1/chat", method="POST")
         middleware = AuditMiddleware(lambda app: None)
-
 
         with patch.object(middleware, "_log_audit_entry") as mock_log:
             call_next = AsyncMock(side_effect=ValueError("DB error"))

@@ -31,7 +31,10 @@ def mock_collection():
 
 @pytest.fixture
 def repo(mock_collection):
-    with patch("app.infrastructure.mongodb.repositories.commerce_category_repository.get_categories_collection", return_value=mock_collection):
+    with patch(
+        "app.infrastructure.mongodb.repositories.commerce_category_repository.get_categories_collection",
+        return_value=mock_collection,
+    ):
         r = CommerceCategoryRepository()
         r.collection = mock_collection
         return r
@@ -58,7 +61,6 @@ _base_doc = {
 
 
 class TestCommerceCategoryRepository:
-
     async def test_create_category(self, repo, mock_collection):
         cat = Category(id="507f1f77bcf86cd799439011", store_id="s1", org_id="o1", name="Test")
         result = await repo.create(cat)

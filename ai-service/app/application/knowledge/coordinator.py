@@ -1,19 +1,13 @@
 import hashlib
 import logging
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from app.application.knowledge.chunking.chunking_service import (
-    ChunkingConfig,
-    ChunkingService,
     ChunkingResult,
+    ChunkingService,
 )
 from app.application.knowledge.chunking.config import ChunkingConfig as ChunkConfig
-from app.application.knowledge.dto import (
-    BusinessSummaryDTO,
-    KnowledgeChunkDTO,
-    KnowledgeDocumentDTO,
-)
 from app.application.knowledge.generation.config import GenerationConfig
 from app.application.knowledge.generation.service import BusinessSummaryGenerationService
 from app.application.knowledge.processing.processor import DocumentProcessor
@@ -25,7 +19,6 @@ from app.application.knowledge.services import (
 from app.core.celery_app import celery_app
 from app.domain.knowledge.entities.knowledge_document import KnowledgeDocument
 from app.domain.knowledge.repositories.knowledge_repository import KnowledgeRepository
-from app.domain.knowledge.value_objects import DocumentVersion
 from app.domain.knowledge.value_objects.knowledge_version import KnowledgeVersionInfo
 from app.domain.knowledge.value_objects.tenant_context import TenantContext
 from app.infrastructure.knowledge.extractors import ExtractorFactory
@@ -96,9 +89,9 @@ class KnowledgeSyncCoordinator:
         chunk_service: KnowledgeChunkService,
         summary_service: BusinessSummaryService,
         knowledge_repository: KnowledgeRepository,
-        extractor_factory: Optional[ExtractorFactory] = None,
-        llm_provider: Optional[BaseLLMProvider] = None,
-        vector_store: Optional[VectorStore] = None,
+        extractor_factory: ExtractorFactory | None = None,
+        llm_provider: BaseLLMProvider | None = None,
+        vector_store: VectorStore | None = None,
     ) -> None:
         self.tenant = tenant
         self.document_service = document_service
@@ -111,7 +104,7 @@ class KnowledgeSyncCoordinator:
 
     async def run_sync(
         self,
-        file_paths: Optional[list[str]] = None,
+        file_paths: list[str] | None = None,
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
         chunk_strategy: str = "recursive",
@@ -123,9 +116,7 @@ class KnowledgeSyncCoordinator:
         current_version = await self._load_current_version()
         report.current_version = current_version
 
-        docs = await self.knowledge_repository.find_by_store_id(
-            self.tenant.store_id, limit=1000
-        )
+        docs = await self.knowledge_repository.find_by_store_id(self.tenant.store_id, limit=1000)
         report.total_files = len(docs)
 
         changed_docs: list[KnowledgeDocument] = []
@@ -141,7 +132,8 @@ class KnowledgeSyncCoordinator:
             report.sync_status = "no_changes"
             logger.info(
                 "Store '%s': no document changes detected (v%d), skipping sync",
-                self.tenant.store_slug, current_version,
+                self.tenant.store_slug,
+                current_version,
             )
             return report
 
@@ -204,9 +196,7 @@ class KnowledgeSyncCoordinator:
         if not latest.checksum:
             return True
         stored = getattr(doc.metadata.attributes, "source_checksum", None) or ""
-        if stored and stored == latest.checksum:
-            return False
-        return True
+        return not (stored and stored == latest.checksum)
 
     async def _compute_checksum(self, file_path: str) -> str:
         sha = hashlib.sha256()
@@ -232,11 +222,10 @@ class KnowledgeSyncCoordinator:
         )
         return await pipeline.process(doc, doc.source_url or "")
 
-    async def _chunk_document(
-        self, doc: KnowledgeDocument, config: ChunkConfig
-    ) -> ChunkingResult:
+    async def _chunk_document(self, doc: KnowledgeDocument, config: ChunkConfig) -> ChunkingResult:
         repo = self.knowledge_repository
         from app.domain.knowledge.repositories.chunk_repository import ChunkRepository
+
         chunk_repo = ChunkRepository()
         service = ChunkingService(
             chunk_repository=chunk_repo,
@@ -244,9 +233,7 @@ class KnowledgeSyncCoordinator:
         )
         return await service.chunk_document(doc, config)
 
-    async def _generate_embeddings_and_sync(
-        self, docs: list[KnowledgeDocument]
-    ) -> None:
+    async def _generate_embeddings_and_sync(self, docs: list[KnowledgeDocument]) -> None:
         if not self.llm_provider or not self.vector_store:
             logger.warning("Missing llm_provider or vector_store, skipping embedding sync")
             return
@@ -256,38 +243,39 @@ class KnowledgeSyncCoordinator:
         all_points: list[VectorRecord] = []
 
         from app.domain.knowledge.repositories.chunk_repository import ChunkRepository
+
         chunk_repo = ChunkRepository()
 
         for doc in docs:
-            chunks = await chunk_repo.find_by_document_id(
-                doc.id, version_number=doc.current_version, limit=10_000
-            )
+            chunks = await chunk_repo.find_by_document_id(doc.id, version_number=doc.current_version, limit=10_000)
             if not chunks:
                 continue
             texts = [c.content for c in chunks]
             try:
                 request = EmbeddingRequest(input=texts, model="gemini-embedding-001")
                 response = await self.llm_provider.embeddings(request)
-                for chunk, emb in zip(chunks, response.embeddings):
-                    all_points.append(VectorRecord(
-                        id=chunk.id,
-                        vector=emb,
-                        payload={
-                            "organization_id": self.tenant.organization_id,
-                            "store_id": self.tenant.store_id,
-                            "merchant_id": self.tenant.merchant_id,
-                            "document_id": chunk.document_id,
-                            "chunk_id": chunk.id,
-                            "knowledge_version": self.tenant.knowledge_version,
-                            "document_status": doc.status if hasattr(doc, 'status') else "active",
-                            "document_type": doc.metadata.source_type,
-                            "source_type": doc.metadata.source_type,
-                            "language": doc.language,
-                            "product_id": doc.metadata.attributes.get("product_id", ""),
-                            "category_id": doc.metadata.attributes.get("category_id", ""),
-                            "brand_id": doc.metadata.attributes.get("brand_id", ""),
-                        },
-                    ))
+                for chunk, emb in zip(chunks, response.embeddings, strict=False):
+                    all_points.append(
+                        VectorRecord(
+                            id=chunk.id,
+                            vector=emb,
+                            payload={
+                                "organization_id": self.tenant.organization_id,
+                                "store_id": self.tenant.store_id,
+                                "merchant_id": self.tenant.merchant_id,
+                                "document_id": chunk.document_id,
+                                "chunk_id": chunk.id,
+                                "knowledge_version": self.tenant.knowledge_version,
+                                "document_status": doc.status if hasattr(doc, "status") else "active",
+                                "document_type": doc.metadata.source_type,
+                                "source_type": doc.metadata.source_type,
+                                "language": doc.language,
+                                "product_id": doc.metadata.attributes.get("product_id", ""),
+                                "category_id": doc.metadata.attributes.get("category_id", ""),
+                                "brand_id": doc.metadata.attributes.get("brand_id", ""),
+                            },
+                        )
+                    )
             except Exception as e:
                 logger.error("Embedding generation failed for doc '%s': %s", doc.id, e)
 
@@ -301,6 +289,7 @@ class KnowledgeSyncCoordinator:
         from app.domain.knowledge.repositories.business_summary_repository import (
             BusinessSummaryRepository,
         )
+
         gen_service = BusinessSummaryGenerationService(
             knowledge_repository=self.knowledge_repository,
             summary_repository=BusinessSummaryRepository(),
@@ -311,9 +300,13 @@ class KnowledgeSyncCoordinator:
 
     async def _load_current_version(self) -> int:
         col = get_knowledge_versions_collection()
-        cursor = col.find(
-            {"organization_id": self.tenant.organization_id, "store_id": self.tenant.store_id},
-        ).sort("version_number", -1).limit(1)
+        cursor = (
+            col.find(
+                {"organization_id": self.tenant.organization_id, "store_id": self.tenant.store_id},
+            )
+            .sort("version_number", -1)
+            .limit(1)
+        )
         latest = await cursor.to_list(length=1)
         if latest:
             doc = KnowledgeVersionDocument.from_mongo_dict(latest[0])
@@ -343,9 +336,7 @@ class KnowledgeSyncCoordinator:
         await col.insert_one(doc.to_mongo_dict())
         return vo
 
-    async def _complete_version(
-        self, vo: KnowledgeVersionInfo, report: SyncReport
-    ) -> None:
+    async def _complete_version(self, vo: KnowledgeVersionInfo, report: SyncReport) -> None:
         col = get_knowledge_versions_collection()
         await col.update_one(
             {

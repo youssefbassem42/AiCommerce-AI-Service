@@ -61,11 +61,20 @@ class TestBundleAgentPromoDisabled:
 
     async def test_routing_after_select_respects_promo_flag(self, product_repo, llm):
         from app.agents.bundle.agent import route_after_select
+
         state: BundleState = {
-            "user_query": "test", "store_id": "s1", "customer_id": None,
-            "budget": 300.0, "desired_items": ["monitor"], "budget_parsed": True,
-            "candidates_by_type": {}, "bundles": [], "selected": [AsyncMock()],
-            "promo_code": None, "response": None, "error": None,
+            "user_query": "test",
+            "store_id": "s1",
+            "customer_id": None,
+            "budget": 300.0,
+            "desired_items": ["monitor"],
+            "budget_parsed": True,
+            "candidates_by_type": {},
+            "bundles": [],
+            "selected": [AsyncMock()],
+            "promo_code": None,
+            "response": None,
+            "error": None,
         }
         assert route_after_select(state) == "handle_promo"
 

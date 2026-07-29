@@ -50,7 +50,9 @@ router = APIRouter(prefix="/api/v1/commerce", tags=["Commerce"])
 
 
 def _handle_exception(exc: Exception) -> None:
-    if isinstance(exc, (ProductNotFoundException, CategoryNotFoundException, OrderNotFoundException, InventoryNotFoundException)):
+    if isinstance(
+        exc, (ProductNotFoundException, CategoryNotFoundException, OrderNotFoundException, InventoryNotFoundException)
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     if isinstance(exc, CommerceDomainException):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))

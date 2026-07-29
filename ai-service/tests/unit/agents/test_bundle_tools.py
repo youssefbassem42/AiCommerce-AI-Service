@@ -1,7 +1,4 @@
 from decimal import Decimal
-from unittest.mock import AsyncMock
-
-import pytest
 
 from app.agents.bundle.tools import (
     knapsack_bundles,
@@ -10,7 +7,6 @@ from app.agents.bundle.tools import (
 )
 from app.application.recommendation.dto.recommendation_dto import (
     BundleCandidate,
-    DiscountInfo,
 )
 from app.domain.commerce.aggregates.product import Product, Variant
 from app.domain.commerce.value_objects.money import Money
@@ -49,11 +45,15 @@ class TestKnapsackBundles:
             store_id="s1",
             organization_id="o1",
             title=f"Product {pid}",
-            variants=[Variant(
-                id=f"v-{pid}", sku=f"SKU-{pid}", title=f"V-{pid}",
-                price=Money(amount=Decimal(str(price))),
-                inventory_quantity=5,
-            )],
+            variants=[
+                Variant(
+                    id=f"v-{pid}",
+                    sku=f"SKU-{pid}",
+                    title=f"V-{pid}",
+                    price=Money(amount=Decimal(str(price))),
+                    inventory_quantity=5,
+                )
+            ],
         )
 
     def test_single_item_bundles(self):
@@ -94,11 +94,15 @@ class TestScoreBundles:
             store_id="s1",
             organization_id="o1",
             title=f"Product {pid}",
-            variants=[Variant(
-                id=f"v-{pid}", sku=f"SKU-{pid}", title=f"V-{pid}",
-                price=Money(amount=Decimal(str(price))),
-                inventory_quantity=5,
-            )],
+            variants=[
+                Variant(
+                    id=f"v-{pid}",
+                    sku=f"SKU-{pid}",
+                    title=f"V-{pid}",
+                    price=Money(amount=Decimal(str(price))),
+                    inventory_quantity=5,
+                )
+            ],
             metadata={"max_discount_pct": discount},
         )
 

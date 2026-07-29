@@ -1,7 +1,6 @@
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
 
 from bson import ObjectId
 
@@ -44,17 +43,13 @@ class ChunkingService:
 
         text = document.processed_text
         if not text:
-            raise ChunkingException(
-                f"Document '{document.id}' has no processed_text. Run document processing first."
-            )
+            raise ChunkingException(f"Document '{document.id}' has no processed_text. Run document processing first.")
 
         chunker = get_chunker(config.strategy)
         raw_chunks = chunker.chunk(text, config)
 
         if not raw_chunks:
-            raise ChunkingException(
-                f"Chunking produced zero chunks for document '{document.id}'"
-            )
+            raise ChunkingException(f"Chunking produced zero chunks for document '{document.id}'")
 
         chunks = await self._delete_and_recreate(document, raw_chunks, config, chunker.strategy_name)
 
@@ -65,7 +60,11 @@ class ChunkingService:
 
         logger.info(
             "Document '%s' chunked into %d chunks (strategy=%s, size=%d, overlap=%d)",
-            document.id, len(chunks), config.strategy, config.chunk_size, config.overlap,
+            document.id,
+            len(chunks),
+            config.strategy,
+            config.chunk_size,
+            config.overlap,
         )
 
         return ChunkingResult(
@@ -96,7 +95,9 @@ class ChunkingService:
         if inserted != len(entities):
             logger.warning(
                 "Expected %d chunks, inserted %d for document '%s'",
-                len(entities), inserted, document.id,
+                len(entities),
+                inserted,
+                document.id,
             )
         return entities
 
@@ -137,12 +138,15 @@ class ChunkingService:
     def _count_tokens(self, text: str) -> int:
         try:
             import tiktoken
+
             enc = tiktoken.get_encoding("cl100k_base")
             return len(enc.encode(text))
         except Exception:
             return len(text) // 4
 
-    def _derive_title(self, document: KnowledgeDocument, chunk_text: str, idx: int, all_chunks: list[str]) -> str | None:
+    def _derive_title(
+        self, document: KnowledgeDocument, chunk_text: str, idx: int, all_chunks: list[str]
+    ) -> str | None:
         if idx == 0:
             return document.title
         lines = [l.strip() for l in chunk_text.split("\n") if l.strip()]

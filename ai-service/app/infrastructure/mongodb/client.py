@@ -1,11 +1,15 @@
-from motor.motor_asyncio import AsyncIOMotorClient
-from app.core.config import settings
 import logging
+
+from motor.motor_asyncio import AsyncIOMotorClient
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class MongoClientManager:
     """Manages the lifecycle of the AsyncIOMotorClient with pooling and connection checks."""
+
     _client: AsyncIOMotorClient | None = None
     _db = None
 
@@ -23,7 +27,7 @@ class MongoClientManager:
                     retryWrites=True,
                     retryReads=True,
                     maxPoolSize=100,
-                    minPoolSize=10
+                    minPoolSize=10,
                 )
                 cls._db = cls._client[settings.MONGO_SETTINGS.MONGO_DB]
                 # Force validation check
@@ -58,10 +62,11 @@ class MongoClientManager:
                 retryWrites=True,
                 retryReads=True,
                 maxPoolSize=100,
-                minPoolSize=10
+                minPoolSize=10,
             )
             cls._db = cls._client[settings.MONGO_SETTINGS.MONGO_DB]
         return cls._db
+
 
 def get_mongodb():
     """Retrieve the database reference."""

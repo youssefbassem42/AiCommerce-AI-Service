@@ -1,15 +1,16 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.application.knowledge.retrieval.dto import RetrievedChunkDTO
-from app.application.rag.dedup import deduplicate_chunks, _content_fingerprint
-from app.application.rag.dto import ChunkReference, Citation, RAGRequest, RAGResponse
-from app.application.rag.prompt import build_rag_messages, RAG_SYSTEM_PROMPT
-from app.application.rag.service import RagOrchestrationService
-from app.application.dto.ai_dto import UsageDTO
+import pytest
 
+from app.application.dto.ai_dto import UsageDTO
+from app.application.knowledge.retrieval.dto import RetrievedChunkDTO
+from app.application.rag.dedup import _content_fingerprint, deduplicate_chunks
+from app.application.rag.dto import ChunkReference, Citation, RAGRequest, RAGResponse
+from app.application.rag.prompt import RAG_SYSTEM_PROMPT, build_rag_messages
+from app.application.rag.service import RagOrchestrationService
 
 # ---------- Dedup tests ----------
+
 
 class TestContentFingerprint:
     def test_same_text_same_fingerprint(self):
@@ -26,8 +27,13 @@ class TestContentFingerprint:
 class TestDeduplicateChunks:
     def make_chunk(self, chunk_id: str, content: str) -> RetrievedChunkDTO:
         return RetrievedChunkDTO(
-            chunk_id=chunk_id, document_id="d1", document_title="T",
-            chunk_index=0, content=content, score=0.5, rank=1,
+            chunk_id=chunk_id,
+            document_id="d1",
+            document_title="T",
+            chunk_index=0,
+            content=content,
+            score=0.5,
+            rank=1,
         )
 
     def test_empty_list(self):
@@ -62,6 +68,7 @@ class TestDeduplicateChunks:
 
 # ---------- Prompt tests ----------
 
+
 class TestBuildRagMessages:
     def test_without_business_summary(self):
         system, user, original = build_rag_messages(
@@ -95,8 +102,12 @@ class TestBuildRagMessages:
 class TestChunkReference:
     def test_create(self):
         ref = ChunkReference(
-            chunk_id="c1", document_id="d1", document_title="Doc",
-            content_snippet="Snip", score=0.9, rank=1,
+            chunk_id="c1",
+            document_id="d1",
+            document_title="Doc",
+            content_snippet="Snip",
+            score=0.9,
+            rank=1,
         )
         assert ref.chunk_id == "c1"
 
@@ -104,8 +115,12 @@ class TestChunkReference:
 class TestCitation:
     def test_create(self):
         cit = Citation(
-            index=1, chunk_id="c1", document_title="Doc",
-            content_snippet="Snip", score=0.9, rank=1,
+            index=1,
+            chunk_id="c1",
+            document_title="Doc",
+            content_snippet="Snip",
+            score=0.9,
+            rank=1,
         )
         assert cit.index == 1
 
@@ -141,6 +156,7 @@ class TestRAGRequest:
 
 # ---------- RagOrchestrationService tests ----------
 
+
 @pytest.fixture
 def mock_retriever():
     r = AsyncMock()
@@ -172,14 +188,22 @@ def mock_summary_repo():
 def sample_chunks():
     return [
         RetrievedChunkDTO(
-            chunk_id="c1", document_id="d1", document_title="Doc 1",
-            chunk_index=0, content="The price of product A is $10.",
-            score=0.95, rank=1,
+            chunk_id="c1",
+            document_id="d1",
+            document_title="Doc 1",
+            chunk_index=0,
+            content="The price of product A is $10.",
+            score=0.95,
+            rank=1,
         ),
         RetrievedChunkDTO(
-            chunk_id="c2", document_id="d2", document_title="Doc 2",
-            chunk_index=0, content="Product B costs $20.",
-            score=0.85, rank=2,
+            chunk_id="c2",
+            document_id="d2",
+            document_title="Doc 2",
+            chunk_index=0,
+            content="Product B costs $20.",
+            score=0.85,
+            rank=2,
         ),
     ]
 
@@ -212,9 +236,12 @@ class TestRagOrchestrationService:
     @pytest.mark.asyncio
     async def test_answer_basic(self, rag_service, mock_retriever, mock_chat_service, sample_chunks, make_usage):
         mock_retriever.search.return_value = MagicMock(results=sample_chunks, latency_ms=50.0)
-        mock_chat_service.chat = AsyncMock(return_value=_make_chat_response(
-            "The answer is $10 [citation:1].", make_usage(),
-        ))
+        mock_chat_service.chat = AsyncMock(
+            return_value=_make_chat_response(
+                "The answer is $10 [citation:1].",
+                make_usage(),
+            )
+        )
 
         request = RAGRequest(message="What is the price of A?", store_id="store-1")
         result = await rag_service.answer(request)
@@ -239,20 +266,28 @@ class TestRagOrchestrationService:
         assert len(result.citations) == 0
 
     @pytest.mark.asyncio
-    async def test_answer_with_hybrid_config(self, rag_service, mock_retriever, mock_chat_service, sample_chunks, make_usage):
+    async def test_answer_with_hybrid_config(
+        self, rag_service, mock_retriever, mock_chat_service, sample_chunks, make_usage
+    ):
         mock_retriever.search.return_value = MagicMock(results=sample_chunks, latency_ms=30.0)
         mock_chat_service.chat = AsyncMock(return_value=_make_chat_response("Answer.", make_usage()))
 
         request = RAGRequest(
-            message="Question", store_id="store-1",
-            use_hybrid=True, use_mmr=True, rerank=True, top_k=10,
+            message="Question",
+            store_id="store-1",
+            use_hybrid=True,
+            use_mmr=True,
+            rerank=True,
+            top_k=10,
         )
         result = await rag_service.answer(request)
 
         assert result.model == "gpt-4o-mini"
 
     @pytest.mark.asyncio
-    async def test_answer_with_business_summary(self, rag_service, mock_retriever, mock_chat_service, mock_summary_repo, sample_chunks, make_usage):
+    async def test_answer_with_business_summary(
+        self, rag_service, mock_retriever, mock_chat_service, mock_summary_repo, sample_chunks, make_usage
+    ):
         mock_retriever.search.return_value = MagicMock(results=sample_chunks, latency_ms=40.0)
 
         mock_summary = MagicMock()
@@ -269,7 +304,9 @@ class TestRagOrchestrationService:
         assert result.confidence_score > 0.0
 
     @pytest.mark.asyncio
-    async def test_answer_with_conversation_history(self, rag_service, mock_retriever, mock_chat_service, mock_conversation_service, sample_chunks, make_usage):
+    async def test_answer_with_conversation_history(
+        self, rag_service, mock_retriever, mock_chat_service, mock_conversation_service, sample_chunks, make_usage
+    ):
         from app.application.dto.ai_dto import MessageDTO
 
         mock_retriever.search.return_value = MagicMock(results=sample_chunks, latency_ms=35.0)
@@ -285,19 +322,21 @@ class TestRagOrchestrationService:
         assert result.conversation_id == "conv-1"
 
     @pytest.mark.asyncio
-    async def test_answer_conversation_service_failure(self, rag_service, mock_retriever, mock_chat_service, mock_conversation_service, sample_chunks, make_usage):
+    async def test_answer_conversation_service_failure(
+        self, rag_service, mock_retriever, mock_chat_service, mock_conversation_service, sample_chunks, make_usage
+    ):
         mock_retriever.search.return_value = MagicMock(results=sample_chunks, latency_ms=30.0)
         mock_conversation_service.get_conversation_history = AsyncMock(side_effect=Exception("DB error"))
 
         mock_chat_service.chat = AsyncMock(return_value=_make_chat_response("Answer.", make_usage()))
 
-        result = await rag_service.answer(
-            RAGRequest(message="Question", store_id="store-1", conversation_id="conv-1")
-        )
+        result = await rag_service.answer(RAGRequest(message="Question", store_id="store-1", conversation_id="conv-1"))
         assert result.response == "Answer."
 
     @pytest.mark.asyncio
-    async def test_answer_summary_repo_failure(self, rag_service, mock_retriever, mock_chat_service, mock_summary_repo, sample_chunks, make_usage):
+    async def test_answer_summary_repo_failure(
+        self, rag_service, mock_retriever, mock_chat_service, mock_summary_repo, sample_chunks, make_usage
+    ):
         mock_retriever.search.return_value = MagicMock(results=sample_chunks, latency_ms=30.0)
         mock_summary_repo.find_by_document_id = AsyncMock(side_effect=Exception("DB error"))
 
@@ -307,7 +346,9 @@ class TestRagOrchestrationService:
         assert result.business_summary_version is None
 
     @pytest.mark.asyncio
-    async def test_answer_response_text_is_list(self, rag_service, mock_retriever, mock_chat_service, sample_chunks, make_usage):
+    async def test_answer_response_text_is_list(
+        self, rag_service, mock_retriever, mock_chat_service, sample_chunks, make_usage
+    ):
         mock_retriever.search.return_value = MagicMock(results=sample_chunks, latency_ms=30.0)
         mock_chat_service.chat = AsyncMock(return_value=_make_chat_response(["Hello", "World"], make_usage()))
 
@@ -360,21 +401,27 @@ class TestCalculateConfidence:
 
     def test_without_summary_low_score(self, rag_service):
         chunks = [
-            RetrievedChunkDTO(chunk_id="c1", document_id="d1", document_title="T", chunk_index=0, content="X", score=0.1, rank=1),
+            RetrievedChunkDTO(
+                chunk_id="c1", document_id="d1", document_title="T", chunk_index=0, content="X", score=0.1, rank=1
+            ),
         ]
         score = rag_service._calculate_confidence(chunks, has_business_summary=False)
         assert score == pytest.approx(0.2 + 0.8 * 0.1)
 
     def test_clamped_to_max(self, rag_service):
         chunks = [
-            RetrievedChunkDTO(chunk_id="c1", document_id="d1", document_title="T", chunk_index=0, content="X", score=2.0, rank=1),
+            RetrievedChunkDTO(
+                chunk_id="c1", document_id="d1", document_title="T", chunk_index=0, content="X", score=2.0, rank=1
+            ),
         ]
         score = rag_service._calculate_confidence(chunks, has_business_summary=True)
         assert score <= 1.0
 
     def test_clamped_to_min(self, rag_service):
         chunks = [
-            RetrievedChunkDTO(chunk_id="c1", document_id="d1", document_title="T", chunk_index=0, content="X", score=-1.0, rank=1),
+            RetrievedChunkDTO(
+                chunk_id="c1", document_id="d1", document_title="T", chunk_index=0, content="X", score=-1.0, rank=1
+            ),
         ]
         score = rag_service._calculate_confidence(chunks, has_business_summary=False)
         assert score >= 0.0

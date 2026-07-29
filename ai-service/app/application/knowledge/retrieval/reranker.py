@@ -1,8 +1,6 @@
-import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.application.knowledge.retrieval.dto import RetrievedChunkDTO
@@ -55,7 +53,7 @@ class LLMCrossEncoderReRanker(ReRanker):
 
         user_content = f"Query: {query}\n\nDocuments:\n"
         for i, doc in enumerate(documents):
-            truncated = doc.content[:self._max_chars_per_doc]
+            truncated = doc.content[: self._max_chars_per_doc]
             user_content += f"\n[{i}] {truncated}\n"
 
         request = ChatRequest(

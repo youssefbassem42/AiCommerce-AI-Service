@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from app.application.dto.ai_dto import ChatRequest, EmbeddingRequest, MessageDTO
 from app.infrastructure.providers.azure_provider import AzureOpenAIProvider
-from app.application.dto.ai_dto import ChatRequest, MessageDTO, EmbeddingRequest
 
 
 @pytest.fixture
@@ -14,7 +16,9 @@ def mock_azure_client():
 
 @pytest.mark.asyncio
 async def test_azure_chat_success(mock_azure_client):
-    provider = AzureOpenAIProvider(api_key="test-key", azure_endpoint="https://test.openai.azure.com", azure_deployment="gpt-4o")
+    provider = AzureOpenAIProvider(
+        api_key="test-key", azure_endpoint="https://test.openai.azure.com", azure_deployment="gpt-4o"
+    )
 
     mock_choice = MagicMock()
     mock_choice.message.role = "assistant"
@@ -39,7 +43,9 @@ async def test_azure_chat_success(mock_azure_client):
 
 @pytest.mark.asyncio
 async def test_azure_embeddings(mock_azure_client):
-    provider = AzureOpenAIProvider(api_key="test-key", azure_endpoint="https://test.openai.azure.com", azure_deployment="text-embedding-3-small")
+    provider = AzureOpenAIProvider(
+        api_key="test-key", azure_endpoint="https://test.openai.azure.com", azure_deployment="text-embedding-3-small"
+    )
 
     mock_data = MagicMock()
     mock_data.embedding = [0.1, 0.2, 0.3]

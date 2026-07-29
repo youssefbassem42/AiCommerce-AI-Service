@@ -1,8 +1,10 @@
-import time
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional
+import time
+from collections.abc import AsyncGenerator
+from typing import Any
+
 from openai import AsyncAzureOpenAI
-from app.infrastructure.providers.base import BaseLLMProvider
+
 from app.application.dto.ai_dto import (
     ChatRequest,
     ChatResponse,
@@ -11,15 +13,17 @@ from app.application.dto.ai_dto import (
     HealthDTO,
     MessageDTO,
     StreamingChunkDTO,
-    UsageDTO,
     ToolCallDTO,
+    UsageDTO,
 )
 from app.core.ai_settings import ai_settings
+from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.security.key_manager import KeyManager
-from app.utils.ai_error_handler import map_provider_exception, execute_with_retry
+from app.utils.ai_error_handler import execute_with_retry, map_provider_exception
 from app.utils.token_utils import calculate_cost
 
 logger = logging.getLogger("ai_service")
+
 
 class AzureOpenAIProvider(BaseLLMProvider):
     """
@@ -28,7 +32,9 @@ class AzureOpenAIProvider(BaseLLMProvider):
     to the target azure_deployment.
     """
 
-    def __init__(self, api_key: Optional[str] = None, azure_endpoint: Optional[str] = None, azure_deployment: Optional[str] = None):
+    def __init__(
+        self, api_key: str | None = None, azure_endpoint: str | None = None, azure_deployment: str | None = None
+    ):
         self.api_key = api_key or KeyManager().get_provider_api_key("azure", env_var="AZURE_OPENAI_KEY") or "mock-key"
         self.endpoint = azure_endpoint or ai_settings.AZURE_ENDPOINT or "https://mock-endpoint.openai.azure.com/"
         self.deployment = azure_deployment or ai_settings.AZURE_DEPLOYMENT
@@ -42,27 +48,29 @@ class AzureOpenAIProvider(BaseLLMProvider):
             timeout=ai_settings.REQUEST_TIMEOUT,
         )
 
-    def _map_messages(self, messages: List[MessageDTO]) -> List[Dict[str, Any]]:
+    def _map_messages(self, messages: list[MessageDTO]) -> list[dict[str, Any]]:
         mapped = []
         for msg in messages:
-            msg_dict: Dict[str, Any] = {"role": msg.role}
+            msg_dict: dict[str, Any] = {"role": msg.role}
             if msg.name:
                 msg_dict["name"] = msg.name
             if msg.tool_call_id:
                 msg_dict["tool_call_id"] = msg.tool_call_id
-            
+
             # Map content
             if isinstance(msg.content, list):
                 content_list = []
                 for item in msg.content:
                     if isinstance(item, dict) and item.get("type") == "image_url":
-                        content_list.append({
-                            "type": "image_url",
-                            "image_url": {
-                                "url": item["image_url"]["url"],
-                                "detail": item["image_url"].get("detail", "auto"),
+                        content_list.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": item["image_url"]["url"],
+                                    "detail": item["image_url"].get("detail", "auto"),
+                                },
                             }
-                        })
+                        )
                     else:
                         content_list.append(item)
                 msg_dict["content"] = content_list
@@ -86,7 +94,7 @@ class AzureOpenAIProvider(BaseLLMProvider):
             mapped.append(msg_dict)
         return mapped
 
-    def _map_tools(self, request: ChatRequest) -> Optional[List[Dict[str, Any]]]:
+    def _map_tools(self, request: ChatRequest) -> list[dict[str, Any]] | None:
         if not request.tools:
             return None
         return [
@@ -101,10 +109,10 @@ class AzureOpenAIProvider(BaseLLMProvider):
             for tool in request.tools
         ]
 
-    async def chat(self, request: ChatRequest, timeout: Optional[float] = None) -> ChatResponse:
+    async def chat(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
         async def _run():
             start_time = time.perf_counter()
-            kwargs: Dict[str, Any] = {
+            kwargs: dict[str, Any] = {
                 "messages": self._map_messages(request.messages),
             }
             # For Azure, if deployment is provided we don't necessarily need to supply 'model' parameter
@@ -130,13 +138,11 @@ class AzureOpenAIProvider(BaseLLMProvider):
                     kwargs["tool_choice"] = request.tool_choice
 
             actual_timeout = timeout or ai_settings.REQUEST_TIMEOUT
-            response = await self.client.chat.completions.create(
-                **kwargs, timeout=actual_timeout
-            )
+            response = await self.client.chat.completions.create(**kwargs, timeout=actual_timeout)
             latency = (time.perf_counter() - start_time) * 1000
 
             choice = response.choices[0]
-            
+
             tool_calls = None
             if choice.message.tool_calls:
                 tool_calls = [
@@ -176,9 +182,9 @@ class AzureOpenAIProvider(BaseLLMProvider):
         return await execute_with_retry("azure", _run, max_retries=ai_settings.MAX_RETRIES)
 
     async def stream(
-        self, request: ChatRequest, timeout: Optional[float] = None
+        self, request: ChatRequest, timeout: float | None = None
     ) -> AsyncGenerator[StreamingChunkDTO, None]:
-        kwargs: Dict[str, Any] = {
+        kwargs: dict[str, Any] = {
             "messages": self._map_messages(request.messages),
             "stream": True,
         }
@@ -197,25 +203,23 @@ class AzureOpenAIProvider(BaseLLMProvider):
             kwargs["response_format"] = {"type": "json_object"}
 
         actual_timeout = timeout or ai_settings.REQUEST_TIMEOUT
-        
+
         try:
-            response_stream = await self.client.chat.completions.create(
-                **kwargs, timeout=actual_timeout
-            )
+            response_stream = await self.client.chat.completions.create(**kwargs, timeout=actual_timeout)
             async for chunk in response_stream:
                 if not chunk.choices:
                     continue
                 choice = chunk.choices[0]
                 content = choice.delta.content or ""
                 finish_reason = choice.finish_reason if hasattr(choice, "finish_reason") else None
-                
+
                 usage = None
                 if hasattr(chunk, "usage") and chunk.usage:
                     usage = UsageDTO(
                         prompt_tokens=chunk.usage.prompt_tokens,
                         completion_tokens=chunk.usage.completion_tokens,
                         total_tokens=chunk.usage.total_tokens,
-                        cost=calculate_cost(chunk.usage.prompt_tokens, chunk.usage.completion_tokens, request.model)
+                        cost=calculate_cost(chunk.usage.prompt_tokens, chunk.usage.completion_tokens, request.model),
                     )
 
                 yield StreamingChunkDTO(
@@ -229,11 +233,9 @@ class AzureOpenAIProvider(BaseLLMProvider):
         except Exception as e:
             raise map_provider_exception("azure", e)
 
-    async def embeddings(
-        self, request: EmbeddingRequest, timeout: Optional[float] = None
-    ) -> EmbeddingResponse:
+    async def embeddings(self, request: EmbeddingRequest, timeout: float | None = None) -> EmbeddingResponse:
         async def _run():
-            kwargs: Dict[str, Any] = {
+            kwargs: dict[str, Any] = {
                 "input": request.input,
             }
             if self.deployment:
@@ -282,19 +284,21 @@ class AzureOpenAIProvider(BaseLLMProvider):
                 details=str(e),
             )
 
-    async def list_models(self) -> List[str]:
+    async def list_models(self) -> list[str]:
         from app.core.model_registry import ModelRegistry
+
         return [m.name for m in ModelRegistry.list_models_by_provider("azure")]
 
     async def structured_output(
-        self, request: ChatRequest, response_schema: Any, timeout: Optional[float] = None
+        self, request: ChatRequest, response_schema: Any, timeout: float | None = None
     ) -> ChatResponse:
         """
         Generate structured output adhering to a specific JSON schema/Pydantic model.
         """
+
         async def _run():
             start_time = time.perf_counter()
-            kwargs: Dict[str, Any] = {
+            kwargs: dict[str, Any] = {
                 "messages": self._map_messages(request.messages),
                 "response_format": response_schema,
             }
@@ -311,9 +315,7 @@ class AzureOpenAIProvider(BaseLLMProvider):
                 kwargs["max_tokens"] = request.max_tokens
 
             actual_timeout = timeout or ai_settings.REQUEST_TIMEOUT
-            response = await self.client.beta.chat.completions.parse(
-                **kwargs, timeout=actual_timeout
-            )
+            response = await self.client.beta.chat.completions.parse(**kwargs, timeout=actual_timeout)
             latency = (time.perf_counter() - start_time) * 1000
 
             choice = response.choices[0]
@@ -343,7 +345,5 @@ class AzureOpenAIProvider(BaseLLMProvider):
 
         return await execute_with_retry("azure", _run, max_retries=ai_settings.MAX_RETRIES)
 
-    async def tool_call(
-        self, request: ChatRequest, timeout: Optional[float] = None
-    ) -> ChatResponse:
+    async def tool_call(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
         return await self.chat(request, timeout)

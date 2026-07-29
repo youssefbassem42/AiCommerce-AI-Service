@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import Field
 
 from app.domain.commerce.entities.inventory import Inventory
@@ -12,14 +10,14 @@ class InventoryDocument(BaseMongoDocument):
     variant_id: str = Field(...)
     store_id: str = Field(..., index=True)
     org_id: str = Field(...)
-    external_id: Optional[str] = None
+    external_id: str | None = None
     quantity: int = 0
     available: int = 0
     committed: int = 0
     incoming: int = 0
-    location_id: Optional[str] = None
-    location_name: Optional[str] = None
-    low_stock_threshold: Optional[int] = None
+    location_id: str | None = None
+    location_name: str | None = None
+    low_stock_threshold: int | None = None
     audit: AuditInfoModel = Field(default_factory=AuditInfoModel)
 
     def to_entity(self) -> Inventory:

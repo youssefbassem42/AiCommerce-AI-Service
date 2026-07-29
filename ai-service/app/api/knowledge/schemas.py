@@ -1,45 +1,45 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 class DocumentMetadataSchema(BaseModel):
     source_type: str = Field(default="manual")
-    source_uri: Optional[str] = None
-    mime_type: Optional[str] = None
+    source_uri: str | None = None
+    mime_type: str | None = None
     language: str = Field(default="en")
-    category: Optional[str] = None
+    category: str | None = None
     tags: list[str] = Field(default_factory=list)
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class DocumentVersionSchema(BaseModel):
     version_number: int = Field(..., ge=1)
-    checksum: Optional[str] = None
-    created_by: Optional[str] = None
-    notes: Optional[str] = None
+    checksum: str | None = None
+    created_by: str | None = None
+    notes: str | None = None
     is_current: bool = False
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
 
 class KnowledgeChunkCreateSchema(BaseModel):
     document_id: str
     version_number: int = Field(default=1, ge=1)
     chunk_index: int = Field(..., ge=0)
-    title: Optional[str] = None
+    title: str | None = None
     content: str
-    embedding_id: Optional[str] = None
+    embedding_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class KnowledgeChunkUpdateSchema(BaseModel):
-    version_number: Optional[int] = Field(default=None, ge=1)
-    chunk_index: Optional[int] = Field(default=None, ge=0)
-    title: Optional[str] = None
-    content: Optional[str] = None
-    embedding_id: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
+    version_number: int | None = Field(default=None, ge=1)
+    chunk_index: int | None = Field(default=None, ge=0)
+    title: str | None = None
+    content: str | None = None
+    embedding_id: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class KnowledgeChunkResponseSchema(BaseModel):
@@ -47,9 +47,9 @@ class KnowledgeChunkResponseSchema(BaseModel):
     document_id: str
     version_number: int
     chunk_index: int
-    title: Optional[str] = None
+    title: str | None = None
     content: str
-    embedding_id: Optional[str] = None
+    embedding_id: str | None = None
     metadata: dict[str, Any]
     created_at: datetime
     updated_at: datetime
@@ -58,8 +58,8 @@ class KnowledgeChunkResponseSchema(BaseModel):
 class KnowledgeDocumentCreateSchema(BaseModel):
     store_id: str
     title: str
-    description: Optional[str] = None
-    source_url: Optional[str] = None
+    description: str | None = None
+    source_url: str | None = None
     status: str = Field(default="draft")
     language: str = Field(default="en")
     metadata: DocumentMetadataSchema = Field(default_factory=DocumentMetadataSchema)
@@ -69,24 +69,24 @@ class KnowledgeDocumentCreateSchema(BaseModel):
 
 
 class KnowledgeDocumentUpdateSchema(BaseModel):
-    store_id: Optional[str] = None
-    title: Optional[str] = None
-    description: Optional[str] = None
-    source_url: Optional[str] = None
-    status: Optional[str] = None
-    language: Optional[str] = None
-    metadata: Optional[DocumentMetadataSchema] = None
-    versions: Optional[list[DocumentVersionSchema]] = None
-    current_version: Optional[int] = Field(default=None, ge=1)
-    chunking_strategy: Optional[str] = None
+    store_id: str | None = None
+    title: str | None = None
+    description: str | None = None
+    source_url: str | None = None
+    status: str | None = None
+    language: str | None = None
+    metadata: DocumentMetadataSchema | None = None
+    versions: list[DocumentVersionSchema] | None = None
+    current_version: int | None = Field(default=None, ge=1)
+    chunking_strategy: str | None = None
 
 
 class KnowledgeDocumentResponseSchema(BaseModel):
     id: str
     store_id: str
     title: str
-    description: Optional[str] = None
-    source_url: Optional[str] = None
+    description: str | None = None
+    source_url: str | None = None
     status: str
     language: str
     metadata: DocumentMetadataSchema
@@ -94,14 +94,14 @@ class KnowledgeDocumentResponseSchema(BaseModel):
     current_version: int
     chunks: list[KnowledgeChunkResponseSchema] = Field(default_factory=list)
     chunking_strategy: str
-    processed_text: Optional[str] = None
-    page_count: Optional[int] = None
-    word_count: Optional[int] = None
-    char_count: Optional[int] = None
-    estimated_tokens: Optional[int] = None
+    processed_text: str | None = None
+    page_count: int | None = None
+    word_count: int | None = None
+    char_count: int | None = None
+    estimated_tokens: int | None = None
     created_at: datetime
     updated_at: datetime
-    deleted_at: Optional[datetime] = None
+    deleted_at: datetime | None = None
 
 
 class BusinessSummaryCreateSchema(BaseModel):
@@ -113,10 +113,10 @@ class BusinessSummaryCreateSchema(BaseModel):
 
 
 class BusinessSummaryUpdateSchema(BaseModel):
-    version_number: Optional[int] = Field(default=None, ge=1)
-    title: Optional[str] = None
-    summary: Optional[str] = None
-    metadata: Optional[dict[str, Any]] = None
+    version_number: int | None = Field(default=None, ge=1)
+    title: str | None = None
+    summary: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class BusinessSummaryResponseSchema(BaseModel):
@@ -174,7 +174,7 @@ class UploadResponseSchema(BaseModel):
     virus_scan_status: str
     created_at: datetime
     updated_at: datetime
-    deleted_at: Optional[datetime] = None
+    deleted_at: datetime | None = None
 
 
 class PaginatedUploadResponseSchema(BaseModel):

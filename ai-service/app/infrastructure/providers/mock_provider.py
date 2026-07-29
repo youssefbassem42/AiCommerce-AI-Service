@@ -1,4 +1,5 @@
-from typing import Any, AsyncGenerator, List, Optional
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from app.application.dto.ai_dto import (
     ChatRequest,
@@ -14,7 +15,7 @@ from app.infrastructure.providers.base import BaseLLMProvider
 
 
 class MockProvider(BaseLLMProvider):
-    async def chat(self, request: ChatRequest, timeout: Optional[float] = None) -> ChatResponse:
+    async def chat(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
         message = request.messages[-1].content if request.messages else ""
         return ChatResponse(
             id="mock-chat",
@@ -28,7 +29,7 @@ class MockProvider(BaseLLMProvider):
     async def stream(
         self,
         request: ChatRequest,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> AsyncGenerator[StreamingChunkDTO, None]:
         yield StreamingChunkDTO(
             id="mock-stream",
@@ -42,7 +43,7 @@ class MockProvider(BaseLLMProvider):
     async def embeddings(
         self,
         request: EmbeddingRequest,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> EmbeddingResponse:
         inputs = request.input if isinstance(request.input, list) else [request.input]
         return EmbeddingResponse(
@@ -55,20 +56,20 @@ class MockProvider(BaseLLMProvider):
     async def health_check(self) -> HealthDTO:
         return HealthDTO(status="healthy", provider="mock", latency_ms=0.0, details="Mock provider")
 
-    async def list_models(self) -> List[str]:
+    async def list_models(self) -> list[str]:
         return ["mock-model"]
 
     async def structured_output(
         self,
         request: ChatRequest,
         response_schema: Any,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> ChatResponse:
         return await self.chat(request, timeout=timeout)
 
     async def tool_call(
         self,
         request: ChatRequest,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> ChatResponse:
         return await self.chat(request, timeout=timeout)

@@ -1,5 +1,4 @@
 import secrets
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -79,12 +78,12 @@ async def revoke_api_key(
     await repo.update(key)
 
 
-@router.get("/audit-logs", response_model=List[AuditLogResponse])
+@router.get("/audit-logs", response_model=list[AuditLogResponse])
 async def list_audit_logs(
     skip: int = 0,
     limit: int = 50,
     repo: AuditLogRepository = Depends(get_audit_log_repository),
-) -> List[AuditLogResponse]:
+) -> list[AuditLogResponse]:
     logs = await repo.find_many({}, limit=limit, skip=skip)
     return [
         AuditLogResponse(

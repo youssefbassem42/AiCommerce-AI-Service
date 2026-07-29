@@ -1,5 +1,4 @@
 import logging
-from typing import Any, Optional
 
 from app.application.dto.ai_dto import MessageDTO
 from app.application.rag.context_builder import BuiltContext
@@ -8,7 +7,6 @@ from app.application.rag.prompt import (
     CHUNK_HEADER,
     CONTEXT_PLACEHOLDER,
     RAG_SYSTEM_PROMPT,
-    build_rag_messages,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,7 +45,7 @@ class PromptBuilder:
         self,
         user_message: str,
         context: BuiltContext,
-        conversation_history: Optional[list[MessageDTO]] = None,
+        conversation_history: list[MessageDTO] | None = None,
     ) -> list[MessageDTO]:
         system_content = self._build_system_content(context)
         user_content = self._build_user_content(user_message, context)
@@ -64,7 +62,7 @@ class PromptBuilder:
         self,
         user_message: str,
         context: BuiltContext,
-        conversation_history: Optional[list[MessageDTO]] = None,
+        conversation_history: list[MessageDTO] | None = None,
     ) -> str:
         """Build a single final prompt string (no separate system/user messages)."""
         parts: list[str] = []
@@ -74,9 +72,7 @@ class PromptBuilder:
         parts.append(f"# Retrieved Context\n{self._format_chunks(context.chunks)}")
 
         if conversation_history:
-            history_str = "\n".join(
-                f"{m.role}: {m.content}" for m in conversation_history[-6:]
-            )
+            history_str = "\n".join(f"{m.role}: {m.content}" for m in conversation_history[-6:])
             parts.append(f"# Conversation History\n{history_str}")
 
         parts.append(f"# User\n{user_message}")
@@ -103,13 +99,9 @@ class PromptBuilder:
 
     def _format_chunks(self, chunks: list) -> str:
         lines: list[str] = []
-        for i, c in enumerate(chunks[:self._max_chunks]):
-            snippet = (c.content or "")[:self._max_chunk_chars]
-            lines.append(
-                CHUNK_HEADER.format(index=i + 1, title=c.document_title)
-                + "\n"
-                + snippet
-            )
+        for i, c in enumerate(chunks[: self._max_chunks]):
+            snippet = (c.content or "")[: self._max_chunk_chars]
+            lines.append(CHUNK_HEADER.format(index=i + 1, title=c.document_title) + "\n" + snippet)
         return "\n".join(lines)
 
     @staticmethod

@@ -1,14 +1,12 @@
 import logging
-from typing import Any, Optional
 
+from app.application.dto.ai_dto import EmbeddingRequest
 from app.core.celery_app import celery_app
-from app.domain.job.value_objects import JobStatus, JobType
-from app.infrastructure.mongodb.collections import get_knowledge_chunks_collection
+from app.core.model_registry import ModelRegistry
+from app.domain.job.value_objects import JobStatus
 from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
 from app.infrastructure.providers.factory import LLMProviderFactory
 from app.infrastructure.tasks.helpers import _run_async, complete_job, fail_job, update_job_progress
-from app.application.dto.ai_dto import EmbeddingRequest
-from app.core.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +24,7 @@ def generate_embeddings_task(
     self,
     chunk_ids: list[str],
     model: str = "gemini-embedding-001",
-    job_id: Optional[str] = None,
+    job_id: str | None = None,
 ) -> dict:
     def _run():
         async def _async_run():
@@ -44,7 +42,7 @@ def generate_embeddings_task(
             errors = 0
 
             for batch_start in range(0, len(chunk_ids), BATCH_SIZE):
-                batch_ids = chunk_ids[batch_start:batch_start + BATCH_SIZE]
+                batch_ids = chunk_ids[batch_start : batch_start + BATCH_SIZE]
                 chunks = []
                 for cid in batch_ids:
                     chunk = await chunk_repo.find_by_id(cid)
@@ -61,10 +59,11 @@ def generate_embeddings_task(
                 if len(response.embeddings) != len(chunks):
                     logger.warning(
                         "Embedding count mismatch: got %d, expected %d",
-                        len(response.embeddings), len(chunks),
+                        len(response.embeddings),
+                        len(chunks),
                     )
 
-                for chunk, embedding in zip(chunks, response.embeddings):
+                for chunk, _embedding in zip(chunks, response.embeddings, strict=False):
                     chunk.embedding_id = chunk.id
                     await chunk_repo.update(chunk)
 
@@ -97,7 +96,7 @@ def generate_embeddings_task(
     except Exception as exc:
         if job_id:
             _run_async(fail_job(job_id, str(exc), self.request.retries, self.max_retries))
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries * 60)
+        raise self.retry(exc=exc, countdown=2**self.request.retries * 60)
 
 
 @celery_app.task(
@@ -112,7 +111,7 @@ def sync_vectors_task(
     chunk_ids: list[str],
     collection_name: str = "kb_default",
     model: str = "gemini-embedding-001",
-    job_id: Optional[str] = None,
+    job_id: str | None = None,
 ) -> dict:
     def _run():
         async def _async_run():
@@ -142,7 +141,7 @@ def sync_vectors_task(
 
                 processed = 0
                 for batch_start in range(0, len(chunk_ids), BATCH_SIZE):
-                    batch_ids = chunk_ids[batch_start:batch_start + BATCH_SIZE]
+                    batch_ids = chunk_ids[batch_start : batch_start + BATCH_SIZE]
                     chunks = []
                     for cid in batch_ids:
                         chunk = await chunk_repo.find_by_id(cid)
@@ -157,8 +156,8 @@ def sync_vectors_task(
                     response = await provider.embeddings(request)
 
                     points = []
-                    for chunk, embedding in zip(chunks, response.embeddings):
-                        doc = await chunk_repo.find_by_id(chunk.document_id) if hasattr(chunk, 'document_id') else None
+                    for chunk, embedding in zip(chunks, response.embeddings, strict=False):
+                        doc = await chunk_repo.find_by_id(chunk.document_id) if hasattr(chunk, "document_id") else None
                         payload = {
                             "chunk_id": chunk.id,
                             "document_id": chunk.document_id,
@@ -204,4 +203,4 @@ def sync_vectors_task(
     except Exception as exc:
         if job_id:
             _run_async(fail_job(job_id, str(exc), self.request.retries, self.max_retries))
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries * 60)
+        raise self.retry(exc=exc, countdown=2**self.request.retries * 60)

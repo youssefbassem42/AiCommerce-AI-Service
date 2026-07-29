@@ -1,6 +1,7 @@
 import pytest
+
+from app.application.dto.ai_dto import ChatRequest, EmbeddingRequest, MessageDTO
 from app.infrastructure.providers.mock_provider import MockProvider
-from app.application.dto.ai_dto import ChatRequest, MessageDTO, EmbeddingRequest
 
 
 @pytest.mark.asyncio

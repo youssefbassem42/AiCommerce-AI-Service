@@ -163,13 +163,9 @@ class TestAdminBundleAPI:
 
         app.dependency_overrides[get_bundle_tracking_service] = lambda: mock_tracking_service
         try:
-            response = client.get(
-                "/api/v1/admin/bundles/tracking?store_id=store_1&top_only=true"
-            )
+            response = client.get("/api/v1/admin/bundles/tracking?store_id=store_1&top_only=true")
             assert response.status_code == 200
-            mock_tracking_service.get_tracked_bundles.assert_called_once_with(
-                "store_1", is_top_only=True
-            )
+            mock_tracking_service.get_tracked_bundles.assert_called_once_with("store_1", is_top_only=True)
         finally:
             _clear_overrides()
 
@@ -189,9 +185,7 @@ class TestAdminBundleAPI:
 
         app.dependency_overrides[get_bundle_tracking_service] = lambda: mock_tracking_service
         try:
-            response = client.get(
-                "/api/v1/admin/bundles/tracking/key1?store_id=store_1"
-            )
+            response = client.get("/api/v1/admin/bundles/tracking/key1?store_id=store_1")
             assert response.status_code == 200
             data = response.json()
             assert data["bundle_key"] == "key1"
@@ -204,9 +198,7 @@ class TestAdminBundleAPI:
 
         app.dependency_overrides[get_bundle_tracking_service] = lambda: mock_tracking_service
         try:
-            response = client.get(
-                "/api/v1/admin/bundles/tracking/nonexistent?store_id=store_1"
-            )
+            response = client.get("/api/v1/admin/bundles/tracking/nonexistent?store_id=store_1")
             assert response.status_code == 404
         finally:
             _clear_overrides()

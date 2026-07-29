@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -12,9 +12,9 @@ class KnowledgeChunk(Entity[str]):
     document_id: str = Field(..., description="ID of the parent KnowledgeDocument")
     version_number: int = Field(default=1, ge=1)
     chunk_index: int = Field(..., ge=0, description="Sequential chunk index")
-    title: Optional[str] = Field(default=None, description="Optional chunk title")
+    title: str | None = Field(default=None, description="Optional chunk title")
     content: str = Field(..., description="Text content of this chunk")
-    embedding_id: Optional[str] = Field(
+    embedding_id: str | None = Field(
         default=None,
         description="Reserved field for future vector linkage",
     )

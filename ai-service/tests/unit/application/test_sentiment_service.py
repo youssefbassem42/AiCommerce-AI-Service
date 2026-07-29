@@ -12,16 +12,24 @@ from app.application.ticket.services.sentiment_service import SentimentAnalysisS
 def chat_service():
     cs = AsyncMock()
     cs.chat.return_value = ChatResponse(
-        id="test", model="gpt-4o-mini", provider="openai",
-        message=MessageDTO(role="assistant", content=json.dumps({
-            "sentiment": "negative",
-            "confidence": 0.95,
-            "category": "billing",
-            "priority": "high",
-            "summary": "Customer is frustrated with billing issue",
-            "suggested_response": "We apologize for the inconvenience",
-        })),
-        usage=UsageDTO(), latency_ms=0,
+        id="test",
+        model="gpt-4o-mini",
+        provider="openai",
+        message=MessageDTO(
+            role="assistant",
+            content=json.dumps(
+                {
+                    "sentiment": "negative",
+                    "confidence": 0.95,
+                    "category": "billing",
+                    "priority": "high",
+                    "summary": "Customer is frustrated with billing issue",
+                    "suggested_response": "We apologize for the inconvenience",
+                }
+            ),
+        ),
+        usage=UsageDTO(),
+        latency_ms=0,
     )
     return cs
 
@@ -36,7 +44,8 @@ class TestSentimentAnalysisService:
         result = await sentiment_service.analyze(
             SentimentAnalysisRequest(
                 messages=["I have a problem with my bill"],
-                store_id="s1", customer_id="c1",
+                store_id="s1",
+                customer_id="c1",
             )
         )
         assert result.sentiment == "negative"
@@ -44,18 +53,21 @@ class TestSentimentAnalysisService:
         assert result.category == "billing"
 
     async def test_analyze_positive_sentiment(self, sentiment_service, chat_service):
-        chat_service.chat.return_value.message.content = json.dumps({
-            "sentiment": "positive",
-            "confidence": 0.85,
-            "category": "general",
-            "priority": "low",
-            "summary": "Customer is happy",
-            "suggested_response": "Glad to hear that!",
-        })
+        chat_service.chat.return_value.message.content = json.dumps(
+            {
+                "sentiment": "positive",
+                "confidence": 0.85,
+                "category": "general",
+                "priority": "low",
+                "summary": "Customer is happy",
+                "suggested_response": "Glad to hear that!",
+            }
+        )
         result = await sentiment_service.analyze(
             SentimentAnalysisRequest(
                 messages=["I love your product!"],
-                store_id="s1", customer_id="c1",
+                store_id="s1",
+                customer_id="c1",
             )
         )
         assert result.sentiment == "positive"
@@ -65,7 +77,8 @@ class TestSentimentAnalysisService:
         result = await sentiment_service.analyze(
             SentimentAnalysisRequest(
                 messages=[],
-                store_id="s1", customer_id="c1",
+                store_id="s1",
+                customer_id="c1",
             )
         )
         assert result.sentiment is not None
@@ -76,20 +89,24 @@ class TestSentimentAnalysisService:
             result = await sentiment_service.analyze(
                 SentimentAnalysisRequest(
                     messages=["test message"],
-                    store_id="s1", customer_id="c1",
+                    store_id="s1",
+                    customer_id="c1",
                 )
             )
             assert result.sentiment == "neutral"
             assert result.confidence == 0.0
 
         async def test_llm_returns_missing_fields(self, sentiment_service, chat_service):
-            chat_service.chat.return_value.message.content = json.dumps({
-                "sentiment": "positive",
-            })
+            chat_service.chat.return_value.message.content = json.dumps(
+                {
+                    "sentiment": "positive",
+                }
+            )
             result = await sentiment_service.analyze(
                 SentimentAnalysisRequest(
                     messages=["great service"],
-                    store_id="s1", customer_id="c1",
+                    store_id="s1",
+                    customer_id="c1",
                 )
             )
             assert result.sentiment == "positive"
@@ -99,7 +116,8 @@ class TestSentimentAnalysisService:
             result = await sentiment_service.analyze(
                 SentimentAnalysisRequest(
                     messages=["test"],
-                    store_id="s1", customer_id="c1",
+                    store_id="s1",
+                    customer_id="c1",
                 )
             )
             assert result.sentiment == "neutral"
@@ -111,25 +129,29 @@ class TestSentimentAnalysisService:
             result = await sentiment_service.analyze(
                 SentimentAnalysisRequest(
                     messages=["test"],
-                    store_id="s1", customer_id="c1",
+                    store_id="s1",
+                    customer_id="c1",
                 )
             )
             assert result.sentiment == "neutral"
 
         async def test_many_messages_truncated_to_last_10(self, sentiment_service, chat_service):
-            chat_service.chat.return_value.message.content = json.dumps({
-                "sentiment": "neutral",
-                "confidence": 0.6,
-                "category": "general",
-                "priority": "low",
-                "summary": "Many messages",
-                "suggested_response": "OK",
-            })
+            chat_service.chat.return_value.message.content = json.dumps(
+                {
+                    "sentiment": "neutral",
+                    "confidence": 0.6,
+                    "category": "general",
+                    "priority": "low",
+                    "summary": "Many messages",
+                    "suggested_response": "OK",
+                }
+            )
             messages = [f"msg_{i}" for i in range(20)]
             result = await sentiment_service.analyze(
                 SentimentAnalysisRequest(
                     messages=messages,
-                    store_id="s1", customer_id="c1",
+                    store_id="s1",
+                    customer_id="c1",
                 )
             )
             assert result.sentiment == "neutral"

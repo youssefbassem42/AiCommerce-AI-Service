@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import Field
 
@@ -16,9 +15,9 @@ class ApiKeyDocument(BaseMongoDocument):
     store_id: str = Field(..., index=True)
     scopes: list[str] = Field(default_factory=list)
     is_active: bool = Field(default=True, index=True)
-    expires_at: Optional[datetime] = Field(default=None)
+    expires_at: datetime | None = Field(default=None)
     updated_at: datetime = Field(...)
-    deleted_at: Optional[datetime] = Field(default=None)
+    deleted_at: datetime | None = Field(default=None)
 
     def to_entity(self) -> ApiKey:
         return ApiKey(

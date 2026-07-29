@@ -11,7 +11,9 @@ class ProcessingPipeline:
 
     def remove_invalid_characters(self, text: str) -> str:
         allowed = {"\n", "\r", "\t"}
-        return "".join(ch for ch in text if ch in allowed or unicodedata.category(ch) not in {"Cc", "Cf"} or ch == "\u200b")
+        return "".join(
+            ch for ch in text if ch in allowed or unicodedata.category(ch) not in {"Cc", "Cf"} or ch == "\u200b"
+        )
 
     def remove_html(self, text: str) -> str:
         text = re.sub(r"<[^>]+>", "", text)

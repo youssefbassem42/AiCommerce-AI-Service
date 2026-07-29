@@ -1,5 +1,6 @@
-from typing import Any, Callable, Awaitable
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 NextHandler = Callable[[], Awaitable[Any]]
 

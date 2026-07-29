@@ -1,6 +1,6 @@
 import pytest
 
-from app.application.integration.openapi.parser import IntegrationSchema, EndpointSchema, OpenApiParser
+from app.application.integration.openapi.parser import EndpointSchema, IntegrationSchema
 from app.application.integration.openapi.validator import SpecValidator
 from app.domain.integration.value_objects.auth_config import AuthConfig, AuthType
 

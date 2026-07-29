@@ -1,6 +1,6 @@
 import pytest
 
-from app.application.integration.discovery.field_suggester import FieldSuggester, SYNONYM_MAP
+from app.application.integration.discovery.field_suggester import SYNONYM_MAP, FieldSuggester
 from app.application.integration.discovery.synonyms import COMMON_SYNONYMS
 
 
@@ -10,17 +10,12 @@ def suggester() -> FieldSuggester:
 
 
 class TestFieldSuggesterBugs:
-
     def test_synonym_maps_unified(self) -> None:
         from app.application.integration.discovery.entity_detector import FIELD_SYNONYMS
 
         for key in COMMON_SYNONYMS:
-            assert key in FIELD_SYNONYMS, (
-                f"Key '{key}' missing from entity_detector.FIELD_SYNONYMS"
-            )
-            assert key in SYNONYM_MAP, (
-                f"Key '{key}' missing from field_suggester.SYNONYM_MAP"
-            )
+            assert key in FIELD_SYNONYMS, f"Key '{key}' missing from entity_detector.FIELD_SYNONYMS"
+            assert key in SYNONYM_MAP, f"Key '{key}' missing from field_suggester.SYNONYM_MAP"
             entity_syns = set(FIELD_SYNONYMS[key])
             suggester_syns = set(SYNONYM_MAP[key])
             assert entity_syns == suggester_syns, (
@@ -51,8 +46,7 @@ class TestFieldSuggesterBugs:
         suggestions = FieldSuggester._suggest_identity_mappings(fields)
         targets = [s.target for s in suggestions]
         assert "external_id" in targets, (
-            f"When 'id' is a source field, should also suggest external_id mapping. "
-            f"Got targets: {targets}"
+            f"When 'id' is a source field, should also suggest external_id mapping. Got targets: {targets}"
         )
         assert len(suggestions) == 3, (
             f"Expected 3 suggestions (name→name, id→id, id→external_id), got {len(suggestions)}"
@@ -60,9 +54,7 @@ class TestFieldSuggesterBugs:
 
     def test_suggest_empty_fields(self, suggester: FieldSuggester) -> None:
         suggestions = suggester.suggest(set(), "product")
-        assert len(suggestions) == 0, (
-            f"Empty field set should produce no suggestions, got {len(suggestions)}"
-        )
+        assert len(suggestions) == 0, f"Empty field set should produce no suggestions, got {len(suggestions)}"
 
     def test_suggest_unknown_entity_identity_with_id_field(self) -> None:
         fields = {"name", "email", "id"}
@@ -72,20 +64,14 @@ class TestFieldSuggesterBugs:
             f"Identity mappings for 3 fields with 'id' should produce "
             f"3 identity + 1 external_id = 4, got {len(suggestions)}: {targets}"
         )
-        assert "external_id" in targets, (
-            f"When source has an 'id'-like field, should suggest external_id mapping"
-        )
+        assert "external_id" in targets, "When source has an 'id'-like field, should suggest external_id mapping"
 
     def test_suggest_unknown_entity_no_external_id(self) -> None:
         fields = {"name", "email", "phone"}
         suggestions = FieldSuggester._suggest_identity_mappings(fields)
         for s in suggestions:
-            assert s.source in fields, (
-                f"Each suggestion should map a source field present in the input"
-            )
-            assert s.target == s.source, (
-                f"Identity mapping should map source to itself"
-            )
+            assert s.source in fields, "Each suggestion should map a source field present in the input"
+            assert s.target == s.source, "Identity mapping should map source to itself"
 
     def test_exact_match_uses_highest_confidence(self, suggester: FieldSuggester) -> None:
         fields = {"title"}
