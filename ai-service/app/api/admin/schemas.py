@@ -54,3 +54,45 @@ class TrackingConfigUpdateRequest(BaseModel):
 class TrackingConfigUpdateResponse(BaseModel):
     threshold: int
     enabled: bool
+
+
+# ── Prompt Schemas ──────────────────────────────────────────────
+
+
+class PromptCreateRequest(BaseModel):
+    key: str = Field(..., min_length=1, pattern=r"^[a-zA-Z0-9._-]+$")
+    type: str = Field(default="system", pattern=r"^(system|user|template)$")
+    content: str = Field(..., min_length=1)
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    variables: list[str] = Field(default_factory=list)
+
+
+class PromptUpdateRequest(BaseModel):
+    content: str | None = None
+    description: str | None = None
+    tags: list[str] | None = None
+    type: str | None = Field(None, pattern=r"^(system|user|template)$")
+    variables: list[str] | None = None
+    is_active: bool | None = None
+
+
+class PromptResponse(BaseModel):
+    id: str
+    key: str
+    type: str
+    content: str
+    description: str
+    tags: list[str]
+    version: int
+    is_active: bool
+    variables: list[str]
+    created_at: str
+    updated_at: str
+
+
+class PromptListResponse(BaseModel):
+    items: list[PromptResponse]
+    total: int
+    page: int
+    page_size: int

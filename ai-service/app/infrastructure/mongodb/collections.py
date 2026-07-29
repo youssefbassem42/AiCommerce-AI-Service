@@ -105,3 +105,7 @@ def get_bundle_tracking_collection():
 
 def get_store_capabilities_collection():
     return get_collection("store_capabilities")
+
+
+def get_prompts_collection():
+    return get_collection("prompts")

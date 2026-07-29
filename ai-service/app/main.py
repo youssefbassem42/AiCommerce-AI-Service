@@ -1,6 +1,11 @@
+import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.admin.prompt_router import router as admin_prompt_router
 from app.api.admin.router import router as admin_router
 from app.api.ai.router import router as ai_router
 from app.api.auth.router import router as auth_router
@@ -14,13 +19,29 @@ from app.api.knowledge.unified_router import router as knowledge_unified_router
 from app.api.rag.router import router as rag_router
 from app.api.recommendation.router import router as recommendation_router
 from app.api.ticket.router import router as ticket_router
+from app.application.admin.services.prompt_service import PromptService
 from app.core.config import settings
 from app.middleware.audit import AuditMiddleware
 from app.middleware.auth import AuthMiddleware
 from app.middleware.logging import AITracingMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 
-app = FastAPI(title=settings.PROJECT_NAME)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    try:
+        service = PromptService()
+        count = await service.seed_defaults()
+        if count:
+            logger.info("Seeded %d default prompts", count)
+    except Exception:
+        pass
+    yield
+
+
+app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,6 +65,7 @@ app.include_router(knowledge_job_router)
 app.include_router(knowledge_unified_router)
 app.include_router(rag_router)
 app.include_router(recommendation_router)
+app.include_router(admin_prompt_router)
 app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(ticket_router)
