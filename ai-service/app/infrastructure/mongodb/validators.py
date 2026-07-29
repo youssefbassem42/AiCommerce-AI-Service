@@ -324,6 +324,144 @@ BUNDLE_TRACKING_SCHEMA: dict[str, Any] = {
     }
 }
 
+PROMPTS_SCHEMA: dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["key", "type", "content", "version", "is_active"],
+        "properties": {
+            "key": {"bsonType": "string", "description": "Unique prompt key"},
+            "type": {"enum": ["system", "user", "template"]},
+            "content": {"bsonType": "string"},
+            "description": {"bsonType": "string"},
+            "tags": {"bsonType": "array", "items": {"bsonType": "string"}},
+            "version": {"bsonType": "int", "minimum": 1},
+            "is_active": {"bsonType": "bool"},
+            "variables": {"bsonType": "array", "items": {"bsonType": "string"}},
+            "created_at": {"bsonType": "date"},
+            "updated_at": {"bsonType": "date"},
+        },
+    }
+}
+
+STORE_CAPABILITIES_SCHEMA: dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["store_id", "capabilities"],
+        "properties": {
+            "store_id": {"bsonType": "string"},
+            "capabilities": {"bsonType": "object"},
+            "auto_detected": {"bsonType": "object"},
+            "created_at": {"bsonType": "date"},
+            "updated_at": {"bsonType": "date"},
+        },
+    }
+}
+
+API_KEYS_SCHEMA: dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["key_hash", "key_prefix", "name", "store_id", "scopes", "is_active"],
+        "properties": {
+            "key_hash": {"bsonType": "string"},
+            "key_prefix": {"bsonType": "string"},
+            "name": {"bsonType": "string"},
+            "store_id": {"bsonType": "string"},
+            "scopes": {"bsonType": "array", "items": {"bsonType": "string"}},
+            "is_active": {"bsonType": "bool"},
+            "expires_at": {"bsonType": ["date", "null"]},
+            "created_at": {"bsonType": "date"},
+            "updated_at": {"bsonType": "date"},
+            "deleted_at": {"bsonType": ["date", "null"]},
+        },
+    }
+}
+
+AUDIT_LOGS_SCHEMA: dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["action", "resource_type", "outcome", "timestamp"],
+        "properties": {
+            "action": {"bsonType": "string"},
+            "actor_id": {"bsonType": ["string", "null"]},
+            "actor_type": {"bsonType": "string"},
+            "resource_type": {"bsonType": "string"},
+            "resource_id": {"bsonType": ["string", "null"]},
+            "tenant_id": {"bsonType": ["string", "null"]},
+            "details": {"bsonType": "object"},
+            "ip_address": {"bsonType": ["string", "null"]},
+            "user_agent": {"bsonType": ["string", "null"]},
+            "outcome": {"enum": ["success", "failure"]},
+            "failure_reason": {"bsonType": ["string", "null"]},
+            "timestamp": {"bsonType": "date"},
+            "created_at": {"bsonType": "date"},
+            "updated_at": {"bsonType": "date"},
+        },
+    }
+}
+
+INTEGRATION_CONNECTIONS_SCHEMA: dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["store_id", "organization_id", "name", "platform_name", "status"],
+        "properties": {
+            "store_id": {"bsonType": "string"},
+            "organization_id": {"bsonType": "string"},
+            "name": {"bsonType": "string"},
+            "platform_name": {"bsonType": "string"},
+            "status": {"enum": ["inactive", "connected", "error", "syncing"]},
+            "spec_version": {"bsonType": "string"},
+            "raw_spec": {"bsonType": "object"},
+            "auth_config": {"bsonType": "object"},
+            "encrypted_credentials": {"bsonType": ["string", "null"]},
+            "entity_mappings": {"bsonType": "array"},
+            "discovered_endpoints": {"bsonType": "array"},
+            "discovered_schemas": {"bsonType": "object"},
+            "last_sync_at": {"bsonType": ["date", "null"]},
+            "last_sync_status": {"bsonType": ["string", "null"]},
+            "error_message": {"bsonType": ["string", "null"]},
+            "audit": {"bsonType": "object"},
+            "created_at": {"bsonType": "date"},
+            "updated_at": {"bsonType": "date"},
+            "deleted_at": {"bsonType": ["date", "null"]},
+        },
+    }
+}
+
+CUSTOMERS_SCHEMA: dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["store_id", "external_id"],
+        "properties": {
+            "store_id": {"bsonType": "string"},
+            "external_id": {"bsonType": "string"},
+            "email": {"bsonType": ["string", "null"]},
+            "first_name": {"bsonType": ["string", "null"]},
+            "last_name": {"bsonType": ["string", "null"]},
+            "phone": {"bsonType": ["string", "null"]},
+            "metadata": {"bsonType": "object"},
+            "created_at": {"bsonType": "date"},
+            "updated_at": {"bsonType": "date"},
+        },
+    }
+}
+
+KNOWLEDGE_VERSIONS_SCHEMA: dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["organization_id", "store_id", "status"],
+        "properties": {
+            "organization_id": {"bsonType": "string"},
+            "store_id": {"bsonType": "string"},
+            "knowledge_scope": {"bsonType": "string"},
+            "version_number": {"bsonType": "int"},
+            "status": {"enum": ["active", "archived"]},
+            "metadata": {"bsonType": "object"},
+            "created_at": {"bsonType": "date"},
+            "updated_at": {"bsonType": "date"},
+        },
+    }
+}
+
 VALIDATORS_MAP: dict[str, dict[str, Any]] = {
     "conversations": CONVERSATION_SCHEMA,
     "messages": MESSAGE_SCHEMA,
@@ -339,6 +477,13 @@ VALIDATORS_MAP: dict[str, dict[str, Any]] = {
     "ticket_analysis": TICKET_ANALYSIS_SCHEMA,
     "knowledge_jobs": KNOWLEDGE_JOB_SCHEMA,
     "bundle_tracking": BUNDLE_TRACKING_SCHEMA,
+    "prompts": PROMPTS_SCHEMA,
+    "store_capabilities": STORE_CAPABILITIES_SCHEMA,
+    "api_keys": API_KEYS_SCHEMA,
+    "audit_logs": AUDIT_LOGS_SCHEMA,
+    "integration_connections": INTEGRATION_CONNECTIONS_SCHEMA,
+    "customers": CUSTOMERS_SCHEMA,
+    "knowledge_versions": KNOWLEDGE_VERSIONS_SCHEMA,
 }
 
 

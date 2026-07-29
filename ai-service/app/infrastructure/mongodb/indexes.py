@@ -174,4 +174,60 @@ async def setup_database_indexes(db) -> None:
         ]
     )
 
+    await db["prompts"].create_indexes(
+        [
+            IndexModel([("key", ASCENDING)], unique=True),
+            IndexModel([("type", ASCENDING)]),
+            IndexModel([("tags", ASCENDING)]),
+            IndexModel([("is_active", ASCENDING)]),
+            IndexModel([("updated_at", DESCENDING)]),
+        ]
+    )
+
+    await db["store_capabilities"].create_indexes(
+        [
+            IndexModel([("store_id", ASCENDING)], unique=True),
+        ]
+    )
+
+    await db["api_keys"].create_indexes(
+        [
+            IndexModel([("key_hash", ASCENDING)], unique=True),
+            IndexModel([("key_prefix", ASCENDING)], unique=True),
+            IndexModel([("store_id", ASCENDING)]),
+            IndexModel([("is_active", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("is_active", ASCENDING)]),
+            IndexModel([("expires_at", ASCENDING)], sparse=True),
+        ]
+    )
+
+    await db["audit_logs"].create_indexes(
+        [
+            IndexModel([("action", ASCENDING)]),
+            IndexModel([("actor_id", ASCENDING)]),
+            IndexModel([("resource_type", ASCENDING)]),
+            IndexModel([("tenant_id", ASCENDING)]),
+            IndexModel([("outcome", ASCENDING)]),
+            IndexModel([("timestamp", DESCENDING)]),
+            IndexModel([("tenant_id", ASCENDING), ("timestamp", DESCENDING)]),
+            IndexModel([("actor_id", ASCENDING), ("timestamp", DESCENDING)]),
+            IndexModel([("action", ASCENDING), ("outcome", ASCENDING)]),
+        ]
+    )
+
+    await db["customers"].create_indexes(
+        [
+            IndexModel([("store_id", ASCENDING), ("external_id", ASCENDING)], unique=True),
+            IndexModel([("store_id", ASCENDING), ("email", ASCENDING)]),
+        ]
+    )
+
+    await db["knowledge_versions"].create_indexes(
+        [
+            IndexModel([("store_id", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("status", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("version_number", DESCENDING)]),
+        ]
+    )
+
     logger.info("Database indexes successfully created.")

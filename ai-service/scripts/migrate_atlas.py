@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 logger = logging.getLogger("migrate_atlas")
 
 
-COMMERCE_COLLECTIONS = ["products", "categories", "orders", "inventory"]
+COMMERCE_COLLECTIONS = ["products", "categories", "orders", "inventory", "customers"]
 
 
 async def run_migration():
