@@ -75,6 +75,7 @@ class TestBundleAgentPromoDisabled:
             "promo_code": None,
             "response": None,
             "error": None,
+            "store_capabilities": {"has_promo_codes": True},
         }
         assert route_after_select(state) == "handle_promo"
 

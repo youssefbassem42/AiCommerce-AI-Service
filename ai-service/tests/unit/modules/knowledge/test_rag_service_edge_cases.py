@@ -158,7 +158,7 @@ class TestRAGServiceEdgeCases:
 
         result = await rag_service.answer(
             RAGRequest(
-                message="help",
+                message="I want to talk to a human",
                 store_id="s1",
                 customer_id="c1",
             )

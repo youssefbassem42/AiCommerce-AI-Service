@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -23,8 +23,19 @@ def llm():
 
 
 @pytest.fixture
-def service(product_repo, llm):
-    return BundleSuggestionService(product_repo=product_repo, llm=llm)
+def capabilities_repo():
+    repo = AsyncMock()
+    repo.get_or_detect.return_value = MagicMock(capabilities={"has_promo_codes": False})
+    return repo
+
+
+@pytest.fixture
+def service(product_repo, llm, capabilities_repo):
+    return BundleSuggestionService(
+        product_repo=product_repo,
+        llm=llm,
+        capabilities_repo=capabilities_repo,
+    )
 
 
 class TestBundleSuggestionService:

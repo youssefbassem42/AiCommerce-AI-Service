@@ -60,6 +60,7 @@ class BundleSuggestionAgent:
         self._product_repo = product_repo
         self._llm = llm
         self._promo_service = promo_service or PromoCodeService()
+        self._promo_enabled = promo_service is not None
         self._graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
@@ -69,7 +70,6 @@ class BundleSuggestionAgent:
         workflow.add_node("find_candidates", self._wrap(find_candidates_node))
         workflow.add_node("compute_bundles", self._wrap(compute_bundles_node))
         workflow.add_node("select_best", self._wrap(select_best_node))
-        workflow.add_node("handle_promo", self._wrap(handle_promo_node))
         workflow.add_node("format_response", self._wrap(format_bundle_response_node))
 
         workflow.set_entry_point("parse_budget")
@@ -89,16 +89,22 @@ class BundleSuggestionAgent:
             route_after_bundles,
             {"select_best": "select_best", "format_response": "format_response"},
         )
-        workflow.add_conditional_edges(
-            "select_best",
-            route_after_select,
-            {"handle_promo": "handle_promo", "format_response": "format_response"},
-        )
-        workflow.add_conditional_edges(
-            "handle_promo",
-            route_after_promo,
-            {"format_response": "format_response"},
-        )
+
+        if self._promo_enabled:
+            workflow.add_node("handle_promo", self._wrap(handle_promo_node))
+            workflow.add_conditional_edges(
+                "select_best",
+                route_after_select,
+                {"handle_promo": "handle_promo", "format_response": "format_response"},
+            )
+            workflow.add_conditional_edges(
+                "handle_promo",
+                route_after_promo,
+                {"format_response": "format_response"},
+            )
+        else:
+            workflow.add_edge("select_best", "format_response")
+
         workflow.add_edge("format_response", END)
 
         return workflow.compile()

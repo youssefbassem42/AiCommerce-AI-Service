@@ -38,9 +38,10 @@ def repository(mock_collection):
 
 @pytest.mark.asyncio
 async def test_create_success(repository, mock_collection):
-    entity = TestEntity(id=str(ObjectId()), name="Test Entity")
+    oid = ObjectId()
+    entity = TestEntity(id=str(oid), name="Test Entity")
 
-    mock_collection.insert_one = AsyncMock(return_value=MagicMock())
+    mock_collection.insert_one = AsyncMock(return_value=MagicMock(inserted_id=oid))
 
     result = await repository.create(entity)
 
