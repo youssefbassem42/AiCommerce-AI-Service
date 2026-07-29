@@ -1,0 +1,46 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project - generated / temp
+logs/
+data/documents/*
+data/temp/*
+data/uploads/*
+!data/*/.gitkeep
+qdrant_storage/*
+models/*
+!models/.gitkeep
+
+# Docs - generated
+docs/OPENAPI_INTEGRATION_PLAN.md
+docs/MONGODB_MAPPING.md
+
+# Phase plans
+phases/
+
+# Environment specific
+.env.local
+.env.production
+.env.staging
