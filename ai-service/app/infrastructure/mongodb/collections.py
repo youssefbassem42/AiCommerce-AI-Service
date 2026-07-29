@@ -101,3 +101,7 @@ def get_entities_collection():
 
 def get_bundle_tracking_collection():
     return get_collection("bundle_tracking")
+
+
+def get_store_capabilities_collection():
+    return get_collection("store_capabilities")

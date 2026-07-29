@@ -1,6 +1,7 @@
 from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument, PyObjectId
 from app.infrastructure.mongodb.documents.business_summary_document import BusinessSummaryDocument
 from app.infrastructure.mongodb.documents.bundle_document import BundleSuggestionDocument
+from app.infrastructure.mongodb.documents.store_capabilities_document import StoreCapabilitiesDocument
 from app.infrastructure.mongodb.documents.category_document import CategoryDocument
 from app.infrastructure.mongodb.documents.conversation_document import ConversationDocument
 from app.infrastructure.mongodb.documents.dashboard_document import DashboardInsightDocument
@@ -38,5 +39,6 @@ __all__ = [
     "PromptHistoryDocument",
     "PyObjectId",
     "RecommendationDocument",
+    "StoreCapabilitiesDocument",
     "TicketAnalysisDocument",
 ]

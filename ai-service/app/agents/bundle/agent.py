@@ -41,7 +41,7 @@ def route_after_bundles(state: BundleState) -> str:
 
 def route_after_select(state: BundleState) -> str:
     capabilities = state.get("store_capabilities") or {}
-    if capabilities.get("has_promo_codes", True):
+    if capabilities.get("has_promo_codes", False):
         return "handle_promo"
     return "format_response"
 
