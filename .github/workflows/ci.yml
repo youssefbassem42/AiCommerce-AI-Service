@@ -66,4 +66,4 @@ jobs:
       - name: Build Docker image
         run: |
           cd "$GITHUB_WORKSPACE/ai-service"
-          docker build -t ai-service --target runtime .
+          docker build -t ai-service .
