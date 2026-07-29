@@ -21,11 +21,10 @@ class TestDockerfile:
         assert "python:" in content, "Dockerfile must use python base image"
         assert "3.12" in content, "Dockerfile must use Python 3.12"
 
-    def test_dockerfile_multi_stage(self):
+    def test_dockerfile_no_multi_stage(self):
         with open(DOCKERFILE_PATH) as f:
             content = f.read()
-        assert "AS builder" in content, "Dockerfile should have a builder stage"
-        assert "AS runtime" in content, "Dockerfile should have a runtime stage"
+        assert "AS" not in content, "Dockerfile should be single-stage (no multi-stage)"
 
     def test_dockerfile_exposes_port(self):
         with open(DOCKERFILE_PATH) as f:
