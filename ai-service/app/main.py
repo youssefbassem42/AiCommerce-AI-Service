@@ -5,10 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.analytics.router import router as analytics_router
 from app.api.admin.prompt_router import router as admin_prompt_router
 from app.api.admin.router import router as admin_router
 from app.api.ai.router import router as ai_router
+from app.api.analytics.router import router as analytics_router
 from app.api.auth.router import router as auth_router
 from app.api.chat.router import router as chat_router
 from app.api.commerce.router import router as commerce_router

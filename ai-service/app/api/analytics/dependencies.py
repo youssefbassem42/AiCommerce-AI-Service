@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import HTTPException, Request, status
 
 from app.application.analytics.sentiment_analytics_service import SentimentAnalyticsService
 

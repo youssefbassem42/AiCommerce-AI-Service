@@ -24,8 +24,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from motor.motor_asyncio import AsyncIOMotorClient
-from app.core.config import settings
+from motor.motor_asyncio import AsyncIOMotorClient  # noqa: E402
+
+from app.core.config import settings  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("seed_all")
@@ -660,7 +661,7 @@ async def seed_all():
         total += 1
 
         # ── 16. Knowledge Chunks ──
-        content = f"We offer free standard shipping on all orders over $50. Standard shipping takes 3-5 business days." if is_elec else f"Free standard shipping on orders over $75. Standard delivery takes 4-7 business days."
+        content = "We offer free standard shipping on all orders over $50. Standard shipping takes 3-5 business days." if is_elec else "Free standard shipping on orders over $75. Standard delivery takes 4-7 business days."
         chunk_docs = [
             build_doc(store_id, org_id, {
                 "document_id": doc_id,
