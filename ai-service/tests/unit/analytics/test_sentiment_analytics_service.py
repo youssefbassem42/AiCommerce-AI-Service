@@ -50,9 +50,7 @@ class TestSentimentAnalyticsService:
         assert result.negative_pct == 33.3
 
     async def test_all_positive(self, service, ticket_repo):
-        ticket_repo.find_many.return_value = [
-            make_ticket("s1", "positive") for _ in range(4)
-        ]
+        ticket_repo.find_many.return_value = [make_ticket("s1", "positive") for _ in range(4)]
         result = await service.get_sentiment_summary("s1")
         assert result.total == 4
         assert result.positive_count == 4
@@ -97,9 +95,9 @@ class TestSentimentAnalyticsService:
         assert result.negative_pct == 16.7
 
     async def test_rounding_precision(self, service, ticket_repo):
-        ticket_repo.find_many.return_value = [
-            make_ticket("s1", "positive") for _ in range(1)
-        ] + [make_ticket("s1", "neutral") for _ in range(3)]
+        ticket_repo.find_many.return_value = [make_ticket("s1", "positive") for _ in range(1)] + [
+            make_ticket("s1", "neutral") for _ in range(3)
+        ]
         result = await service.get_sentiment_summary("s1")
         assert result.total == 4
         assert result.positive_pct == 25.0

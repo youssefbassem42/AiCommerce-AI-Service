@@ -89,9 +89,7 @@ class TestSentimentAnalyticsAPI:
         assert "DB error" in response.text
 
     def test_all_positive(self):
-        svc = _mock_service(
-            store_id="s1", total=5, positive_count=5, positive_pct=100.0
-        )
+        svc = _mock_service(store_id="s1", total=5, positive_count=5, positive_pct=100.0)
         app.dependency_overrides[get_sentiment_analytics_service] = lambda: svc
         client = TestClient(app)
 
@@ -104,9 +102,7 @@ class TestSentimentAnalyticsAPI:
         assert data["negative_pct"] == 0.0
 
     def test_negative_only(self):
-        svc = _mock_service(
-            store_id="s3", total=3, negative_count=3, negative_pct=100.0
-        )
+        svc = _mock_service(store_id="s3", total=3, negative_count=3, negative_pct=100.0)
         app.dependency_overrides[get_sentiment_analytics_service] = lambda: svc
         client = TestClient(app)
 
