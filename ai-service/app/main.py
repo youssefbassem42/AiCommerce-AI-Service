@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.admin.analytics_router import router as admin_analytics_router
 from app.api.admin.prompt_router import router as admin_prompt_router
 from app.api.admin.router import router as admin_router
 from app.api.ai.router import router as ai_router
@@ -65,6 +66,7 @@ app.include_router(knowledge_job_router)
 app.include_router(knowledge_unified_router)
 app.include_router(rag_router)
 app.include_router(recommendation_router)
+app.include_router(admin_analytics_router)
 app.include_router(admin_prompt_router)
 app.include_router(admin_router)
 app.include_router(auth_router)

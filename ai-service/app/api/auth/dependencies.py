@@ -57,3 +57,12 @@ async def require_admin_role(request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: requires admin role",
         )
+
+
+async def require_super_admin_role(request: Request) -> None:
+    roles = getattr(request.state, "roles", [])
+    if "super_admin" not in roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: super admin role required",
+        )
