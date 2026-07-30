@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.analytics.router import router as analytics_router
 from app.api.admin.prompt_router import router as admin_prompt_router
 from app.api.admin.router import router as admin_router
 from app.api.ai.router import router as ai_router
@@ -55,6 +56,7 @@ app.add_middleware(AuthMiddleware)
 app.add_middleware(RateLimitMiddleware, limit_per_minute=100)
 app.add_middleware(AITracingMiddleware)
 
+app.include_router(analytics_router)
 app.include_router(integration_router)
 app.include_router(chat_router)
 app.include_router(ai_router)

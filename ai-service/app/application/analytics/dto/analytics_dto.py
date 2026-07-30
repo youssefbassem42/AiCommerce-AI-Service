@@ -36,3 +36,14 @@ class DashboardInsightDTO(BaseModel):
     recommendations: list[str]
     metadata: dict[str, Any]
     calculated_at: datetime
+
+
+class SentimentSummaryDTO(BaseModel):
+    store_id: str
+    total: int
+    positive_count: int
+    neutral_count: int
+    negative_count: int
+    positive_pct: float
+    neutral_pct: float
+    negative_pct: float
