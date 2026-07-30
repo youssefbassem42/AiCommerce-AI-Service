@@ -24,3 +24,6 @@ class IntegrationConnectionMongoRepository(
     async def find_by_store_and_name(self, store_id: str, name: str) -> IntegrationConnection | None:
         items = await self.find_many({"store_id": store_id, "name": name}, limit=1)
         return items[0] if items else None
+
+    async def find_active(self) -> list[IntegrationConnection]:
+        return await self.find_many({"status": "active"})

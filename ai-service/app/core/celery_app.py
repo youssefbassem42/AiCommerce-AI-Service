@@ -42,6 +42,8 @@ celery_app.conf.task_routes = {
     "knowledge.retry_failed_jobs": {"queue": "scheduler"},
     "knowledge.cleanup_dead_letters": {"queue": "scheduler"},
     "knowledge.process_dead_letter_queue": {"queue": "cleanup"},
+    "integration.weekly_sync": {"queue": "scheduler"},
+    "integration.hourly_commerce_sync": {"queue": "scheduler"},
     "ai.*": {"queue": "default"},
 }
 
@@ -56,5 +58,13 @@ celery_app.conf.beat_schedule = {
         "task": "knowledge.cleanup_dead_letters",
         "schedule": crontab(hour=3, minute=0),
         "kwargs": {"dry_run": False},
+    },
+    "integration-weekly-sync": {
+        "task": "integration.weekly_sync",
+        "schedule": crontab(hour=0, minute=0, day_of_week=0),
+    },
+    "integration-hourly-commerce-sync": {
+        "task": "integration.hourly_commerce_sync",
+        "schedule": crontab(minute="0"),
     },
 }

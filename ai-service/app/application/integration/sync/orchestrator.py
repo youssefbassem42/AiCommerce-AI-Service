@@ -84,7 +84,7 @@ class SyncOrchestrator:
         self._knowledge_bridge = knowledge_bridge
         self._vector_sync_enabled = vector_sync_enabled
 
-    async def sync_connection(self, connection_id: str) -> SyncResult:
+    async def sync_connection(self, connection_id: str, entity_types: list[str] | None = None) -> SyncResult:
         connection = await self._repository.find_by_id(connection_id)
         if not connection:
             raise ValueError(f"Connection '{connection_id}' not found.")
@@ -92,7 +92,7 @@ class SyncOrchestrator:
         result = SyncResult(connection_id=connection_id, store_id=connection.store_id)
 
         try:
-            await self._execute_sync(connection, result)
+            await self._execute_sync(connection, result, entity_types=entity_types)
         except Exception as e:
             logger.exception("Sync failed for connection '%s'", connection_id)
             result.status = "error"
@@ -110,11 +110,14 @@ class SyncOrchestrator:
         self,
         connection: IntegrationConnection,
         result: SyncResult,
+        entity_types: list[str] | None = None,
     ) -> None:
         if connection.status.value != "active":
             raise ValueError(f"Connection '{connection.id}' is not active (status: {connection.status.value}).")
 
         entity_mappings = connection.entity_mappings
+        if entity_types:
+            entity_mappings = [em for em in entity_mappings if em.entity_type in entity_types]
         if not entity_mappings:
             logger.warning("Connection '%s' has no entity mappings configured.", connection.id)
             result.status = "completed"
