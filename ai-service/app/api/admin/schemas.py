@@ -96,3 +96,16 @@ class PromptListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ── Admin Analytics Schemas ──────────────────────────────────────
+
+
+class SentimentOverviewResponse(BaseModel):
+    total: int
+    positive_count: int
+    neutral_count: int
+    negative_count: int
+    positive_pct: float
+    neutral_pct: float
+    negative_pct: float
