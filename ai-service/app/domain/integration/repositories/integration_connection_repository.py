@@ -14,3 +14,7 @@ class IntegrationConnectionRepository(AsyncRepository[IntegrationConnection, str
     @abstractmethod
     async def find_by_store_and_name(self, store_id: str, name: str) -> IntegrationConnection | None:
         pass
+
+    @abstractmethod
+    async def find_active(self) -> list[IntegrationConnection]:
+        pass

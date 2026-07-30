@@ -1,9 +1,13 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
+from app.application.integration.sync.orchestrator import SyncOrchestrator
 from app.core.celery_app import celery_app
 from app.domain.job.value_objects import JobStatus
 from app.infrastructure.mongodb.collections import get_knowledge_jobs_collection
+from app.infrastructure.mongodb.repositories.integration_connection_repository import (
+    IntegrationConnectionMongoRepository,
+)
 from app.infrastructure.tasks.helpers import _run_async
 
 logger = logging.getLogger(__name__)
@@ -109,4 +113,52 @@ def cleanup_dead_letters_task(dry_run: bool = True) -> dict:
         return _run()
     except Exception as exc:
         logger.error("cleanup_dead_letters failed: %s", exc, exc_info=True)
+        return {"error": str(exc)}
+
+
+@celery_app.task(
+    name="integration.weekly_sync",
+    max_retries=1,
+    acks_late=True,
+)
+def weekly_sync_task() -> dict:
+    def _run():
+        async def _async_run():
+            repo = IntegrationConnectionMongoRepository()
+            orchestrator = SyncOrchestrator(repository=repo)
+            connections = await repo.find_active()
+            results = []
+            for conn in connections:
+                try:
+                    sync_result = await orchestrator.sync_connection(conn.id)
+                    results.append(
+                        {
+                            "connection_id": conn.id,
+                            "store_id": conn.store_id,
+                            "status": sync_result.status,
+                            "error": sync_result.error,
+                        }
+                    )
+                except Exception as e:
+                    logger.error("Weekly sync failed for connection '%s': %s", conn.id, e, exc_info=True)
+                    results.append(
+                        {
+                            "connection_id": conn.id,
+                            "store_id": conn.store_id,
+                            "status": "error",
+                            "error": str(e),
+                        }
+                    )
+            return {
+                "total_connections": len(connections),
+                "results": results,
+                "synced_at": datetime.now(UTC).isoformat(),
+            }
+
+        return _run_async(_async_run())
+
+    try:
+        return _run()
+    except Exception as exc:
+        logger.error("weekly_sync failed: %s", exc, exc_info=True)
         return {"error": str(exc)}
