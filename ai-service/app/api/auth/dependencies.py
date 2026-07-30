@@ -35,3 +35,25 @@ def require_scope(scope: str):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Missing required scope: {scope}")
 
     return _require_scope
+
+
+ADMIN_ROLES = {"admin", "store_admin"}
+
+
+async def require_admin_role(request: Request) -> None:
+    roles = getattr(request.state, "roles", [])
+    if not roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: no roles assigned",
+        )
+    if "super_admin" in roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: super admins cannot access store-level analytics",
+        )
+    if not any(r in ADMIN_ROLES for r in roles):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: requires admin role",
+        )

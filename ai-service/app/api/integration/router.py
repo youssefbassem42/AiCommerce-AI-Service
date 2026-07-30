@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.agents.integration.agent import IntegrationMappingAgent
-from app.api.analytics.dependencies import require_admin_role
+from app.api.auth.dependencies import require_admin_role
 from app.api.integration.dependencies import (
     get_integration_agent,
     get_integration_service,
@@ -299,8 +299,6 @@ async def update_connection_credentials(
         return ConnectionResponseSchema(**result.model_dump())
     except Exception as exc:
         _handle_exception(exc)
-
-
 @router.post(
     "/connections/{connection_id}/sync",
     response_model=SyncResponseSchema,
