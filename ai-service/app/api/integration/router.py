@@ -299,6 +299,8 @@ async def update_connection_credentials(
         return ConnectionResponseSchema(**result.model_dump())
     except Exception as exc:
         _handle_exception(exc)
+
+
 @router.post(
     "/connections/{connection_id}/sync",
     response_model=SyncResponseSchema,

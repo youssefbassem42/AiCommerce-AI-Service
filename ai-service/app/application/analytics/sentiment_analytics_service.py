@@ -1,18 +1,14 @@
 import logging
 
-<<<<<<< HEAD
 from app.application.analytics.dto.analytics_dto import SentimentSummaryDTO
 from app.domain.ticket.repositories.ticket_repository import TicketRepository
-from app.infrastructure.mongodb.repositories.ticket_repository import TicketRepository as MongoTicketRepository
-=======
 from app.infrastructure.mongodb.collections import get_ticket_analysis_collection
->>>>>>> dev
+from app.infrastructure.mongodb.repositories.ticket_repository import TicketRepository as MongoTicketRepository
 
 logger = logging.getLogger(__name__)
 
 
 class SentimentAnalyticsService:
-<<<<<<< HEAD
     def __init__(self, ticket_repository: TicketRepository | None = None):
         self._ticket_repo = ticket_repository or MongoTicketRepository()
 
@@ -37,7 +33,7 @@ class SentimentAnalyticsService:
             neutral_pct=pct(neutral),
             negative_pct=pct(negative),
         )
-=======
+
     async def get_sentiment_overview(self) -> dict:
         collection = get_ticket_analysis_collection()
         pipeline = [
@@ -55,7 +51,15 @@ class SentimentAnalyticsService:
         cursor = collection.aggregate(pipeline)
         result = await cursor.to_list(length=1)
         if not result:
-            return {"total": 0, "positive_count": 0, "neutral_count": 0, "negative_count": 0}
+            return {
+                "total": 0,
+                "positive_count": 0,
+                "neutral_count": 0,
+                "negative_count": 0,
+                "positive_pct": 0.0,
+                "neutral_pct": 0.0,
+                "negative_pct": 0.0,
+            }
 
         row = result[0]
         total = row["total"]
@@ -75,4 +79,3 @@ class SentimentAnalyticsService:
             "neutral_pct": _pct(neutral),
             "negative_pct": _pct(negative),
         }
->>>>>>> dev
