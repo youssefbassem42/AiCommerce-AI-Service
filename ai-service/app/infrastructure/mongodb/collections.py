@@ -109,3 +109,7 @@ def get_store_capabilities_collection():
 
 def get_prompts_collection():
     return get_collection("prompts")
+
+
+def get_user_memories_collection():
+    return get_collection("user_memories")

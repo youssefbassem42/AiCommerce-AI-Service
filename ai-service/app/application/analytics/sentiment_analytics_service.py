@@ -23,7 +23,15 @@ class SentimentAnalyticsService:
         cursor = collection.aggregate(pipeline)
         result = await cursor.to_list(length=1)
         if not result:
-            return {"total": 0, "positive_count": 0, "neutral_count": 0, "negative_count": 0}
+            return {
+                "total": 0,
+                "positive_count": 0,
+                "neutral_count": 0,
+                "negative_count": 0,
+                "positive_pct": 0.0,
+                "neutral_pct": 0.0,
+                "negative_pct": 0.0,
+            }
 
         row = result[0]
         total = row["total"]

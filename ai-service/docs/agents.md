@@ -22,14 +22,45 @@ agents/<agent_name>/
 | Bundle | ✅ | Product bundling recommendations |
 | Integration | ✅ | E-commerce platform integration setup |
 | Recommendation | ✅ | Product recommendation engine |
-| Coordinator | 📝 Phase 01 | Intent classification + routing |
-| Memory | 📝 Phase 01 | Cross-session context persistence |
+| Coordinator | ✅ | Intent classification + routing to sub-agents |
+| Memory | ✅ | Cross-session context persistence (Redis session + Mongo user) |
 | Sales | 📝 Phase 02 | Conversational sales funnel |
 | Support | 📝 Phase 02 | Customer issue resolution |
 | Escalation | 📝 Phase 02 | Human handoff when AI can't resolve |
 | Marketing | 📝 Phase 03 | Campaign creation and management |
 | Analytics | 📝 Phase 03 | Natural-language business intelligence |
 | Planner | 📝 Phase 06 | Multi-step task decomposition |
+
+## Coordinator (Phase 01)
+
+`app/agents/coordinator/` routes user messages to the right sub-agent:
+
+- `extract_context` → loads recent history from the DDD conversation store and
+  extracts structured context (topics, preferences, sentiment)
+- `classify_intent` → LLM intent classification (sales, support, bundle,
+  recommendation, marketing, analytics, escalation, integration, general)
+- `route_to_agent` → selects the target sub-agent
+- `execute_sub_agent` → runs the routed agent (`bundle`, `recommendation`)
+- `handle_fallback` → graceful fallback: static integration guidance,
+  "coming soon" for Phase 02+ intents, or a clarifying question
+
+## Memory Agent (Phase 01)
+
+`app/agents/memory/` persists and recalls context with TTL support:
+
+- `store` / `recall` / `forget` / `summarize` actions
+- Session-scoped memory in Redis (`session:{session_id}:memory` hash, TTL)
+- User-scoped memory in Mongo (`user_memories` collection via `MemoryRepository`)
+- Recall priority: current session → user profile → store defaults
+
+## Conversation Workflow (Phase 01)
+
+`app/workflows/conversation/` is the top-level loop used by `/api/v1/ai/chat`:
+
+- `validate_input` → `route_to_agent` (coordinator) → `execute_agent` (sub-agent
+  or general LLM chat) → `format_response` → `update_memory` → `check_continuation`
+- Clarification loops continue across HTTP requests via the persisted conversation
+- Wired through `OrchestrationService` in `app/application/services/orchestration_service.py`
 
 ## Adding a New Agent
 

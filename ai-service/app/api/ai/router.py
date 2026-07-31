@@ -1,9 +1,9 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi.responses import StreamingResponse
 
-from app.api.ai.dependencies import get_ai_service, get_provider_factory
+from app.api.ai.dependencies import get_ai_service, get_provider_factory, get_store_context
 from app.api.ai.schemas import (
     ChatRequestSchema,
     ChatResponseSchema,
@@ -42,17 +42,27 @@ def _inject_ecommerce_system_message(messages: list[MessageSchema]) -> list[Mess
 
 @router.post("/chat", response_model=ChatResponseSchema)
 async def chat(
-    request: ChatRequestSchema, conversation_id: str | None = None, ai_service: ChatService = Depends(get_ai_service)
+    request: Request,
+    payload: ChatRequestSchema,
+    conversation_id: str | None = None,
+    ai_service: ChatService = Depends(get_ai_service),
 ) -> Any:
     """
     Generate chat completion response.
     Supports temperature, top_p, max_tokens, json_mode, and automatic fallbacks.
     Injects e-commerce system prompt if no system message is present.
+    Chat traffic flows through the Phase 01 coordinator + conversation workflow.
     """
     try:
-        request.messages = _inject_ecommerce_system_message(request.messages)
-        request_dto = ChatRequest(**request.model_dump())
-        response_dto = await ai_service.chat(request_dto, conversation_id=conversation_id)
+        payload.messages = _inject_ecommerce_system_message(payload.messages)
+        request_dto = ChatRequest(**payload.model_dump())
+        store_id, customer_id = get_store_context(request)
+        response_dto = await ai_service.chat(
+            request_dto,
+            conversation_id=conversation_id,
+            store_id=store_id,
+            customer_id=customer_id,
+        )
         return response_dto
     except Exception as e:
         status_code = getattr(e, "status_code", 500)

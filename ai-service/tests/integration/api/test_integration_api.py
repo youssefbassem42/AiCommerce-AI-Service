@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.auth.dependencies import require_admin_role
 from app.api.integration.dependencies import get_integration_service, get_sync_orchestrator
 from app.application.integration.sync.orchestrator import SyncResult
 from app.main import app
@@ -64,8 +65,11 @@ def mock_sync_orchestrator():
 def override_deps(client, mock_service, mock_sync_orchestrator):
     app.dependency_overrides[get_integration_service] = lambda: mock_service
     app.dependency_overrides[get_sync_orchestrator] = lambda: mock_sync_orchestrator
+    app.dependency_overrides[require_admin_role] = lambda: None
     yield
-    app.dependency_overrides.clear()
+    app.dependency_overrides.pop(get_integration_service, None)
+    app.dependency_overrides.pop(get_sync_orchestrator, None)
+    app.dependency_overrides.pop(require_admin_role, None)
 
 
 class TestIntegrationAPI:
