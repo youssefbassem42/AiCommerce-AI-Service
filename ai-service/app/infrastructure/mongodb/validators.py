@@ -252,6 +252,23 @@ TICKET_ANALYSIS_SCHEMA: dict[str, Any] = {
     }
 }
 
+TICKET_NOTIFICATION_SCHEMA: dict[str, Any] = {
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": ["ticket_id", "store_id", "customer_id", "message", "read", "created_at"],
+        "properties": {
+            "ticket_id": {"bsonType": "string"},
+            "store_id": {"bsonType": "string"},
+            "customer_id": {"bsonType": "string"},
+            "message": {"bsonType": "string"},
+            "eta": {"bsonType": ["date", "null"]},
+            "read": {"bsonType": "bool"},
+            "read_at": {"bsonType": ["date", "null"]},
+            "created_at": {"bsonType": "date"},
+        },
+    }
+}
+
 KNOWLEDGE_JOB_SCHEMA: dict[str, Any] = {
     "$jsonSchema": {
         "bsonType": "object",
@@ -337,6 +354,7 @@ VALIDATORS_MAP: dict[str, dict[str, Any]] = {
     "bundle_suggestions": BUNDLE_SUGGESTION_SCHEMA,
     "dashboard_insights": DASHBOARD_INSIGHT_SCHEMA,
     "ticket_analysis": TICKET_ANALYSIS_SCHEMA,
+    "ticket_notifications": TICKET_NOTIFICATION_SCHEMA,
     "knowledge_jobs": KNOWLEDGE_JOB_SCHEMA,
     "bundle_tracking": BUNDLE_TRACKING_SCHEMA,
 }

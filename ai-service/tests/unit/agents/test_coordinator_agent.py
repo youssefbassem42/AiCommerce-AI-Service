@@ -73,18 +73,20 @@ class TestCoordinatorAgent:
             query="bundle a laptop and a mouse",
             store_id="store_1",
             customer_id="customer_1",
+            history=[{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hello!"}],
+            conversation_id="507f1f77bcf86cd799439011",
         )
 
     async def test_run_coming_soon_intent_uses_fallback(self, llm, conversation_repo):
         llm.structured_output.side_effect = lambda request, schema: _json_response(
-            '{"intent": "support", "confidence": 0.85}'
+            '{"intent": "marketing", "confidence": 0.85}'
         )
         agent = CoordinatorAgent(llm=llm, conversation_repo=conversation_repo)
 
-        result = await agent.run(user_input="my order is late", store_id="store_1")
+        result = await agent.run(user_input="create a campaign", store_id="store_1")
 
-        assert result["intent"] == "support"
-        assert result["sub_agent"] == "support"
+        assert result["intent"] == "marketing"
+        assert result["sub_agent"] == "marketing"
         assert result["response"]["needs_clarification"] is False
         assert result["response"]["content"] == "Fallback answer."
 
@@ -175,7 +177,7 @@ class TestCoordinatorRouting:
         assert route_after_route(state) == "format_response"
 
     def test_route_after_route_fallback(self):
-        state = {"sub_agent": "support"}
+        state = {"sub_agent": "marketing"}
         assert route_after_route(state) == "handle_fallback"
 
 

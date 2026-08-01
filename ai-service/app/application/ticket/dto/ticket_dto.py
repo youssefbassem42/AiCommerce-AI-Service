@@ -39,6 +39,18 @@ class TicketCreateDTO(BaseModel):
     messages: list[str] = Field(default_factory=list, description="Conversation messages to analyze")
 
 
+class TicketStatusUpdateDTO(BaseModel):
+    status: str
+    resolution_type: str | None = None
+
+
+class TicketMessageDTO(BaseModel):
+    id: str
+    sender: str
+    content: str
+    created_at: datetime
+
+
 class TicketDTO(BaseModel):
     id: str
     ticket_id: str
@@ -58,11 +70,9 @@ class TicketDTO(BaseModel):
     customer: CustomerProfileDTO | None = None
     recent_orders: list[OrderDTO] = Field(default_factory=list)
     conversation: ConversationSummaryDTO | None = None
-
-
-class TicketStatusUpdateDTO(BaseModel):
-    status: str
-    resolution_type: str | None = None
+    messages: list[TicketMessageDTO] = Field(default_factory=list)
+    assigned_to: str | None = None
+    eta: datetime | None = None
 
 
 class ResolutionMetricsDTO(BaseModel):

@@ -12,12 +12,13 @@ from app.application.ticket.dto.ticket_dto import (
     ResolutionMetricsDTO,
     TicketCreateDTO,
     TicketDTO,
+    TicketMessageDTO,
     TicketStatusUpdateDTO,
 )
 from app.application.ticket.services.sentiment_service import SentimentAnalysisService
 from app.domain.commerce.repositories.order_repository import OrderRepository
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
-from app.domain.ticket.entities.ticket_analysis import TicketAnalysis
+from app.domain.ticket.entities.ticket_analysis import RESOLUTION_TYPES, TicketAnalysis, TicketMessage
 from app.domain.ticket.repositories.ticket_repository import TicketRepository
 
 logger = logging.getLogger(__name__)
@@ -96,6 +97,15 @@ class TicketService:
                 logger.warning("Failed to fetch conversation %s: %s", dto.conversation_id, e)
 
         now = datetime.now(UTC)
+        initial_messages = [
+            TicketMessage(
+                id=str(uuid4()),
+                sender="customer",
+                content=content,
+                created_at=now,
+            )
+            for content in (dto.messages or [])
+        ]
         entity = TicketAnalysis(
             id=str(uuid4()),
             ticket_id=str(uuid4()),
@@ -109,6 +119,7 @@ class TicketService:
             suggested_response=sentiment_result.suggested_response,
             resolution_type="unresolved",
             analyzed_at=now,
+            messages=initial_messages,
         )
 
         created = await self._ticket_repo.create(entity)
@@ -178,6 +189,90 @@ class TicketService:
         updated = await self._ticket_repo.update(entity)
         return self._to_dto(updated)
 
+    async def add_message(
+        self,
+        ticket_id: str,
+        sender: str,
+        content: str,
+    ) -> TicketDTO | None:
+        """Append a message to the ticket thread."""
+        if sender not in ("customer", "agent", "system"):
+            raise ValueError(f"Invalid message sender: {sender}")
+        entity = await self._ticket_repo.find_by_ticket_id(ticket_id)
+        if entity is None:
+            return None
+        entity.messages = list(entity.messages) + [
+            TicketMessage(
+                id=str(uuid4()),
+                sender=sender,
+                content=content,
+                created_at=datetime.now(UTC),
+            )
+        ]
+        updated = await self._ticket_repo.update(entity)
+        return self._to_dto(updated)
+
+    async def resolve_ticket(
+        self,
+        ticket_id: str,
+        resolution_type: str = "human",
+        message: str | None = None,
+    ) -> TicketDTO | None:
+        """Mark a ticket as resolved."""
+        entity = await self._ticket_repo.find_by_ticket_id(ticket_id)
+        if entity is None:
+            return None
+        entity.status = "resolved"
+        entity.resolution_type = resolution_type if resolution_type in RESOLUTION_TYPES else "human"
+        if message:
+            entity.messages = list(entity.messages) + [
+                TicketMessage(
+                    id=str(uuid4()),
+                    sender="system",
+                    content=message,
+                    created_at=datetime.now(UTC),
+                )
+            ]
+        updated = await self._ticket_repo.update(entity)
+        return self._to_dto(updated)
+
+    async def escalate_ticket(
+        self,
+        ticket_id: str,
+        priority: str | None = None,
+        assigned_to: str | None = None,
+        eta: datetime | None = None,
+        message: str | None = None,
+    ) -> TicketDTO | None:
+        """Escalate a ticket to a human agent/team."""
+        entity = await self._ticket_repo.find_by_ticket_id(ticket_id)
+        if entity is None:
+            return None
+        entity.resolution_type = "escalated"
+        if entity.status not in ("resolved", "closed"):
+            entity.status = "in_progress"
+        if priority:
+            entity.priority = priority
+        if assigned_to:
+            entity.assigned_to = assigned_to
+        if eta:
+            entity.eta = eta
+        if message:
+            entity.messages = list(entity.messages) + [
+                TicketMessage(
+                    id=str(uuid4()),
+                    sender="system",
+                    content=message,
+                    created_at=datetime.now(UTC),
+                )
+            ]
+        updated = await self._ticket_repo.update(entity)
+        return self._to_dto(updated)
+
+    async def has_open_ticket(self, store_id: str, customer_id: str) -> bool:
+        """Check whether the customer already has an open ticket for the store (dedupe)."""
+        return await self._ticket_repo.find_open_by_customer(store_id, customer_id) is not None
+
     async def get_resolution_metrics(self, store_id: str) -> ResolutionMetricsDTO:
         all_tickets = await self._ticket_repo.find_many({"store_id": store_id})
         total = len(all_tickets)
@@ -222,4 +317,7 @@ class TicketService:
             customer=customer,
             recent_orders=orders or [],
             conversation=conversation,
+            messages=[TicketMessageDTO(**m.model_dump()) for m in entity.messages],
+            assigned_to=entity.assigned_to,
+            eta=entity.eta,
         )

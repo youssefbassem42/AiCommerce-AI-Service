@@ -1,15 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.ticket.dependencies import get_ticket_service
+from app.api.ticket.dependencies import get_notification_service, get_ticket_service
 from app.api.ticket.schemas import (
+    AddMessageSchema,
     DeleteResponseSchema,
+    EscalateTicketSchema,
     ResolutionMetricsResponseSchema,
+    ResolveTicketSchema,
     TicketCreateSchema,
     TicketListResponseSchema,
+    TicketNotificationListSchema,
     TicketResponseSchema,
     TicketStatusUpdateSchema,
 )
 from app.application.ticket.dto.ticket_dto import TicketCreateDTO, TicketStatusUpdateDTO
+from app.application.ticket.services.notification_service import TicketNotificationService
 from app.application.ticket.services.ticket_service import TicketService
 from app.domain.ticket.exceptions import TicketNotFoundException
 
@@ -100,6 +105,97 @@ async def update_ticket_status(
         if result is None:
             raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
         return TicketResponseSchema(**result.model_dump())
+    except Exception as exc:
+        _handle_exception(exc)
+
+
+@router.post("/{ticket_id}/messages", response_model=TicketResponseSchema)
+async def add_ticket_message(
+    ticket_id: str,
+    payload: AddMessageSchema,
+    service: TicketService = Depends(get_ticket_service),
+) -> TicketResponseSchema:
+    try:
+        result = await service.add_message(
+            ticket_id=ticket_id,
+            sender=payload.sender,
+            content=payload.content,
+        )
+        if result is None:
+            raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
+        return TicketResponseSchema(**result.model_dump())
+    except Exception as exc:
+        _handle_exception(exc)
+
+
+@router.post("/{ticket_id}/resolve", response_model=TicketResponseSchema)
+async def resolve_ticket(
+    ticket_id: str,
+    payload: ResolveTicketSchema,
+    service: TicketService = Depends(get_ticket_service),
+) -> TicketResponseSchema:
+    try:
+        result = await service.resolve_ticket(
+            ticket_id=ticket_id,
+            resolution_type=payload.resolution_type,
+            message=payload.message,
+        )
+        if result is None:
+            raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
+        return TicketResponseSchema(**result.model_dump())
+    except Exception as exc:
+        _handle_exception(exc)
+
+
+@router.post("/{ticket_id}/escalate", response_model=TicketResponseSchema)
+async def escalate_ticket(
+    ticket_id: str,
+    payload: EscalateTicketSchema,
+    service: TicketService = Depends(get_ticket_service),
+) -> TicketResponseSchema:
+    try:
+        result = await service.escalate_ticket(
+            ticket_id=ticket_id,
+            priority=payload.priority,
+            assigned_to=payload.assigned_to,
+            eta=payload.eta,
+            message=payload.message,
+        )
+        if result is None:
+            raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
+        return TicketResponseSchema(**result.model_dump())
+    except Exception as exc:
+        _handle_exception(exc)
+
+
+@router.get("/{ticket_id}/notifications", response_model=TicketNotificationListSchema)
+async def list_ticket_notifications(
+    ticket_id: str,
+    customer_id: str | None = Query(default=None),
+    unread_only: bool = Query(default=False),
+    limit: int = Query(default=50, ge=1, le=200),
+    service: TicketNotificationService = Depends(get_notification_service),
+) -> TicketNotificationListSchema:
+    try:
+        items = await service.list_notifications(
+            ticket_id=ticket_id,
+            customer_id=customer_id,
+            unread_only=unread_only,
+            limit=limit,
+        )
+        unread = len(
+            await service.list_notifications(
+                ticket_id=ticket_id,
+                customer_id=customer_id,
+                unread_only=True,
+                limit=200,
+            )
+        )
+        return TicketNotificationListSchema(
+            items=[TicketNotificationSchema(**i) for i in items],
+            total=len(items),
+            unread=unread,
+        )
     except Exception as exc:
         _handle_exception(exc)
 

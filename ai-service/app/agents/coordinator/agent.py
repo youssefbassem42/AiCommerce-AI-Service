@@ -19,9 +19,9 @@ from app.infrastructure.providers.base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
 
-EXECUTABLE_INTENTS = {"bundle", "recommendation"}
+EXECUTABLE_INTENTS = {"bundle", "recommendation", "sales", "support", "escalation"}
 DEFERRED_INTENTS = {"general"}
-FALLBACK_INTENTS = {"sales", "support", "marketing", "analytics", "escalation", "integration"}
+FALLBACK_INTENTS = {"marketing", "analytics", "integration"}
 
 
 def route_after_classify(state: CoordinatorState) -> str:

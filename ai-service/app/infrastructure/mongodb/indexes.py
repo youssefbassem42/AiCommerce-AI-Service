@@ -107,6 +107,15 @@ async def setup_database_indexes(db) -> None:
             IndexModel([("sentiment", ASCENDING)]),
             IndexModel([("status", ASCENDING)]),
             IndexModel([("store_id", ASCENDING), ("status", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("customer_id", ASCENDING), ("status", ASCENDING)]),
+        ]
+    )
+
+    await db["ticket_notifications"].create_indexes(
+        [
+            IndexModel([("ticket_id", ASCENDING)]),
+            IndexModel([("customer_id", ASCENDING), ("read", ASCENDING)]),
+            IndexModel([("created_at", DESCENDING)]),
         ]
     )
 

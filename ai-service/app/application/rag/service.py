@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import logging
 import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from app.application.dto.ai_dto import ChatRequest as AIChatRequest
 from app.application.dto.ai_dto import MessageDTO, UsageDTO
@@ -17,6 +20,9 @@ from app.application.ticket.services.ticket_service import TicketService
 from app.core.ai_exceptions import ProviderUnavailableException, RateLimitException
 from app.core.ai_settings import ai_settings
 from app.domain.knowledge.repositories.business_summary_repository import BusinessSummaryRepository
+
+if TYPE_CHECKING:
+    from app.agents.support.agent import SupportAgent
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +53,14 @@ class RagOrchestrationService:
         conversation_service: ConversationService | None = None,
         business_summary_repository: BusinessSummaryRepository | None = None,
         ticket_service: TicketService | None = None,
+        support_agent: SupportAgent | None = None,
     ):
         self._retriever = retriever_service
         self._chat = chat_service
         self._conversation_service = conversation_service
         self._summary_repo = business_summary_repository
         self._ticket_service = ticket_service
+        self._support_agent = support_agent
 
     async def _prepare_context(self, request: RAGRequest) -> RAGContext:
         model = request.model or ai_settings.DEFAULT_MODEL
@@ -311,8 +319,6 @@ class RagOrchestrationService:
         if response.confidence_score >= ESCALATION_CONFIDENCE_THRESHOLD:
             return
 
-        messages_to_analyze = [request.message]
-
         user_requested_human = any(
             keyword in request.message.lower()
             for keyword in [
@@ -344,14 +350,29 @@ class RagOrchestrationService:
             )
             return
 
+        try:
+            if await self._ticket_service.has_open_ticket(request.store_id, request.customer_id):
+                logger.info(
+                    "Skipping escalation for customer %s: an open ticket already exists.",
+                    request.customer_id,
+                )
+                return
+        except Exception as exc:
+            logger.warning("Open-ticket dedupe check failed: %s", exc, exc_info=True)
+
+        history = []
         if request.conversation_id and self._conversation_service:
             try:
                 history = await self._conversation_service.get_conversation_history(request.conversation_id)
-                messages_to_analyze = [str(m.content) for m in history] + messages_to_analyze
             except Exception:
                 logger.warning("Failed to load conversation history for escalation check")
 
+        if self._support_agent:
+            await self._run_support_agent(request, history)
+            return
+
         try:
+            messages_to_analyze = [str(m.content) for m in history] + [request.message]
             ticket = await self._ticket_service.create_ticket(
                 TicketCreateDTO(
                     store_id=request.store_id,
@@ -368,6 +389,32 @@ class RagOrchestrationService:
             )
         except Exception as e:
             logger.warning("Failed to auto-escalate ticket: %s", e, exc_info=True)
+
+    async def _run_support_agent(self, request: RAGRequest, history: list) -> None:
+        try:
+            result = await self._support_agent.run(
+                query=request.message,
+                store_id=request.store_id,
+                customer_id=request.customer_id,
+                history=history,
+                conversation_id=request.conversation_id,
+            )
+            if result.escalation_needed:
+                logger.info(
+                    "Support agent escalated issue %s for customer %s (ticket=%s, priority=%s)",
+                    result.issue_category,
+                    request.customer_id,
+                    result.ticket_id,
+                    result.priority,
+                )
+            else:
+                logger.info(
+                    "Support agent handled issue '%s' for customer %s without escalation.",
+                    result.issue_category,
+                    request.customer_id,
+                )
+        except Exception as exc:
+            logger.warning("Support agent escalation failed: %s", exc, exc_info=True)
 
     def _extract_citations(
         self,

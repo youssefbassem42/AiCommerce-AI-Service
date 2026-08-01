@@ -80,7 +80,7 @@ class TestConversationWorkflow:
 
     async def test_run_coming_soon_intent_keeps_coordinator_response(self, coordinator, llm):
         coordinator.run.return_value = _coordinator_state(
-            "support", content="Support is coming soon.", sub_agent="support"
+            "marketing", content="Marketing is coming soon.", sub_agent="marketing"
         )
         runner = AsyncMock()
         workflow = ConversationWorkflow(
@@ -89,9 +89,9 @@ class TestConversationWorkflow:
             sub_agents={"recommendation": runner},
         )
 
-        response = await workflow.run(user_input="my order is late", store_id="store_1")
+        response = await workflow.run(user_input="create a campaign", store_id="store_1")
 
-        assert response.message.content == "Support is coming soon."
+        assert response.message.content == "Marketing is coming soon."
         runner.assert_not_awaited()
         llm.chat.assert_not_awaited()
 

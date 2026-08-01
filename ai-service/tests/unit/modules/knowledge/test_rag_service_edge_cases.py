@@ -141,6 +141,7 @@ class TestRAGServiceEdgeCases:
     async def test_escalation_triggers_on_low_confidence(self, rag_service, retriever, chat_service):
         ticket_service = AsyncMock()
         ticket_service.create_ticket = AsyncMock()
+        ticket_service.has_open_ticket = AsyncMock(return_value=False)
         rag_service._ticket_service = ticket_service
         conv_service = AsyncMock()
         conv_service.get_conversation_history = AsyncMock(return_value=[])
@@ -176,6 +177,107 @@ class TestRAGServiceEdgeCases:
                 store_id="s1",
             )
         )
+        ticket_service.create_ticket.assert_not_called()
+
+    async def test_escalation_skipped_when_open_ticket_exists(self, rag_service, retriever, chat_service):
+        ticket_service = AsyncMock()
+        ticket_service.create_ticket = AsyncMock()
+        ticket_service.has_open_ticket = AsyncMock(return_value=True)
+        rag_service._ticket_service = ticket_service
+        conv_service = AsyncMock()
+        conv_service.get_conversation_history = AsyncMock(return_value=[])
+        rag_service._conversation_service = conv_service
+
+        retriever.search.return_value = MagicMock(results=[], total_count=0)
+        chat_service.chat.return_value = ChatResponse(
+            id="test",
+            model="gpt-4o-mini",
+            provider="openai",
+            message=MessageDTO(role="assistant", content="not confident"),
+            usage=UsageDTO(),
+            latency_ms=0,
+        )
+
+        result = await rag_service.answer(
+            RAGRequest(
+                message="I want to talk to a human",
+                store_id="s1",
+                customer_id="c1",
+            )
+        )
+        assert result.confidence_score < ESCALATION_CONFIDENCE_THRESHOLD
+        ticket_service.create_ticket.assert_not_called()
+
+    async def test_escalation_routes_through_support_agent(self, rag_service, retriever, chat_service):
+        ticket_service = AsyncMock()
+        ticket_service.has_open_ticket = AsyncMock(return_value=False)
+        ticket_service.create_ticket = AsyncMock()
+        rag_service._ticket_service = ticket_service
+        conv_service = AsyncMock()
+        conv_service.get_conversation_history = AsyncMock(return_value=[])
+        rag_service._conversation_service = conv_service
+
+        support_agent = AsyncMock()
+        support_agent.run.return_value = MagicMock(
+            escalation_needed=True,
+            issue_category="account",
+            ticket_id="ticket_1",
+            priority="p1",
+        )
+        rag_service._support_agent = support_agent
+
+        retriever.search.return_value = MagicMock(results=[], total_count=0)
+        chat_service.chat.return_value = ChatResponse(
+            id="test",
+            model="gpt-4o-mini",
+            provider="openai",
+            message=MessageDTO(role="assistant", content="not confident"),
+            usage=UsageDTO(),
+            latency_ms=0,
+        )
+
+        result = await rag_service.answer(
+            RAGRequest(
+                message="I want to talk to a human",
+                store_id="s1",
+                customer_id="c1",
+            )
+        )
+        assert result is not None
+        support_agent.run.assert_awaited_once()
+        ticket_service.create_ticket.assert_not_called()
+
+    async def test_escalation_support_agent_handles_without_escalation(self, rag_service, retriever, chat_service):
+        ticket_service = AsyncMock()
+        ticket_service.has_open_ticket = AsyncMock(return_value=False)
+        rag_service._ticket_service = ticket_service
+        conv_service = AsyncMock()
+        conv_service.get_conversation_history = AsyncMock(return_value=[])
+        rag_service._conversation_service = conv_service
+
+        support_agent = AsyncMock()
+        support_agent.run.return_value = MagicMock(escalation_needed=False, issue_category="order_status")
+        rag_service._support_agent = support_agent
+
+        retriever.search.return_value = MagicMock(results=[], total_count=0)
+        chat_service.chat.return_value = ChatResponse(
+            id="test",
+            model="gpt-4o-mini",
+            provider="openai",
+            message=MessageDTO(role="assistant", content="not confident"),
+            usage=UsageDTO(),
+            latency_ms=0,
+        )
+
+        result = await rag_service.answer(
+            RAGRequest(
+                message="I want to talk to a human",
+                store_id="s1",
+                customer_id="c1",
+            )
+        )
+        assert result is not None
+        support_agent.run.assert_awaited_once()
         ticket_service.create_ticket.assert_not_called()
 
     async def test_escalation_failure_does_not_break_main_flow(self, rag_service, retriever, chat_service):

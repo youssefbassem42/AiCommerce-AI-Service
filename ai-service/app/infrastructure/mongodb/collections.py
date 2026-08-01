@@ -55,6 +55,10 @@ def get_ticket_analysis_collection():
     return get_collection("ticket_analysis")
 
 
+def get_ticket_notifications_collection():
+    return get_collection("ticket_notifications")
+
+
 def get_knowledge_jobs_collection():
     return get_collection("knowledge_jobs")
 

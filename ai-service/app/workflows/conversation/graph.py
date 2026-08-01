@@ -15,7 +15,7 @@ from app.workflows.conversation.state import ConversationWorkflowState
 
 logger = logging.getLogger(__name__)
 
-EXECUTABLE_INTENTS = {"bundle", "recommendation"}
+EXECUTABLE_INTENTS = {"bundle", "recommendation", "sales", "support", "escalation"}
 DEFAULT_MAX_TURNS = 4
 DEFAULT_CONTEXT_WINDOW = 20
 
@@ -224,6 +224,8 @@ async def execute_agent_node(
                     query=state["user_input"],
                     store_id=store_id,
                     customer_id=customer_id,
+                    history=messages,
+                    conversation_id=state.get("conversation_id"),
                 )
                 rationale = getattr(result, "rationale", None)
                 response["content"] = rationale or str(result)

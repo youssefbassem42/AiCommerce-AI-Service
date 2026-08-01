@@ -28,10 +28,10 @@ VALID_INTENTS = {
 }
 
 # Intents the coordinator can hand off to an executable conversational agent.
-EXECUTABLE_INTENTS = {"bundle", "recommendation"}
+EXECUTABLE_INTENTS = {"bundle", "recommendation", "sales", "support", "escalation"}
 
 # Intents that exist in the routing table but have no executable agent yet.
-COMING_SOON_INTENTS = {"sales", "support", "marketing", "analytics", "escalation"}
+COMING_SOON_INTENTS = {"marketing", "analytics"}
 
 
 def _get_llm() -> BaseLLMProvider:
@@ -44,11 +44,11 @@ def available_agents() -> list[dict[str, Any]]:
         {"name": "bundle", "description": "Bundle deals, multi-product discounts, promo codes", "status": "available"},
         {"name": "recommendation", "description": "Product suggestions and buying advice", "status": "available"},
         {"name": "integration", "description": "API connections and platform integration", "status": "available"},
-        {"name": "sales", "description": "Conversational sales funnel", "status": "coming_soon"},
-        {"name": "support", "description": "Customer issue resolution", "status": "coming_soon"},
+        {"name": "sales", "description": "Conversational sales funnel", "status": "available"},
+        {"name": "support", "description": "Customer issue resolution", "status": "available"},
+        {"name": "escalation", "description": "Human handoff for critical issues", "status": "available"},
         {"name": "marketing", "description": "Campaign creation and management", "status": "coming_soon"},
         {"name": "analytics", "description": "Natural-language business intelligence", "status": "coming_soon"},
-        {"name": "escalation", "description": "Human handoff for critical issues", "status": "coming_soon"},
     ]
 
 

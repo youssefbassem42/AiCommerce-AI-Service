@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from pydantic import Field
 
-from app.domain.ticket.entities.ticket_analysis import TicketAnalysis
+from app.domain.ticket.entities.ticket_analysis import TicketAnalysis, TicketMessage
 from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 
 
@@ -20,6 +20,9 @@ class TicketAnalysisDocument(BaseMongoDocument):
     suggested_response: str = Field(...)
     resolution_type: str = Field(default="unresolved")
     analyzed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    messages: list[dict] = Field(default_factory=list)
+    assigned_to: str | None = Field(default=None)
+    eta: datetime | None = Field(default=None)
 
     def to_entity(self) -> TicketAnalysis:
         """Map document to domain Entity."""
@@ -36,6 +39,9 @@ class TicketAnalysisDocument(BaseMongoDocument):
             suggested_response=self.suggested_response,
             resolution_type=self.resolution_type,
             analyzed_at=self.analyzed_at,
+            messages=[TicketMessage(**msg) for msg in (self.messages or [])],
+            assigned_to=self.assigned_to,
+            eta=self.eta,
         )
 
     @classmethod
@@ -53,4 +59,7 @@ class TicketAnalysisDocument(BaseMongoDocument):
             suggested_response=entity.suggested_response,
             resolution_type=entity.resolution_type,
             analyzed_at=entity.analyzed_at,
+            messages=[msg.model_dump(mode="json") for msg in entity.messages],
+            assigned_to=entity.assigned_to,
+            eta=entity.eta,
         )

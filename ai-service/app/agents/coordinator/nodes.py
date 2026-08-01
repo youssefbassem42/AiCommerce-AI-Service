@@ -119,6 +119,8 @@ async def execute_sub_agent_node(
             query=state["user_input"],
             store_id=state["store_id"],
             customer_id=state.get("customer_id"),
+            history=state.get("context", {}).get("history") or [],
+            conversation_id=state.get("conversation_id"),
         )
         content = getattr(result, "rationale", None) or str(result)
         return {

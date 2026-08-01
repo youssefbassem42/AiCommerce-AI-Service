@@ -92,7 +92,7 @@ class TestOrchestrationService:
         def structured_side_effect(request, response_schema):
             prompt = request.messages[-1].content
             if "classify" in prompt.lower():
-                content = '{"intent": "support", "confidence": 0.85}'
+                content = '{"intent": "marketing", "confidence": 0.85}'
             else:
                 content = '{"key_topics": [], "customer_preferences": [], "store_facts": [], "sentiment": "negative"}'
             response = MagicMock()
@@ -110,10 +110,10 @@ class TestOrchestrationService:
             llm=llm,
         )
 
-        response = await service.chat(user_input="my order is late", store_id="store_1")
+        response = await service.chat(user_input="create a campaign", store_id="store_1")
 
         assert response.message.content == "Fallback answer."
-        assert response.metadata["intent"] == "support"
+        assert response.metadata["intent"] == "marketing"
 
     async def test_workflow_is_built_once(self, llm, recommendation_service, bundle_service, memory_repo):
         service = OrchestrationService(
