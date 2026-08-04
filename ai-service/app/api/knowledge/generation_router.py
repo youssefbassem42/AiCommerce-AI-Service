@@ -65,6 +65,8 @@ async def generate_business_summary(
     command = GenerateBusinessSummaryCommand(store_id=store_id, config=cfg)
     result = await handler.handle(command)
     return _to_response(result)
+
+
 @router.post(
     "/summaries/regenerate",
     response_model=BusinessSummaryGenerationResponseSchema,
@@ -85,6 +87,8 @@ async def regenerate_business_summary(
     command = RegenerateBusinessSummaryCommand(store_id=store_id, config=cfg)
     result = await handler.handle(command)
     return _to_response(result)
+
+
 @router.get(
     "/summaries/history",
     response_model=PaginatedBusinessSummaryHistoryResponseSchema,

@@ -63,6 +63,8 @@ async def chat(
         customer_id=customer_id,
     )
     return response_dto
+
+
 @router.post("/chat/stream")
 async def chat_stream(
     request: StreamingSchema, conversation_id: str | None = None, ai_service: ChatService = Depends(get_ai_service)
@@ -79,6 +81,8 @@ async def chat_stream(
             yield f"data: {chunk.model_dump_json()}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @router.post("/chat/structured", response_model=ChatResponseSchema)
 async def chat_structured(request: StructuredOutputSchema, ai_service: ChatService = Depends(get_ai_service)) -> Any:
     """
@@ -92,6 +96,8 @@ async def chat_structured(request: StructuredOutputSchema, ai_service: ChatServi
     )
     response_dto = await ai_service.structured_output(request_dto, request.schema_definition)
     return response_dto
+
+
 @router.post("/chat/tools", response_model=ChatResponseSchema)
 async def chat_tools(request: ChatRequestSchema, ai_service: ChatService = Depends(get_ai_service)) -> Any:
     """
@@ -100,6 +106,8 @@ async def chat_tools(request: ChatRequestSchema, ai_service: ChatService = Depen
     request_dto = ChatRequest(**request.model_dump())
     response_dto = await ai_service.tool_call(request_dto)
     return response_dto
+
+
 @router.post("/embeddings", response_model=EmbeddingResponseSchema)
 async def embeddings(request: EmbeddingSchema, ai_service: ChatService = Depends(get_ai_service)) -> Any:
     """
@@ -108,6 +116,8 @@ async def embeddings(request: EmbeddingSchema, ai_service: ChatService = Depends
     request_dto = EmbeddingRequest(**request.model_dump())
     response_dto = await ai_service.embeddings(request_dto)
     return response_dto
+
+
 @router.get("/models", response_model=list[dict[str, Any]])
 async def list_models() -> list[dict[str, Any]]:
     """
@@ -160,6 +170,8 @@ async def health(factory: LLMProviderFactory = Depends(get_provider_factory)) ->
     provider = factory.get_provider(ai_settings.DEFAULT_PROVIDER)
     health_dto = await provider.health_check()
     return health_dto
+
+
 @router.get("/provider/{provider}/models", response_model=list[str])
 async def provider_models(
     provider: str = Path(..., description="The name of the AI provider"),
@@ -170,6 +182,8 @@ async def provider_models(
     """
     prov = factory.get_provider(provider)
     return await prov.list_models()
+
+
 @router.get("/provider/{provider}/health", response_model=HealthResponseSchema)
 async def provider_health(
     provider: str = Path(..., description="The name of the AI provider"),

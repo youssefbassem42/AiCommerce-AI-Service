@@ -44,8 +44,6 @@ from app.core.knowledge_settings import knowledge_settings
 router = APIRouter(prefix=knowledge_settings.route_prefix, tags=["Knowledge Base"])
 
 
-
-
 @router.post("/documents", response_model=KnowledgeDocumentResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_document(
     payload: KnowledgeDocumentCreateSchema,
@@ -53,6 +51,8 @@ async def create_document(
 ) -> KnowledgeDocumentResponseSchema:
     result = await service.create(KnowledgeDocumentCreateDTO(**payload.model_dump()))
     return KnowledgeDocumentResponseSchema(**result.model_dump())
+
+
 @router.get("/documents/{document_id}", response_model=KnowledgeDocumentResponseSchema)
 async def get_document(
     document_id: str,
@@ -60,6 +60,8 @@ async def get_document(
 ) -> KnowledgeDocumentResponseSchema:
     result = await service.get_by_id(document_id)
     return KnowledgeDocumentResponseSchema(**result.model_dump())
+
+
 @router.get("/documents", response_model=PaginatedKnowledgeDocumentResponseSchema)
 async def list_documents(
     page: int = Query(default=1, ge=1),
@@ -70,6 +72,8 @@ async def list_documents(
 ) -> PaginatedKnowledgeDocumentResponseSchema:
     result = await service.list(page=page, page_size=page_size, store_id=store_id, status=status_filter)
     return PaginatedKnowledgeDocumentResponseSchema(**result.model_dump())
+
+
 @router.put("/documents/{document_id}", response_model=KnowledgeDocumentResponseSchema)
 async def update_document(
     document_id: str,
@@ -78,12 +82,16 @@ async def update_document(
 ) -> KnowledgeDocumentResponseSchema:
     result = await service.update(document_id, KnowledgeDocumentUpdateDTO(**payload.model_dump(exclude_unset=True)))
     return KnowledgeDocumentResponseSchema(**result.model_dump())
+
+
 @router.delete("/documents/{document_id}", response_model=DeleteResponseSchema)
 async def delete_document(
     document_id: str,
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
 ) -> DeleteResponseSchema:
     return DeleteResponseSchema(success=await service.delete(document_id))
+
+
 @router.post("/chunks", response_model=KnowledgeChunkResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_chunk(
     payload: KnowledgeChunkCreateSchema,
@@ -91,6 +99,8 @@ async def create_chunk(
 ) -> KnowledgeChunkResponseSchema:
     result = await service.create(KnowledgeChunkCreateDTO(**payload.model_dump()))
     return KnowledgeChunkResponseSchema(**result.model_dump())
+
+
 @router.get("/chunks/{chunk_id}", response_model=KnowledgeChunkResponseSchema)
 async def get_chunk(
     chunk_id: str,
@@ -98,6 +108,8 @@ async def get_chunk(
 ) -> KnowledgeChunkResponseSchema:
     result = await service.get_by_id(chunk_id)
     return KnowledgeChunkResponseSchema(**result.model_dump())
+
+
 @router.get("/chunks", response_model=PaginatedKnowledgeChunkResponseSchema)
 async def list_chunks(
     page: int = Query(default=1, ge=1),
@@ -106,10 +118,10 @@ async def list_chunks(
     version_number: int | None = Query(default=None, ge=1),
     service: KnowledgeChunkService = Depends(get_knowledge_chunk_service),
 ) -> PaginatedKnowledgeChunkResponseSchema:
-    result = await service.list(
-        page=page, page_size=page_size, document_id=document_id, version_number=version_number
-    )
+    result = await service.list(page=page, page_size=page_size, document_id=document_id, version_number=version_number)
     return PaginatedKnowledgeChunkResponseSchema(**result.model_dump())
+
+
 @router.put("/chunks/{chunk_id}", response_model=KnowledgeChunkResponseSchema)
 async def update_chunk(
     chunk_id: str,
@@ -118,12 +130,16 @@ async def update_chunk(
 ) -> KnowledgeChunkResponseSchema:
     result = await service.update(chunk_id, KnowledgeChunkUpdateDTO(**payload.model_dump(exclude_unset=True)))
     return KnowledgeChunkResponseSchema(**result.model_dump())
+
+
 @router.delete("/chunks/{chunk_id}", response_model=DeleteResponseSchema)
 async def delete_chunk(
     chunk_id: str,
     service: KnowledgeChunkService = Depends(get_knowledge_chunk_service),
 ) -> DeleteResponseSchema:
     return DeleteResponseSchema(success=await service.delete(chunk_id))
+
+
 @router.post("/summaries", response_model=BusinessSummaryResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_summary(
     payload: BusinessSummaryCreateSchema,
@@ -131,6 +147,8 @@ async def create_summary(
 ) -> BusinessSummaryResponseSchema:
     result = await service.create(BusinessSummaryCreateDTO(**payload.model_dump()))
     return BusinessSummaryResponseSchema(**result.model_dump())
+
+
 @router.get("/summaries/{summary_id}", response_model=BusinessSummaryResponseSchema)
 async def get_summary(
     summary_id: str,
@@ -138,6 +156,8 @@ async def get_summary(
 ) -> BusinessSummaryResponseSchema:
     result = await service.get_by_id(summary_id)
     return BusinessSummaryResponseSchema(**result.model_dump())
+
+
 @router.get("/summaries", response_model=PaginatedBusinessSummaryResponseSchema)
 async def list_summaries(
     page: int = Query(default=1, ge=1),
@@ -146,10 +166,10 @@ async def list_summaries(
     version_number: int | None = Query(default=None, ge=1),
     service: BusinessSummaryService = Depends(get_business_summary_service),
 ) -> PaginatedBusinessSummaryResponseSchema:
-    result = await service.list(
-        page=page, page_size=page_size, document_id=document_id, version_number=version_number
-    )
+    result = await service.list(page=page, page_size=page_size, document_id=document_id, version_number=version_number)
     return PaginatedBusinessSummaryResponseSchema(**result.model_dump())
+
+
 @router.put("/summaries/{summary_id}", response_model=BusinessSummaryResponseSchema)
 async def update_summary(
     summary_id: str,
@@ -158,12 +178,16 @@ async def update_summary(
 ) -> BusinessSummaryResponseSchema:
     result = await service.update(summary_id, BusinessSummaryUpdateDTO(**payload.model_dump(exclude_unset=True)))
     return BusinessSummaryResponseSchema(**result.model_dump())
+
+
 @router.delete("/summaries/{summary_id}", response_model=DeleteResponseSchema)
 async def delete_summary(
     summary_id: str,
     service: BusinessSummaryService = Depends(get_business_summary_service),
 ) -> DeleteResponseSchema:
     return DeleteResponseSchema(success=await service.delete(summary_id))
+
+
 @router.post("/uploads", response_model=UploadResponseSchema, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     file: UploadFile,
@@ -195,6 +219,8 @@ async def upload_document(
     )
     result = await service.upload(command)
     return UploadResponseSchema(**result.model_dump())
+
+
 @router.get("/uploads/{upload_id}", response_model=UploadResponseSchema)
 async def get_upload(
     upload_id: str,
@@ -202,6 +228,8 @@ async def get_upload(
 ) -> UploadResponseSchema:
     result = await service.get_by_id(upload_id)
     return UploadResponseSchema(**result.model_dump())
+
+
 @router.get("/uploads", response_model=PaginatedUploadResponseSchema)
 async def list_uploads(
     page: int = Query(default=1, ge=1),
@@ -211,6 +239,8 @@ async def list_uploads(
 ) -> PaginatedUploadResponseSchema:
     result = await service.list(page=page, page_size=page_size, store_id=store_id)
     return PaginatedUploadResponseSchema(**result.model_dump())
+
+
 @router.delete("/uploads/{upload_id}", response_model=DeleteResponseSchema)
 async def delete_upload(
     upload_id: str,

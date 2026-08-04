@@ -42,8 +42,6 @@ from app.application.commerce.services import (
 router = APIRouter(prefix="/api/v1/commerce", tags=["Commerce"])
 
 
-
-
 @router.post("/products", response_model=ProductResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_product(
     payload: ProductCreateSchema,
@@ -51,6 +49,8 @@ async def create_product(
 ) -> ProductResponseSchema:
     result = await service.create(ProductCreateDTO(**payload.model_dump()))
     return ProductResponseSchema(**result.model_dump())
+
+
 @router.get("/products/{product_id}", response_model=ProductResponseSchema)
 async def get_product(
     product_id: str,
@@ -58,6 +58,8 @@ async def get_product(
 ) -> ProductResponseSchema:
     result = await service.get_by_id(product_id)
     return ProductResponseSchema(**result.model_dump())
+
+
 @router.get("/products", response_model=PaginatedResponseSchema)
 async def list_products(
     page: int = Query(default=1, ge=1),
@@ -68,6 +70,8 @@ async def list_products(
 ) -> PaginatedResponseSchema:
     result = await service.list(page=page, page_size=page_size, store_id=store_id, status=status)
     return PaginatedResponseSchema(**result.model_dump())
+
+
 @router.put("/products/{product_id}", response_model=ProductResponseSchema)
 async def update_product(
     product_id: str,
@@ -76,12 +80,16 @@ async def update_product(
 ) -> ProductResponseSchema:
     result = await service.update(product_id, ProductUpdateDTO(**payload.model_dump(exclude_unset=True)))
     return ProductResponseSchema(**result.model_dump())
+
+
 @router.delete("/products/{product_id}", response_model=DeleteResponseSchema)
 async def delete_product(
     product_id: str,
     service: ProductService = Depends(get_product_service),
 ) -> DeleteResponseSchema:
     return DeleteResponseSchema(success=await service.delete(product_id))
+
+
 @router.post("/categories", response_model=CategoryResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_category(
     payload: CategoryCreateSchema,
@@ -89,6 +97,8 @@ async def create_category(
 ) -> CategoryResponseSchema:
     result = await service.create(CategoryCreateDTO(**payload.model_dump()))
     return CategoryResponseSchema(**result.model_dump())
+
+
 @router.get("/categories/{category_id}", response_model=CategoryResponseSchema)
 async def get_category(
     category_id: str,
@@ -96,6 +106,8 @@ async def get_category(
 ) -> CategoryResponseSchema:
     result = await service.get_by_id(category_id)
     return CategoryResponseSchema(**result.model_dump())
+
+
 @router.get("/categories", response_model=PaginatedResponseSchema)
 async def list_categories(
     page: int = Query(default=1, ge=1),
@@ -105,6 +117,8 @@ async def list_categories(
 ) -> PaginatedResponseSchema:
     result = await service.list(page=page, page_size=page_size, store_id=store_id)
     return PaginatedResponseSchema(**result.model_dump())
+
+
 @router.put("/categories/{category_id}", response_model=CategoryResponseSchema)
 async def update_category(
     category_id: str,
@@ -113,12 +127,16 @@ async def update_category(
 ) -> CategoryResponseSchema:
     result = await service.update(category_id, CategoryUpdateDTO(**payload.model_dump(exclude_unset=True)))
     return CategoryResponseSchema(**result.model_dump())
+
+
 @router.delete("/categories/{category_id}", response_model=DeleteResponseSchema)
 async def delete_category(
     category_id: str,
     service: CategoryService = Depends(get_category_service),
 ) -> DeleteResponseSchema:
     return DeleteResponseSchema(success=await service.delete(category_id))
+
+
 @router.get("/categories/{category_id}/children", response_model=list[CategoryResponseSchema])
 async def get_category_children(
     category_id: str,
@@ -126,6 +144,8 @@ async def get_category_children(
 ) -> list[CategoryResponseSchema]:
     result = await service.get_children(category_id)
     return [CategoryResponseSchema(**item.model_dump()) for item in result]
+
+
 @router.get("/categories/root/{store_id}", response_model=list[CategoryResponseSchema])
 async def get_root_categories(
     store_id: str,
@@ -133,6 +153,8 @@ async def get_root_categories(
 ) -> list[CategoryResponseSchema]:
     result = await service.get_root_categories(store_id)
     return [CategoryResponseSchema(**item.model_dump()) for item in result]
+
+
 @router.post("/orders", response_model=OrderResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_order(
     payload: OrderCreateSchema,
@@ -140,6 +162,8 @@ async def create_order(
 ) -> OrderResponseSchema:
     result = await service.create(OrderCreateDTO(**payload.model_dump()))
     return OrderResponseSchema(**result.model_dump())
+
+
 @router.get("/orders/{order_id}", response_model=OrderResponseSchema)
 async def get_order(
     order_id: str,
@@ -147,6 +171,8 @@ async def get_order(
 ) -> OrderResponseSchema:
     result = await service.get_by_id(order_id)
     return OrderResponseSchema(**result.model_dump())
+
+
 @router.get("/orders", response_model=PaginatedResponseSchema)
 async def list_orders(
     page: int = Query(default=1, ge=1),
@@ -157,6 +183,8 @@ async def list_orders(
 ) -> PaginatedResponseSchema:
     result = await service.list(page=page, page_size=page_size, store_id=store_id, customer_id=customer_id)
     return PaginatedResponseSchema(**result.model_dump())
+
+
 @router.put("/orders/{order_id}/status", response_model=OrderResponseSchema)
 async def update_order_status(
     order_id: str,
@@ -165,6 +193,8 @@ async def update_order_status(
 ) -> OrderResponseSchema:
     result = await service.update_status(order_id, OrderUpdateDTO(**payload.model_dump(exclude_unset=True)))
     return OrderResponseSchema(**result.model_dump())
+
+
 @router.post("/inventory", response_model=InventoryResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_inventory(
     payload: InventoryCreateSchema,
@@ -172,6 +202,8 @@ async def create_inventory(
 ) -> InventoryResponseSchema:
     result = await service.create(InventoryCreateDTO(**payload.model_dump()))
     return InventoryResponseSchema(**result.model_dump())
+
+
 @router.get("/inventory/{variant_id}", response_model=InventoryResponseSchema)
 async def get_inventory(
     variant_id: str,
@@ -180,6 +212,8 @@ async def get_inventory(
 ) -> InventoryResponseSchema:
     result = await service.get_by_variant(store_id, variant_id)
     return InventoryResponseSchema(**result.model_dump())
+
+
 @router.get("/inventory", response_model=PaginatedResponseSchema)
 async def list_inventory(
     page: int = Query(default=1, ge=1),
@@ -189,6 +223,8 @@ async def list_inventory(
 ) -> PaginatedResponseSchema:
     result = await service.list(page=page, page_size=page_size, store_id=store_id)
     return PaginatedResponseSchema(**result.model_dump())
+
+
 @router.put("/inventory/{variant_id}", response_model=InventoryResponseSchema)
 async def update_inventory(
     variant_id: str,
@@ -197,6 +233,8 @@ async def update_inventory(
 ) -> InventoryResponseSchema:
     result = await service.update(variant_id, InventoryUpdateDTO(**payload.model_dump(exclude_unset=True)))
     return InventoryResponseSchema(**result.model_dump())
+
+
 @router.get("/inventory/low-stock/{store_id}", response_model=list[InventoryResponseSchema])
 async def get_low_stock_inventory(
     store_id: str,

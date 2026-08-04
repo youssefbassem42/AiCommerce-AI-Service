@@ -43,6 +43,8 @@ async def track_bundle_copy(
         total_original=payload.total_original,
     )
     return TrackCopyEventResponse(**result)
+
+
 @router.get(
     "/tracking",
     response_model=list[TrackedBundleResponse],
@@ -55,6 +57,8 @@ async def list_tracked_bundles(
 ) -> list[TrackedBundleResponse]:
     bundles = await service.get_tracked_bundles(store_id, is_top_only=top_only)
     return [_format_tracked(b) for b in bundles]
+
+
 @router.get(
     "/tracking/{bundle_key}",
     response_model=TrackedBundleResponse,
@@ -72,6 +76,8 @@ async def get_tracked_bundle(
             detail=f"Bundle {bundle_key} not found for store {store_id}",
         )
     return _format_tracked(bundle)
+
+
 @router.post(
     "/top/promote",
     summary="Manually promote a bundle to top bundles",
@@ -88,6 +94,8 @@ async def promote_bundle(
             detail=f"Bundle {payload.bundle_key} not found for store {store_id}",
         )
     return {"status": "promoted", "bundle_key": payload.bundle_key}
+
+
 @router.delete(
     "/top/{bundle_key}",
     summary="Demote a bundle from top bundles",
@@ -104,6 +112,8 @@ async def demote_bundle(
             detail=f"Bundle {bundle_key} not found for store {store_id}",
         )
     return {"status": "demoted", "bundle_key": bundle_key}
+
+
 @router.get(
     "/config",
     response_model=TrackingConfigResponse,
@@ -115,6 +125,8 @@ async def get_tracking_config(
 ) -> TrackingConfigResponse:
     config = await service.get_config(store_id)
     return TrackingConfigResponse(**config)
+
+
 @router.put(
     "/config",
     response_model=TrackingConfigUpdateResponse,
@@ -131,6 +143,8 @@ async def update_tracking_config(
         enabled=payload.enabled,
     )
     return TrackingConfigUpdateResponse(**config)
+
+
 def _format_tracked(doc: dict) -> TrackedBundleResponse:
     return TrackedBundleResponse(
         id=doc.get("id", ""),

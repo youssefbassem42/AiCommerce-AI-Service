@@ -58,6 +58,8 @@ async def recommend_products(
         total_count=result.total_count,
         latency_ms=result.latency_ms,
     )
+
+
 @router.post(
     "/bundle-suggestion",
     response_model=BundleResponseSchema,

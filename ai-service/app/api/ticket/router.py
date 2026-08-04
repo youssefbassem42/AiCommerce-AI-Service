@@ -21,8 +21,6 @@ from app.domain.ticket.exceptions import TicketNotFoundException
 router = APIRouter(prefix="/api/v1/tickets", tags=["Tickets"])
 
 
-
-
 @router.post("", response_model=TicketResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_ticket(
     payload: TicketCreateSchema,
@@ -30,6 +28,8 @@ async def create_ticket(
 ) -> TicketResponseSchema:
     result = await service.create_ticket(TicketCreateDTO(**payload.model_dump()))
     return TicketResponseSchema(**result.model_dump())
+
+
 @router.get("/{ticket_id}", response_model=TicketResponseSchema)
 async def get_ticket(
     ticket_id: str,
@@ -39,6 +39,8 @@ async def get_ticket(
     if result is None:
         raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
     return TicketResponseSchema(**result.model_dump())
+
+
 @router.get("", response_model=TicketListResponseSchema)
 async def list_tickets(
     store_id: str = Query(...),
@@ -63,6 +65,8 @@ async def list_tickets(
         page=page,
         page_size=page_size,
     )
+
+
 @router.get("/metrics/resolution", response_model=ResolutionMetricsResponseSchema)
 async def get_resolution_metrics(
     store_id: str = Query(...),
@@ -70,6 +74,8 @@ async def get_resolution_metrics(
 ) -> ResolutionMetricsResponseSchema:
     result = await service.get_resolution_metrics(store_id)
     return ResolutionMetricsResponseSchema(**result.model_dump())
+
+
 @router.patch("/{ticket_id}/status", response_model=TicketResponseSchema)
 async def update_ticket_status(
     ticket_id: str,
@@ -80,6 +86,8 @@ async def update_ticket_status(
     if result is None:
         raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
     return TicketResponseSchema(**result.model_dump())
+
+
 @router.post("/{ticket_id}/messages", response_model=TicketResponseSchema)
 async def add_ticket_message(
     ticket_id: str,
@@ -94,6 +102,8 @@ async def add_ticket_message(
     if result is None:
         raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
     return TicketResponseSchema(**result.model_dump())
+
+
 @router.post("/{ticket_id}/resolve", response_model=TicketResponseSchema)
 async def resolve_ticket(
     ticket_id: str,
@@ -108,6 +118,8 @@ async def resolve_ticket(
     if result is None:
         raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
     return TicketResponseSchema(**result.model_dump())
+
+
 @router.post("/{ticket_id}/escalate", response_model=TicketResponseSchema)
 async def escalate_ticket(
     ticket_id: str,
@@ -124,6 +136,8 @@ async def escalate_ticket(
     if result is None:
         raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
     return TicketResponseSchema(**result.model_dump())
+
+
 @router.get("/{ticket_id}/notifications", response_model=TicketNotificationListSchema)
 async def list_ticket_notifications(
     ticket_id: str,
@@ -151,6 +165,8 @@ async def list_ticket_notifications(
         total=len(items),
         unread=unread,
     )
+
+
 @router.delete("/{ticket_id}", response_model=DeleteResponseSchema)
 async def delete_ticket(
     ticket_id: str,

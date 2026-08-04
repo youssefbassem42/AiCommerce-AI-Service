@@ -86,8 +86,6 @@ class TestPart1_SpecParsingAndDiscovery:
 # =============================================================================
 
 
-
-
 @pytest.fixture
 def mock_mongo():
     """Mock all MongoDB collections used by writers."""

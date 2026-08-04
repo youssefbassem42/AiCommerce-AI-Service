@@ -47,6 +47,8 @@ async def rag_chat(
         business_summary_version=result.business_summary_version,
         conversation_id=result.conversation_id,
     )
+
+
 @router.post("/chat/stream")
 async def rag_chat_stream(
     payload: RAGChatRequestSchema,

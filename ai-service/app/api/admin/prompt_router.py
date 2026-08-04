@@ -90,6 +90,8 @@ async def create_prompt(
         return _to_response(prompt)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+
+
 @router.put("/{key}", response_model=PromptResponse)
 async def update_prompt(
     key: str,
@@ -109,6 +111,8 @@ async def update_prompt(
         return _to_response(prompt)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
 @router.delete("/{key}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_prompt(
     key: str,

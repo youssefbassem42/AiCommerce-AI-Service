@@ -31,7 +31,8 @@ async def domain_exception_handler(request: Request, exc: DomainException) -> JS
 
 
 async def infrastructure_exception_handler(
-    request: Request, exc: InfrastructureException  # noqa: ARG001
+    request: Request,  # noqa: ARG001
+    exc: InfrastructureException,  # noqa: ARG001
 ) -> JSONResponse:
     return _error_response(
         status_code=exc.status_code,

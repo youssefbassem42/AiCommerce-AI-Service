@@ -45,8 +45,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/integration", tags=["Integration"])
 
 
-
-
 @router.post("/schemas/parse", response_model=ParseSpecResponseSchema, status_code=status.HTTP_200_OK)
 async def parse_spec(
     payload: ParseSpecRequestSchema,
@@ -59,6 +57,8 @@ async def parse_spec(
     )
     result = await service.parse_spec(dto)
     return ParseSpecResponseSchema(**result.model_dump())
+
+
 @router.post("/schemas/agent-parse", response_model=AgentParseResponseSchema, status_code=status.HTTP_200_OK)
 async def agent_parse_spec(
     payload: AgentParseRequestSchema,
@@ -108,6 +108,8 @@ async def agent_parse_spec(
         warnings=report.warnings,
         errors=report.errors,
     )
+
+
 @router.post("/agent-sync", response_model=AgentSyncResponseSchema, status_code=status.HTTP_200_OK)
 async def agent_sync(
     payload: AgentSyncRequestSchema,
@@ -154,6 +156,8 @@ async def agent_sync(
         completed_at=result.completed_at.isoformat() if result.completed_at else None,
     )
     return response
+
+
 @router.post("/connections", response_model=ConnectionResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_connection(
     payload: CreateConnectionSchema,
@@ -185,6 +189,8 @@ async def create_connection(
     )
     result = await service.create_connection(dto)
     return ConnectionResponseSchema(**result.model_dump())
+
+
 @router.get("/connections", response_model=PaginatedConnectionResponseSchema)
 async def list_connections(
     request: Request,
@@ -200,6 +206,8 @@ async def list_connections(
         page=page,
         page_size=page_size,
     )
+
+
 @router.get("/connections/{connection_id}", response_model=ConnectionResponseSchema)
 async def get_connection(
     connection_id: str,
@@ -207,6 +215,8 @@ async def get_connection(
 ) -> ConnectionResponseSchema:
     result = await service.get_connection(connection_id)
     return ConnectionResponseSchema(**result.model_dump())
+
+
 @router.put("/connections/{connection_id}/mappings", response_model=ConnectionResponseSchema)
 async def update_connection_mappings(
     connection_id: str,
@@ -230,6 +240,8 @@ async def update_connection_mappings(
         ],
     )
     return ConnectionResponseSchema(**result.model_dump())
+
+
 @router.put("/connections/{connection_id}/credentials", response_model=ConnectionResponseSchema)
 async def update_connection_credentials(
     connection_id: str,
@@ -242,6 +254,8 @@ async def update_connection_credentials(
         credentials=payload.credentials,
     )
     return ConnectionResponseSchema(**result.model_dump())
+
+
 @router.post(
     "/connections/{connection_id}/sync",
     response_model=SyncResponseSchema,
@@ -255,6 +269,8 @@ async def sync_connection(
 ) -> SyncResponseSchema:
     result = await orchestrator.sync_connection(connection_id)
     return SyncResponseSchema(**result.to_dict())
+
+
 @router.delete("/connections/{connection_id}", response_model=DeleteResponseSchema)
 async def delete_connection(
     connection_id: str,

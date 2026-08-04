@@ -65,8 +65,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix=knowledge_settings.route_prefix, tags=["Knowledge Base"])
 
 
-
-
 def _get_job_repository() -> JobRepository:
     return JobRepository()
 
@@ -107,6 +105,8 @@ async def upload_document(
     )
     result = await service.upload(command)
     return UploadResponseSchema(**result.model_dump())
+
+
 @router.get(
     "/documents",
     response_model=PaginatedKnowledgeDocumentResponseSchema,
@@ -125,6 +125,8 @@ async def list_documents(
 ) -> PaginatedKnowledgeDocumentResponseSchema:
     result = await service.list(page=page, page_size=page_size, store_id=store_id, status=status_filter)
     return PaginatedKnowledgeDocumentResponseSchema(**result.model_dump())
+
+
 @router.get(
     "/documents/{document_id}",
     response_model=KnowledgeDocumentResponseSchema,
@@ -136,6 +138,8 @@ async def get_document(
 ) -> KnowledgeDocumentResponseSchema:
     result = await service.get_by_id(document_id)
     return KnowledgeDocumentResponseSchema(**result.model_dump())
+
+
 @router.delete(
     "/documents/{document_id}",
     response_model=DeleteResponseSchema,
@@ -146,6 +150,8 @@ async def delete_document(
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
 ) -> DeleteResponseSchema:
     return DeleteResponseSchema(success=await service.delete(document_id))
+
+
 @router.post(
     "/process",
     response_model=AsyncJobAcceptedResponseSchema,
@@ -205,6 +211,8 @@ async def process_document(
         job_type="document_processing",
         message=f"Processing job {proc_job.id} enqueued",
     )
+
+
 @router.post(
     "/chunk",
     response_model=AsyncJobAcceptedResponseSchema,
@@ -237,6 +245,8 @@ async def chunk_document(
         job_type="chunk_generation",
         message=f"Chunk job {job.id} enqueued for document {body.document_id}",
     )
+
+
 @router.post(
     "/embed",
     response_model=AsyncJobAcceptedResponseSchema,
@@ -307,6 +317,8 @@ async def embed_document(
         job_type="embedding_generation",
         message=f"Embed job {embed_job.id} enqueued for {len(chunk_ids)} chunks",
     )
+
+
 @router.post(
     "/search",
     response_model=RetrievalResponseSchema,
@@ -346,6 +358,8 @@ async def search_knowledge(
         latency_ms=result.latency_ms,
         filters_applied=result.filters_applied,
     )
+
+
 @router.post(
     "/search/hybrid",
     response_model=RetrievalResponseSchema,
@@ -385,6 +399,8 @@ async def hybrid_search_knowledge(
         latency_ms=result.latency_ms,
         filters_applied=result.filters_applied,
     )
+
+
 @router.post(
     "/summary",
     response_model=BusinessSummaryGenerationResponseSchema,
@@ -409,6 +425,8 @@ async def generate_summary(
     )
     result = await handler.handle(command)
     return BusinessSummaryGenerationResponseSchema(**result.model_dump())
+
+
 @router.post(
     "/summary/regenerate",
     response_model=BusinessSummaryGenerationResponseSchema,
@@ -432,6 +450,8 @@ async def regenerate_summary(
     )
     result = await handler.handle(command)
     return BusinessSummaryGenerationResponseSchema(**result.model_dump())
+
+
 @router.get(
     "/jobs/{job_id}",
     response_model=JobResponseSchema,

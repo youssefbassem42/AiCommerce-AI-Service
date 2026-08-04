@@ -41,7 +41,6 @@ def get_tenant_context(request: Request) -> TenantContext | None:
     return TenantContextResolver.from_claims(claims)
 
 
-
 def get_summary_repository() -> BusinessSummaryRepository:
     return BusinessSummaryRepository()
 
