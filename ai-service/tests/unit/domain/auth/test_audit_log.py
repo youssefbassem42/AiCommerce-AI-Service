@@ -31,7 +31,7 @@ class TestAuditLogEntity:
             actor_type="user",
             resource_type="api_key",
             resource_id="key-1",
-            tenant_id="store-1",
+            store_id="store-1",
             details={"key_name": "test"},
             ip_address="192.168.1.1",
             user_agent="curl/7.0",
@@ -39,7 +39,7 @@ class TestAuditLogEntity:
         )
         assert log.actor_id == "user-1"
         assert log.resource_id == "key-1"
-        assert log.tenant_id == "store-1"
+        assert log.store_id == "store-1"
         assert log.details == {"key_name": "test"}
         assert log.ip_address == "192.168.1.1"
         assert log.user_agent == "curl/7.0"
@@ -65,6 +65,6 @@ class TestAuditLogEntity:
             outcome="success",
         )
         assert log.actor_id is None
-        assert log.tenant_id is None
+        assert log.store_id is None
         assert log.ip_address is None
         assert log.failure_reason is None

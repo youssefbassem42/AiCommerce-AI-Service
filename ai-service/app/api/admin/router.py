@@ -12,11 +12,16 @@ from app.api.admin.schemas import (
     TrackingConfigUpdateRequest,
     TrackingConfigUpdateResponse,
 )
+from app.api.auth.dependencies import get_current_store_id, require_admin_role
 from app.application.analytics.bundle_tracking_service import BundleTrackingService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/admin/bundles", tags=["Admin Bundle Analytics"])
+router = APIRouter(
+    prefix="/api/v1/admin/bundles",
+    tags=["Admin Bundle Analytics"],
+    dependencies=[Depends(require_admin_role)],
+)
 
 
 @router.post(
@@ -26,11 +31,12 @@ router = APIRouter(prefix="/api/v1/admin/bundles", tags=["Admin Bundle Analytics
 )
 async def track_bundle_copy(
     payload: TrackCopyEventRequest,
+    store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> TrackCopyEventResponse:
     try:
         result = await service.track_copy_event(
-            store_id=payload.store_id,
+            store_id=store_id,
             promo_code=payload.promo_code,
             product_ids=payload.product_ids,
             discount_pct=payload.discount_pct,
@@ -52,7 +58,7 @@ async def track_bundle_copy(
     summary="List all tracked bundles with copy counts",
 )
 async def list_tracked_bundles(
-    store_id: str,
+    store_id: str = Depends(get_current_store_id),
     top_only: bool = False,
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> list[TrackedBundleResponse]:
@@ -74,7 +80,7 @@ async def list_tracked_bundles(
 )
 async def get_tracked_bundle(
     bundle_key: str,
-    store_id: str,
+    store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> TrackedBundleResponse:
     try:
@@ -101,7 +107,7 @@ async def get_tracked_bundle(
 )
 async def promote_bundle(
     payload: PromoteBundleRequest,
-    store_id: str,
+    store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> dict:
     try:
@@ -128,7 +134,7 @@ async def promote_bundle(
 )
 async def demote_bundle(
     bundle_key: str,
-    store_id: str,
+    store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> dict:
     try:
@@ -155,7 +161,7 @@ async def demote_bundle(
     summary="Get bundle tracking config for a store",
 )
 async def get_tracking_config(
-    store_id: str,
+    store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> TrackingConfigResponse:
     try:
@@ -176,7 +182,7 @@ async def get_tracking_config(
 )
 async def update_tracking_config(
     payload: TrackingConfigUpdateRequest,
-    store_id: str,
+    store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> TrackingConfigUpdateResponse:
     try:

@@ -8,8 +8,8 @@ class AuditLogRepository(AsyncRepository[AuditLog, str], ABC):
     """Domain repository interface for audit logs."""
 
     @abstractmethod
-    async def find_by_tenant_id(self, tenant_id: str, limit: int = 50, skip: int = 0) -> list[AuditLog]:
-        """Find audit log entries for a tenant."""
+    async def find_by_store_id(self, store_id: str, limit: int = 50, skip: int = 0) -> list[AuditLog]:
+        """Find audit log entries for a store."""
 
     @abstractmethod
     async def find_by_actor_id(self, actor_id: str, limit: int = 50, skip: int = 0) -> list[AuditLog]:

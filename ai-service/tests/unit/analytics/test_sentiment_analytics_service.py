@@ -1,105 +1,129 @@
-from unittest.mock import AsyncMock
-
 import pytest
 
 from app.application.analytics.sentiment_analytics_service import SentimentAnalyticsService
-from app.domain.ticket.entities.ticket_analysis import TicketAnalysis
 
 
-def make_ticket(store_id: str, sentiment: str) -> TicketAnalysis:
-    return TicketAnalysis(
-        id=f"tkt-{sentiment}",
-        ticket_id=f"tkt-{sentiment}",
-        store_id=store_id,
-        customer_id="c1",
-        sentiment=sentiment,
-        category="general",
-        summary="test",
-        priority="low",
-        status="open",
-        suggested_response="ok",
-    )
+class RaisingCursor:
+    async def to_list(self, length):
+        raise RuntimeError("aggregate failed")
 
 
-@pytest.fixture
-def ticket_repo():
-    repo = AsyncMock()
-    repo.find_many = AsyncMock()
-    return repo
+class RaisingCollection:
+    def aggregate(self, pipeline):
+        return RaisingCursor()
 
 
-@pytest.fixture
-def service(ticket_repo):
-    return SentimentAnalyticsService(ticket_repository=ticket_repo)
+class EmptyCursor:
+    async def to_list(self, length):
+        return []
+
+
+class EmptyCollection:
+    def aggregate(self, pipeline):
+        return EmptyCursor()
 
 
 class TestSentimentAnalyticsService:
-    async def test_all_sentiments_are_counted(self, service, ticket_repo):
-        ticket_repo.find_many.return_value = [
-            make_ticket("s1", "positive"),
-            make_ticket("s1", "neutral"),
-            make_ticket("s1", "negative"),
-        ]
-        result = await service.get_sentiment_summary("s1")
-        assert result.total == 3
-        assert result.positive_count == 1
-        assert result.neutral_count == 1
-        assert result.negative_count == 1
-        assert result.positive_pct == 33.3
-        assert result.neutral_pct == 33.3
-        assert result.negative_pct == 33.3
+    @pytest.fixture
+    def service(self):
+        return SentimentAnalyticsService()
 
-    async def test_all_positive(self, service, ticket_repo):
-        ticket_repo.find_many.return_value = [make_ticket("s1", "positive") for _ in range(4)]
-        result = await service.get_sentiment_summary("s1")
-        assert result.total == 4
-        assert result.positive_count == 4
-        assert result.neutral_count == 0
-        assert result.negative_count == 0
-        assert result.positive_pct == 100.0
-        assert result.neutral_pct == 0.0
-        assert result.negative_pct == 0.0
+    async def test_aggregate_failure_propagates(self, service, monkeypatch):
+        monkeypatch.setattr(
+            "app.application.analytics.sentiment_analytics_service.get_ticket_analysis_collection",
+            lambda: RaisingCollection(),
+        )
 
-    async def test_no_tickets_returns_zeros(self, service, ticket_repo):
-        ticket_repo.find_many.return_value = []
-        result = await service.get_sentiment_summary("s1")
-        assert result.total == 0
-        assert result.positive_count == 0
-        assert result.neutral_count == 0
-        assert result.negative_count == 0
-        assert result.positive_pct == 0.0
-        assert result.neutral_pct == 0.0
-        assert result.negative_pct == 0.0
+        with pytest.raises(RuntimeError, match="aggregate failed"):
+            await service.get_sentiment_overview()
 
-    async def test_uses_correct_store_id(self, service, ticket_repo):
-        ticket_repo.find_many.return_value = []
-        await service.get_sentiment_summary("store_abc")
-        ticket_repo.find_many.assert_called_once_with({"store_id": "store_abc"})
+    async def test_empty_aggregate_result(self, service, monkeypatch):
+        monkeypatch.setattr(
+            "app.application.analytics.sentiment_analytics_service.get_ticket_analysis_collection",
+            lambda: EmptyCollection(),
+        )
 
-    async def test_mixed_sentiments_correct_percentages(self, service, ticket_repo):
-        ticket_repo.find_many.return_value = [
-            make_ticket("s1", "positive"),
-            make_ticket("s1", "positive"),
-            make_ticket("s1", "neutral"),
-            make_ticket("s1", "neutral"),
-            make_ticket("s1", "neutral"),
-            make_ticket("s1", "negative"),
-        ]
-        result = await service.get_sentiment_summary("s1")
-        assert result.total == 6
-        assert result.positive_count == 2
-        assert result.neutral_count == 3
-        assert result.negative_count == 1
-        assert result.positive_pct == 33.3
-        assert result.neutral_pct == 50.0
-        assert result.negative_pct == 16.7
+        result = await service.get_sentiment_overview()
 
-    async def test_rounding_precision(self, service, ticket_repo):
-        ticket_repo.find_many.return_value = [make_ticket("s1", "positive") for _ in range(1)] + [
-            make_ticket("s1", "neutral") for _ in range(3)
-        ]
-        result = await service.get_sentiment_summary("s1")
-        assert result.total == 4
-        assert result.positive_pct == 25.0
-        assert result.neutral_pct == 75.0
-        assert result.negative_pct == 0.0
+        assert result["total"] == 0
+
+    async def test_single_row_with_all_zeros(self, service, monkeypatch):
+        class Collection:
+            def aggregate(self, pipeline):
+                class Cursor:
+                    async def to_list(self, length):
+                        return [
+                            {
+                                "total": 0,
+                                "positive_count": 0,
+                                "neutral_count": 0,
+                                "negative_count": 0,
+                            }
+                        ]
+
+                return Cursor()
+
+        monkeypatch.setattr(
+            "app.application.analytics.sentiment_analytics_service.get_ticket_analysis_collection",
+            lambda: Collection(),
+        )
+
+        result = await service.get_sentiment_overview()
+
+        assert result["positive_pct"] == 0.0
+        assert result["neutral_pct"] == 0.0
+        assert result["negative_pct"] == 0.0
+
+    async def test_partial_sentiment_counts(self, service, monkeypatch):
+        class Collection:
+            def aggregate(self, pipeline):
+                class Cursor:
+                    async def to_list(self, length):
+                        return [
+                            {
+                                "total": 4,
+                                "positive_count": 2,
+                                "neutral_count": 0,
+                                "negative_count": 2,
+                            }
+                        ]
+
+                return Cursor()
+
+        monkeypatch.setattr(
+            "app.application.analytics.sentiment_analytics_service.get_ticket_analysis_collection",
+            lambda: Collection(),
+        )
+
+        result = await service.get_sentiment_overview()
+
+        assert result["positive_pct"] == 50.0
+        assert result["neutral_pct"] == 0.0
+        assert result["negative_pct"] == 50.0
+
+    async def test_counts_are_ints_and_percentages_floats(self, service, monkeypatch):
+        class Collection:
+            def aggregate(self, pipeline):
+                class Cursor:
+                    async def to_list(self, length):
+                        return [
+                            {
+                                "total": 100,
+                                "positive_count": 25,
+                                "neutral_count": 25,
+                                "negative_count": 50,
+                            }
+                        ]
+
+                return Cursor()
+
+        monkeypatch.setattr(
+            "app.application.analytics.sentiment_analytics_service.get_ticket_analysis_collection",
+            lambda: Collection(),
+        )
+
+        result = await service.get_sentiment_overview()
+
+        assert isinstance(result["total"], int)
+        assert isinstance(result["positive_count"], int)
+        assert isinstance(result["positive_pct"], float)

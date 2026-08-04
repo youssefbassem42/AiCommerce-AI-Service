@@ -6,15 +6,17 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.auth_settings import auth_settings
 from app.core.security import (
     decode_jwt,
+    get_email_from_token,
+    get_organization_id_from_token,
     get_roles_from_token,
     get_scopes_from_token,
-    get_tenant_id_from_token,
+    get_store_id_from_token,
     get_user_id_from_token,
 )
 
 logger = logging.getLogger(__name__)
 
-WHITELIST_PATHS = {"/health/", "/health", "/docs", "/redoc", "/openapi.json", "/api/v1/auth/api-keys"}
+WHITELIST_PATHS = {"/health/", "/health", "/docs", "/redoc", "/openapi.json"}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -34,7 +36,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         try:
             payload = decode_jwt(token)
             request.state.user_id = get_user_id_from_token(payload)
-            request.state.tenant_id = get_tenant_id_from_token(payload)
+            request.state.store_id = get_store_id_from_token(payload)
+            request.state.organization_id = get_organization_id_from_token(payload)
+            request.state.email = get_email_from_token(payload)
             request.state.roles = get_roles_from_token(payload)
             request.state.scopes = get_scopes_from_token(payload)
         except Exception as exc:

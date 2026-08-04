@@ -2,7 +2,12 @@ import secrets
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.auth.dependencies import get_api_key_repository, get_audit_log_repository
+from app.api.auth.dependencies import (
+    get_api_key_repository,
+    get_audit_log_repository,
+    require_admin_role,
+    require_super_admin_role,
+)
 from app.api.auth.schemas import (
     ApiKeyCreateRequest,
     ApiKeyListResponse,
@@ -16,7 +21,7 @@ from app.infrastructure.mongodb.repositories.audit_log_repository import AuditLo
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 
-@router.get("/api-keys/{store_id}", response_model=ApiKeyListResponse)
+@router.get("/api-keys/{store_id}", response_model=ApiKeyListResponse, dependencies=[Depends(require_admin_role)])
 async def list_api_keys(
     store_id: str,
     repo: ApiKeyRepository = Depends(get_api_key_repository),
@@ -37,7 +42,7 @@ async def list_api_keys(
     )
 
 
-@router.post("/api-keys", response_model=ApiKeyResponse)
+@router.post("/api-keys", response_model=ApiKeyResponse, dependencies=[Depends(require_admin_role)])
 async def create_api_key(
     request: ApiKeyCreateRequest,
     repo: ApiKeyRepository = Depends(get_api_key_repository),
@@ -66,7 +71,7 @@ async def create_api_key(
     )
 
 
-@router.delete("/api-keys/{key_id}", status_code=204)
+@router.delete("/api-keys/{key_id}", status_code=204, dependencies=[Depends(require_admin_role)])
 async def revoke_api_key(
     key_id: str,
     repo: ApiKeyRepository = Depends(get_api_key_repository),
@@ -78,7 +83,7 @@ async def revoke_api_key(
     await repo.update(key)
 
 
-@router.get("/audit-logs", response_model=list[AuditLogResponse])
+@router.get("/audit-logs", response_model=list[AuditLogResponse], dependencies=[Depends(require_super_admin_role)])
 async def list_audit_logs(
     skip: int = 0,
     limit: int = 50,
@@ -88,7 +93,7 @@ async def list_audit_logs(
     return [
         AuditLogResponse(
             id=log.id,
-            tenant_id=log.tenant_id or "",
+            store_id=log.store_id or "",
             user_id=log.actor_id or "",
             action=log.action,
             resource=log.resource_type,

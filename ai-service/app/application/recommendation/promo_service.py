@@ -60,6 +60,7 @@ class PromoCodeService:
         product_ids: list[str],
         discount_pct: float,
         bundle_id: str | None = None,
+        prefix: str | None = None,
     ) -> str:
         existing = await self.find_existing_code(
             store_id=store_id,
@@ -70,7 +71,7 @@ class PromoCodeService:
             logger.info("Reusing existing promo code: %s", existing)
             return existing
 
-        code = f"{PROMO_CODE_PREFIX}-{uuid4().hex[:8].upper()}"
+        code = f"{(prefix or PROMO_CODE_PREFIX)}-{uuid4().hex[:8].upper()}"
         promo_info = {
             "discount_pct": discount_pct,
             "product_ids": product_ids,

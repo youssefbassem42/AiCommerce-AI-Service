@@ -14,6 +14,7 @@ from app.application.dto.ai_dto import (
     UsageDTO,
 )
 from app.application.services.conversation_service import ConversationService
+from app.application.services.orchestration_service import OrchestrationService
 from app.core.ai_exceptions import AIException, ProviderUnavailableException, RateLimitException
 from app.core.ai_settings import ai_settings
 from app.core.model_registry import ModelRegistry
@@ -29,15 +30,20 @@ class ChatService:
     Coordinates chat, streaming, structured output, and embeddings.
     Implements tracing, rate limit checking, cost calculations, metrics logging,
     and automatic failover/fallback to alternative providers.
+
+    When an OrchestrationService is provided, chat traffic flows through the
+    Phase 01 coordinator + conversation workflow instead of the raw provider path.
     """
 
     def __init__(
         self,
         provider_factory: LLMProviderFactory,
         conversation_service: ConversationService | None = None,
+        orchestration_service: OrchestrationService | None = None,
     ):
         self.provider_factory = provider_factory
         self.conversation_service = conversation_service
+        self.orchestration_service = orchestration_service
 
     def _generate_correlation_id(self) -> str:
         return str(uuid.uuid4())
@@ -79,11 +85,25 @@ class ChatService:
         conversation_id: str | None = None,
         correlation_id: str | None = None,
         fallbacks: list[str] | None = None,
+        store_id: str | None = None,
+        customer_id: str | None = None,
     ) -> ChatResponse:
         """
         Generate completion response, automatically trying fallback providers if the main call fails.
+
+        When orchestration_service is configured, chat traffic is delegated to the
+        coordinator + conversation workflow (Phase 01 orchestration).
         """
         corr_id = correlation_id or self._generate_correlation_id()
+
+        if self.orchestration_service:
+            return await self._orchestrated_chat(
+                request=request,
+                conversation_id=conversation_id,
+                store_id=store_id,
+                customer_id=customer_id,
+                corr_id=corr_id,
+            )
 
         # Inject conversation history if conversation_id is provided
         if conversation_id and self.conversation_service:
@@ -154,6 +174,55 @@ class ChatService:
             error=str(last_exception),
         )
         raise last_exception or AIException("Chat generation failed for all configured providers.")
+
+    async def _orchestrated_chat(
+        self,
+        request: ChatRequest,
+        conversation_id: str | None,
+        store_id: str | None,
+        customer_id: str | None,
+        corr_id: str,
+    ) -> ChatResponse:
+        """Delegate a chat turn to the coordinator + conversation workflow."""
+        user_msg = [m for m in request.messages if m.role == "user"][-1]
+        user_input = user_msg.content if isinstance(user_msg.content, str) else str(user_msg.content)
+
+        history: list[dict[str, Any]] = []
+        if conversation_id and self.conversation_service:
+            history_messages = await self.conversation_service.get_conversation_history(conversation_id)
+            history = [
+                {"role": m.role, "content": m.content if isinstance(m.content, str) else str(m.content)}
+                for m in history_messages
+            ]
+
+        start_time = time.perf_counter()
+        try:
+            response = await self.orchestration_service.chat(
+                user_input=user_input,
+                store_id=store_id or "",
+                customer_id=customer_id,
+                conversation_id=conversation_id,
+                history=history,
+                metadata={"correlation_id": corr_id},
+            )
+        except Exception as e:
+            logger.error(f"Orchestrated chat failed for correlation {corr_id}: {e}")
+            raise e
+
+        latency = (time.perf_counter() - start_time) * 1000
+        response.latency_ms = latency
+
+        if conversation_id and self.conversation_service:
+            await self.conversation_service.save_interaction(
+                conversation_id=conversation_id,
+                user_message=user_msg,
+                assistant_message=response.message,
+                usage=response.usage,
+                latency_ms=latency,
+            )
+
+        self._log_metrics(corr_id, "orchestration", "coordinator", latency, response.usage, "chat")
+        return response
 
     async def stream(
         self,

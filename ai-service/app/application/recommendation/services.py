@@ -35,6 +35,8 @@ class RecommendationService:
         query: str,
         store_id: str,
         customer_id: str | None = None,
+        history: list | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
+        conversation_id: str | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
     ) -> RecommendationResponse:
         logger.info(
             "Recommendation requested: query='%s', store_id='%s', customer_id='%s'",
@@ -69,6 +71,8 @@ class BundleSuggestionService:
         query: str,
         store_id: str,
         customer_id: str | None = None,
+        history: list | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
+        conversation_id: str | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
     ) -> BundleResponse:
         logger.info(
             "Bundle suggestion requested: query='%s', store_id='%s', customer_id='%s'",

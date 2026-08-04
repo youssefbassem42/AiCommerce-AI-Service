@@ -1,4 +1,4 @@
-"""Tests for extended RateLimitMiddleware per-tenant rate limiting."""
+"""Tests for extended RateLimitMiddleware per-store rate limiting."""
 
 from unittest.mock import AsyncMock
 
@@ -8,7 +8,7 @@ from fastapi import Request, Response
 from app.middleware.rate_limit import RateLimitMiddleware
 
 
-def create_mock_request(path="/api/v1/chat", tenant_id=None):
+def create_mock_request(path="/api/v1/chat", store_id=None):
     scope = {
         "type": "http",
         "path": path,
@@ -17,24 +17,24 @@ def create_mock_request(path="/api/v1/chat", tenant_id=None):
         "client": ("10.0.0.1", 8000),
     }
     request = Request(scope)
-    if tenant_id is not None:
-        request.state.tenant_id = tenant_id
+    if store_id is not None:
+        request.state.store_id = store_id
     return request
 
 
 class TestRateLimitMiddleware:
-    """Purpose: Validate per-tenant rate limiting key derivation."""
+    """Purpose: Validate per-store rate limiting key derivation."""
 
-    def test_rate_limit_key_with_tenant(self):
-        """Preconditions: Request has tenant_id in state. Input: Request with tenant. Execution: _get_rate_limit_key. Expected: Tenant-based key."""
-        request = create_mock_request(tenant_id="store-1")
+    def test_rate_limit_key_with_store(self):
+        """Preconditions: Request has store_id in state. Input: Request with store. Execution: _get_rate_limit_key. Expected: Store-based key."""
+        request = create_mock_request(store_id="store-1")
         middleware = RateLimitMiddleware(lambda app: None, limit_per_minute=100)
         key = middleware._get_rate_limit_key(request)
-        assert key == "tenant:store-1"
+        assert key == "store:store-1"
 
-    def test_rate_limit_key_without_tenant(self):
-        """Preconditions: No tenant_id in state. Input: Request without tenant. Execution: _get_rate_limit_key. Expected: IP-based key."""
-        request = create_mock_request(tenant_id=None)
+    def test_rate_limit_key_without_store(self):
+        """Preconditions: No store_id in state. Input: Request without store. Execution: _get_rate_limit_key. Expected: IP-based key."""
+        request = create_mock_request(store_id=None)
         middleware = RateLimitMiddleware(lambda app: None, limit_per_minute=100)
         key = middleware._get_rate_limit_key(request)
         assert key.startswith("ip:")

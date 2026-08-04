@@ -1,136 +1,102 @@
-from unittest.mock import AsyncMock
-
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.analytics.dependencies import get_sentiment_analytics_service, require_admin_role
-from app.api.analytics.schemas import SentimentSummaryResponse
+from app.api.auth.dependencies import require_super_admin_role
 from app.main import app
 
 
-@pytest.fixture(autouse=True)
-def _bypass_auth():
-    app.dependency_overrides[require_admin_role] = lambda: None
-    yield
-    app.dependency_overrides.pop(require_admin_role, None)
+class FakeCursor:
+    def __init__(self, results):
+        self._results = results
+
+    async def to_list(self, length):
+        return self._results[:length] if length else self._results
 
 
-def _mock_service(store_id: str = "s1", **kwargs):
-    svc = AsyncMock()
-    svc.get_sentiment_summary.return_value = SentimentSummaryResponse(
-        store_id=store_id,
-        total=kwargs.get("total", 0),
-        positive_count=kwargs.get("positive_count", 0),
-        neutral_count=kwargs.get("neutral_count", 0),
-        negative_count=kwargs.get("negative_count", 0),
-        positive_pct=kwargs.get("positive_pct", 0.0),
-        neutral_pct=kwargs.get("neutral_pct", 0.0),
-        negative_pct=kwargs.get("negative_pct", 0.0),
+class FakeCollection:
+    def __init__(self, results):
+        self._results = results
+
+    def aggregate(self, pipeline):
+        return FakeCursor(self._results)
+
+
+@pytest.fixture
+def collection(monkeypatch):
+    fake = FakeCollection([])
+    monkeypatch.setattr(
+        "app.application.analytics.sentiment_analytics_service.get_ticket_analysis_collection",
+        lambda: fake,
     )
-    return svc
+    return fake
 
 
-class TestSentimentAnalyticsAPI:
-    def test_returns_sentiment_breakdown(self):
-        svc = _mock_service(
-            store_id="s1",
-            total=10,
-            positive_count=4,
-            neutral_count=4,
-            negative_count=2,
-            positive_pct=40.0,
-            neutral_pct=40.0,
-            negative_pct=20.0,
-        )
-        app.dependency_overrides[get_sentiment_analytics_service] = lambda: svc
-        client = TestClient(app)
+@pytest.fixture
+def client():
+    return TestClient(app)
 
-        response = client.get("/api/v1/analytics/sentiment-summary?store_id=s1")
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["store_id"] == "s1"
-        assert data["total"] == 10
-        assert data["positive_count"] == 4
-        assert data["neutral_count"] == 4
-        assert data["negative_count"] == 2
-        assert data["positive_pct"] == 40.0
-        assert data["neutral_pct"] == 40.0
-        assert data["negative_pct"] == 20.0
+@pytest.fixture
+def admin_override():
+    app.dependency_overrides[require_super_admin_role] = lambda: None
+    yield
+    app.dependency_overrides.pop(require_super_admin_role, None)
 
-    def test_no_tickets_returns_zeros(self):
-        svc = _mock_service(store_id="s2")
-        app.dependency_overrides[get_sentiment_analytics_service] = lambda: svc
-        client = TestClient(app)
 
-        response = client.get("/api/v1/analytics/sentiment-summary?store_id=s2")
+class TestSentimentAnalyticsApi:
+    def test_overview_empty_collection(self, client, collection, admin_override):
+        resp = client.get("/api/v1/admin/analytics/sentiment/overview")
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total"] == 0
-        assert data["positive_count"] == 0
-        assert data["neutral_count"] == 0
-        assert data["negative_count"] == 0
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "total": 0,
+            "positive_count": 0,
+            "neutral_count": 0,
+            "negative_count": 0,
+            "positive_pct": 0.0,
+            "neutral_pct": 0.0,
+            "negative_pct": 0.0,
+        }
 
-    def test_missing_store_id_returns_422(self):
-        client = TestClient(app)
-        response = client.get("/api/v1/analytics/sentiment-summary")
-        assert response.status_code == 422
+    def test_overview_with_data(self, client, collection, admin_override):
+        collection._results = [
+            {
+                "total": 10,
+                "positive_count": 6,
+                "neutral_count": 3,
+                "negative_count": 1,
+            }
+        ]
 
-    def test_service_error_returns_500(self):
-        svc = AsyncMock()
-        svc.get_sentiment_summary.side_effect = Exception("DB error")
-        app.dependency_overrides[get_sentiment_analytics_service] = lambda: svc
-        client = TestClient(app)
+        resp = client.get("/api/v1/admin/analytics/sentiment/overview")
 
-        response = client.get("/api/v1/analytics/sentiment-summary?store_id=s1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["positive_pct"] == 60.0
+        assert data["neutral_pct"] == 30.0
+        assert data["negative_pct"] == 10.0
 
-        assert response.status_code == 500
-        assert "DB error" in response.text
+    def test_overview_aggregate_failure_returns_500(self, client, collection, admin_override):
+        def boom(pipeline):
+            raise RuntimeError("aggregate failed")
 
-    def test_all_positive(self):
-        svc = _mock_service(store_id="s1", total=5, positive_count=5, positive_pct=100.0)
-        app.dependency_overrides[get_sentiment_analytics_service] = lambda: svc
-        client = TestClient(app)
+        collection.aggregate = boom
 
-        response = client.get("/api/v1/analytics/sentiment-summary?store_id=s1")
+        resp = client.get("/api/v1/admin/analytics/sentiment/overview")
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["positive_pct"] == 100.0
-        assert data["neutral_pct"] == 0.0
-        assert data["negative_pct"] == 0.0
+        assert resp.status_code == 500
 
-    def test_negative_only(self):
-        svc = _mock_service(store_id="s3", total=3, negative_count=3, negative_pct=100.0)
-        app.dependency_overrides[get_sentiment_analytics_service] = lambda: svc
-        client = TestClient(app)
+    def test_overview_requires_super_admin_role(self, client, collection):
+        resp = client.get("/api/v1/admin/analytics/sentiment/overview")
 
-        response = client.get("/api/v1/analytics/sentiment-summary?store_id=s3")
+        assert resp.status_code == 403
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["negative_pct"] == 100.0
-        assert data["positive_pct"] == 0.0
-        assert data["neutral_pct"] == 0.0
+    def test_overview_only_registers_expected_overrides(self, client, collection, admin_override):
+        resp = client.get("/api/v1/admin/analytics/sentiment/overview")
+        assert resp.status_code == 200
+        assert set(app.dependency_overrides.keys()) == {require_super_admin_role}
 
-    def test_rounds_correctly(self):
-        svc = _mock_service(
-            store_id="s1",
-            total=3,
-            positive_count=1,
-            neutral_count=1,
-            negative_count=1,
-            positive_pct=33.3,
-            neutral_pct=33.3,
-            negative_pct=33.3,
-        )
-        app.dependency_overrides[get_sentiment_analytics_service] = lambda: svc
-        client = TestClient(app)
+    def test_overview_rejects_non_get_methods(self, client, admin_override):
+        resp = client.post("/api/v1/admin/analytics/sentiment/overview", json={})
 
-        response = client.get("/api/v1/analytics/sentiment-summary?store_id=s1")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["positive_pct"] == 33.3
-        assert data["neutral_pct"] == 33.3
+        assert resp.status_code == 405

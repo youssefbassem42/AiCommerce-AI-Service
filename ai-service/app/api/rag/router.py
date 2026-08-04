@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from app.api.rag.dependencies import get_rag_service
@@ -13,14 +13,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rag", tags=["RAG Chat"])
 
 
+def _resolve_rag_request(payload: RAGChatRequestSchema, request: Request) -> RAGRequest:
+    data = payload.model_dump()
+    store_id = getattr(request.state, "store_id", None)
+    organization_id = getattr(request.state, "organization_id", None)
+    if store_id:
+        data["store_id"] = store_id
+    if organization_id:
+        data["organization_id"] = organization_id
+    return RAGRequest(**data)
+
+
 @router.post("/chat", response_model=RAGChatResponseSchema)
 async def rag_chat(
     payload: RAGChatRequestSchema,
+    request: Request,
     service: RagOrchestrationService = Depends(get_rag_service),
 ) -> RAGChatResponseSchema:
     try:
-        request = RAGRequest(**payload.model_dump())
-        result = await service.answer(request)
+        rag_request = _resolve_rag_request(payload, request)
+        result = await service.answer(rag_request)
 
         return RAGChatResponseSchema(
             response=result.response,
@@ -45,13 +57,14 @@ async def rag_chat(
 @router.post("/chat/stream")
 async def rag_chat_stream(
     payload: RAGChatRequestSchema,
+    request: Request,
     service: RagOrchestrationService = Depends(get_rag_service),
 ) -> StreamingResponse:
     try:
-        request = RAGRequest(**payload.model_dump())
+        rag_request = _resolve_rag_request(payload, request)
 
         async def event_generator():
-            async for chunk in service.answer_stream(request):
+            async for chunk in service.answer_stream(rag_request):
                 yield f"data: {chunk.model_dump_json()}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")

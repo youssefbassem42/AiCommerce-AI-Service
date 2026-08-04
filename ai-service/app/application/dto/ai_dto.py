@@ -65,6 +65,7 @@ class ChatResponse(BaseModel):
     message: MessageDTO
     usage: UsageDTO
     latency_ms: float
+    metadata: dict[str, Any] | None = None
 
 
 class EmbeddingRequest(BaseModel):

@@ -67,8 +67,9 @@ def override_deps(client, mock_service, mock_sync_orchestrator):
     app.dependency_overrides[get_sync_orchestrator] = lambda: mock_sync_orchestrator
     app.dependency_overrides[require_admin_role] = lambda: None
     yield
-    for dep in (get_integration_service, get_sync_orchestrator, require_admin_role):
-        app.dependency_overrides.pop(dep, None)
+    app.dependency_overrides.pop(get_integration_service, None)
+    app.dependency_overrides.pop(get_sync_orchestrator, None)
+    app.dependency_overrides.pop(require_admin_role, None)
 
 
 class TestIntegrationAPI:

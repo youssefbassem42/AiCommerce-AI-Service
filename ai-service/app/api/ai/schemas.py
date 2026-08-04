@@ -158,6 +158,7 @@ class ChatResponseSchema(BaseModel):
     message: MessageSchema
     usage: UsageSchema
     latency_ms: StrictFloat
+    metadata: dict[str, Any] | None = None
 
 
 class EmbeddingResponseSchema(BaseModel):

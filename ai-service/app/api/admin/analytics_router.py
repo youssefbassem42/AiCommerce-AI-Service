@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.admin.dependencies import get_sentiment_analytics_service
 from app.api.admin.schemas import SentimentOverviewResponse
@@ -23,9 +23,6 @@ async def sentiment_overview(
     try:
         result = await service.get_sentiment_overview()
         return SentimentOverviewResponse(**result)
-    except Exception as exc:
-        logger.error("Failed to get sentiment overview: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get sentiment overview: {exc}",
-        )
+    except Exception as e:
+        logger.error("Sentiment overview failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to compute sentiment overview") from e

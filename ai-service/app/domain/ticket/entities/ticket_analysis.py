@@ -1,10 +1,21 @@
 from datetime import UTC, datetime
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from app.shared.kernel.aggregate_root import AggregateRoot
 
 RESOLUTION_TYPES = {"ai", "human", "unresolved", "escalated"}
+
+MESSAGE_SENDERS = {"customer", "agent", "system"}
+
+
+class TicketMessage(BaseModel):
+    """Value object representing a single message in a ticket thread."""
+
+    id: str = Field(..., description="Message ID")
+    sender: str = Field(..., description="Sender of the message (customer, agent, system)")
+    content: str = Field(..., description="Message body")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class TicketAnalysis(AggregateRoot[str]):
@@ -23,3 +34,6 @@ class TicketAnalysis(AggregateRoot[str]):
         default="unresolved", description="How the ticket was resolved (ai, human, unresolved, escalated)"
     )
     analyzed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    messages: list[TicketMessage] = Field(default_factory=list, description="Ticket thread messages")
+    assigned_to: str | None = Field(default=None, description="Human agent/team the ticket is assigned to")
+    eta: datetime | None = Field(default=None, description="Expected resolution time communicated to the customer")

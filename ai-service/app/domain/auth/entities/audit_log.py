@@ -14,7 +14,7 @@ class AuditLog(Entity[str]):
     actor_type: str = Field(default="user", description="Type of actor (user, system, api_key)")
     resource_type: str = Field(..., description="Type of resource affected")
     resource_id: str | None = Field(default=None, description="ID of the resource affected")
-    tenant_id: str | None = Field(default=None, description="Tenant/store context ID")
+    store_id: str | None = Field(default=None, description="Store context ID")
     details: dict[str, Any] = Field(default_factory=dict, description="Additional details")
     ip_address: str | None = Field(default=None, description="Client IP address")
     user_agent: str | None = Field(default=None, description="Client user agent")

@@ -15,7 +15,7 @@ class AuditLogDocument(BaseMongoDocument):
     actor_type: str = Field(default="user")
     resource_type: str = Field(..., index=True)
     resource_id: str | None = Field(default=None)
-    tenant_id: str | None = Field(default=None, index=True)
+    store_id: str | None = Field(default=None, index=True)
     details: dict[str, Any] = Field(default_factory=dict)
     ip_address: str | None = Field(default=None)
     user_agent: str | None = Field(default=None)
@@ -32,7 +32,7 @@ class AuditLogDocument(BaseMongoDocument):
             actor_type=self.actor_type,
             resource_type=self.resource_type,
             resource_id=self.resource_id,
-            tenant_id=self.tenant_id,
+            store_id=self.store_id,
             details=self.details,
             ip_address=self.ip_address,
             user_agent=self.user_agent,
@@ -50,7 +50,7 @@ class AuditLogDocument(BaseMongoDocument):
             "actor_type": entity.actor_type,
             "resource_type": entity.resource_type,
             "resource_id": entity.resource_id,
-            "tenant_id": entity.tenant_id,
+            "store_id": entity.store_id,
             "details": entity.details,
             "ip_address": entity.ip_address,
             "user_agent": entity.user_agent,
