@@ -13,7 +13,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.infrastructure.mongodb.collections import (
+from app.infrastructure.mongodb.collections import (  # noqa: E402
     get_orders_collection,
     get_ticket_notifications_collection,
 )
