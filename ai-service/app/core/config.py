@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     QDRANT_SETTINGS: QdrantSettings = QdrantSettings()
     REDIS_SETTINGS: RedisSettings = RedisSettings()
     CORS_ORIGINS: list[str] = ["*"]
+    RATE_LIMIT_PER_MINUTE: int = 100
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=True)
 

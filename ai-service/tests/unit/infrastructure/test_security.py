@@ -18,7 +18,6 @@ from app.core.security import (
     get_store_id_from_token,
     get_tenant_id_from_token,
     get_user_id_from_token,
-    verify_jwt,
 )
 
 ISSUER = "AI-Sales-Agent"
@@ -96,11 +95,11 @@ class TestJwtSecurity:
             decode_jwt("invalid.token.string")
 
     @patch("app.core.security.auth_settings")
-    def test_verify_jwt_valid(self, mock_settings):
-        """Preconditions: Valid token. Input: Token. Execution: verify_jwt(). Expected: Payload."""
+    def test_decode_valid_token_alias_path(self, mock_settings):
+        """Preconditions: Valid token. Input: Token. Execution: decode_jwt(). Expected: Payload."""
         self._patch_settings(mock_settings)
 
-        payload = verify_jwt(self.token)
+        payload = decode_jwt(self.token)
         assert payload["sub"] == "user-1"
 
     def test_get_store_id_from_token(self):

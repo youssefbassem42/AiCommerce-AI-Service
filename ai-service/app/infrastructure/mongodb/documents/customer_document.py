@@ -3,8 +3,7 @@ from typing import Any
 from pydantic import Field
 
 from app.domain.customer.entities.customer import Customer
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
-from app.infrastructure.mongodb.documents.product_document import AuditInfoModel
+from app.infrastructure.mongodb.documents.base_document import AuditInfoModel, BaseMongoDocument
 
 
 class CustomerDocument(BaseMongoDocument):

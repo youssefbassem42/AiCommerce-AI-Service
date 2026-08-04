@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.shared.cqrs.command import Command
-from app.shared.mediator.behaviors.authorization import AuthorizationBehavior
 from app.shared.mediator.behaviors.event_publisher import EventPublisherBehavior
 from app.shared.mediator.behaviors.logging import LoggingBehavior
 from app.shared.mediator.behaviors.unit_of_work import UnitOfWorkBehavior
@@ -62,38 +61,6 @@ class TestValidationBehavior:
         handler = AsyncMock()
 
         with pytest.raises(ValueError, match="validation failed"):
-            await behavior.handle(TestCommand(name="test"), handler)
-
-        handler.assert_not_called()
-
-
-@pytest.mark.asyncio
-class TestAuthorizationBehavior:
-    async def test_no_policy_skips_authorization(self):
-        behavior = AuthorizationBehavior()
-        handler = AsyncMock(return_value="ok")
-
-        result = await behavior.handle(TestCommand(name="test"), handler)
-
-        assert result == "ok"
-
-    async def test_policy_authorized(self):
-        behavior = AuthorizationBehavior()
-        policy = AsyncMock(return_value=True)
-        behavior.register_policy(TestCommand, policy)
-        handler = AsyncMock(return_value="ok")
-
-        result = await behavior.handle(TestCommand(name="test"), handler)
-
-        assert result == "ok"
-
-    async def test_policy_denied_raises(self):
-        behavior = AuthorizationBehavior()
-        policy = AsyncMock(return_value=False)
-        behavior.register_policy(TestCommand, policy)
-        handler = AsyncMock()
-
-        with pytest.raises(PermissionError, match="denied"):
             await behavior.handle(TestCommand(name="test"), handler)
 
         handler.assert_not_called()

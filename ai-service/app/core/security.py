@@ -45,10 +45,6 @@ def decode_jwt(token: str) -> dict:
     raise pyjwt.InvalidTokenError("Token could not be validated against any configured issuer/audience")
 
 
-def verify_jwt(token: str) -> dict:
-    return decode_jwt(token)
-
-
 def get_store_id_from_token(payload: dict) -> str | None:
     return payload.get("store_id") or payload.get("tenant_id")
 

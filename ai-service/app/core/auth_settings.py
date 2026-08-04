@@ -10,9 +10,7 @@ class AuthSettings(BaseSettings):
     JWT_PUBLIC_KEY: str = Field(default="")
     JWT_ISSUER: str = Field(default="AI-Sales-Agent")
     JWT_AUDIENCE: str = Field(default="AI-Sales-Agent")
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60)
     JWT_REQUIRED: bool = Field(default=False)
-    BCRYPT_ROUNDS: int = Field(default=12)
 
     model_config = SettingsConfigDict(
         env_file=".env",

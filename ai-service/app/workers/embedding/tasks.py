@@ -99,6 +99,73 @@ def generate_embeddings_task(
         raise self.retry(exc=exc, countdown=2**self.request.retries * 60)
 
 
+@celery_app.task(name="kb.embed_chunks", bind=True, max_retries=3, default_retry_delay=30)
+def embed_chunks_task(self, doc_id: str, org_id: str, store_id: str) -> int:  # noqa: ARG001
+    """Generate embeddings for all chunks of a document."""
+
+    async def _run() -> int:
+        chunk_repo = ChunkRepository()
+        chunks = await chunk_repo.find_by_document_id(doc_id, limit=10_000)
+        if not chunks:
+            return 0
+
+        texts = [c.content for c in chunks]
+        factory = LLMProviderFactory()
+        provider = factory.get_provider("openai")
+        request = EmbeddingRequest(input=texts, model="gemini-embedding-001")
+        response = await provider.embeddings(request)
+
+        from app.infrastructure.qdrant.provider import QdrantProvider
+        from app.infrastructure.vectorstore.base import VectorRecord
+
+        vs = QdrantProvider()
+        await vs.connect()
+        collection = f"kb_{store_id}"
+        points = [
+            VectorRecord(id=c.id, vector=emb, payload={"chunk_id": c.id, "document_id": c.document_id})
+            for c, emb in zip(chunks, response.embeddings, strict=False)
+        ]
+        try:
+            await vs.upsert(collection, points)
+        finally:
+            await vs.disconnect()
+
+        logger.info("Embedded %d chunks for doc '%s'", len(chunks), doc_id)
+        return len(chunks)
+
+    try:
+        return _run_async(_run())
+    except Exception as exc:
+        logger.error("embed_chunks_task failed for doc '%s': %s", doc_id, exc)
+        raise self.retry(exc=exc)
+
+
+@celery_app.task(name="kb.sync_vector_db", bind=True, max_retries=2, default_retry_delay=60)
+def sync_vector_db_task(self, store_id: str, org_id: str, store_slug: str) -> bool:  # noqa: ARG001
+    """Ensure the store's vector collection exists."""
+
+    async def _run() -> bool:
+        from app.infrastructure.qdrant.provider import QdrantProvider
+
+        vs = QdrantProvider()
+        await vs.connect()
+        collection = f"kb_{store_slug or store_id}"
+        try:
+            exists = await vs.collection_exists(collection)
+            if not exists:
+                await vs.create_collection(collection, vector_size=1536)
+        finally:
+            await vs.disconnect()
+        logger.info("Vector DB sync complete for store '%s'", store_id)
+        return True
+
+    try:
+        return _run_async(_run())
+    except Exception as exc:
+        logger.error("sync_vector_db_task failed for store '%s': %s", store_id, exc)
+        raise self.retry(exc=exc)
+
+
 @celery_app.task(
     name="knowledge.sync_vectors",
     bind=True,

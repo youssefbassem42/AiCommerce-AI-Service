@@ -22,7 +22,6 @@ celery_app.conf.update(
     task_time_limit=3900,
     result_expires=86400,
     imports=[
-        "app.infrastructure.tasks.celery_tasks",
         "app.workers.ingestion.tasks",
         "app.workers.summarization.tasks",
         "app.workers.embedding.tasks",
@@ -32,19 +31,22 @@ celery_app.conf.update(
 )
 
 celery_app.conf.task_routes = {
-    "knowledge.*": {"queue": "ingestion"},
     "kb.extract_document": {"queue": "ingestion"},
     "kb.chunk_document": {"queue": "ingestion"},
+    "kb.bump_version": {"queue": "ingestion"},
+    "knowledge.process_document": {"queue": "ingestion"},
+    "knowledge.generate_chunks": {"queue": "ingestion"},
     "kb.embed_chunks": {"queue": "embedding"},
     "kb.sync_vector_db": {"queue": "embedding"},
+    "knowledge.generate_embeddings": {"queue": "embedding"},
+    "knowledge.sync_vectors": {"queue": "embedding"},
     "kb.generate_summary": {"queue": "summarization"},
-    "kb.bump_version": {"queue": "default"},
+    "knowledge.generate_summary": {"queue": "summarization"},
     "knowledge.retry_failed_jobs": {"queue": "scheduler"},
     "knowledge.cleanup_dead_letters": {"queue": "scheduler"},
-    "knowledge.process_dead_letter_queue": {"queue": "cleanup"},
     "integration.weekly_sync": {"queue": "scheduler"},
     "integration.hourly_commerce_sync": {"queue": "scheduler"},
-    "ai.*": {"queue": "default"},
+    "knowledge.process_dead_letter_queue": {"queue": "cleanup"},
 }
 
 celery_app.conf.task_default_queue = "default"

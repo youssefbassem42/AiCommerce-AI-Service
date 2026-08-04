@@ -1,11 +1,6 @@
 from fastapi import HTTPException, Request, status
 
-from app.infrastructure.mongodb.repositories.api_key_repository import ApiKeyRepository
 from app.infrastructure.mongodb.repositories.audit_log_repository import AuditLogRepository
-
-
-def get_api_key_repository() -> ApiKeyRepository:
-    return ApiKeyRepository()
 
 
 def get_audit_log_repository() -> AuditLogRepository:
@@ -24,7 +19,7 @@ def get_current_organization_id(request: Request) -> str | None:
 
 
 def require_role(role: str):
-    def _require_role(request: Request) -> None:
+    async def _require_role(request: Request) -> None:
         roles = getattr(request.state, "roles", [])
         if role not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Missing required role: {role}")
@@ -41,9 +36,6 @@ def require_scope(scope: str):
     return _require_scope
 
 
-ADMIN_ROLES = {"admin", "store_admin"}
-
-
 async def require_admin_role(request: Request) -> None:
     roles = getattr(request.state, "roles", [])
     if not roles:
@@ -56,17 +48,8 @@ async def require_admin_role(request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: super admins cannot access store-level analytics",
         )
-    if not any(r in ADMIN_ROLES for r in roles):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: requires admin role",
-        )
+    await require_role("admin")(request)
 
 
 async def require_super_admin_role(request: Request) -> None:
-    roles = getattr(request.state, "roles", [])
-    if "super_admin" not in roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: super admin role required",
-        )
+    await require_role("super_admin")(request)

@@ -146,10 +146,10 @@ class TestJobRouterRequeue:
 
 
 class TestJobRouterCreateJobs:
-    @patch("app.api.knowledge.job_router._run_async")
     @patch("app.workers.ingestion.tasks.process_document_task")
-    @patch("app.api.knowledge.job_router.create_job", new_callable=AsyncMock)
-    def test_create_document_processing_job(self, mock_create_job, mock_task, mock_run_async, client):
+    @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)
+    def test_create_document_processing_job(self, mock_create_job, mock_task, mock_set_task, client):
         mock_job = make_knowledge_job(job_type=JobType.DOCUMENT_PROCESSING)
         mock_create_job.return_value = mock_job
         mock_task.delay.return_value = MagicMock(id="celery-1")
@@ -167,10 +167,10 @@ class TestJobRouterCreateJobs:
         assert data["job_type"] == "document_processing"
         assert data["status"] == "pending"
 
-    @patch("app.api.knowledge.job_router._run_async")
     @patch("app.workers.ingestion.tasks.generate_chunks_task")
-    @patch("app.api.knowledge.job_router.create_job", new_callable=AsyncMock)
-    def test_create_chunk_generation_job(self, mock_create_job, mock_task, mock_run_async, client):
+    @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)
+    def test_create_chunk_generation_job(self, mock_create_job, mock_task, mock_set_task, client):
         mock_job = make_knowledge_job(job_type=JobType.CHUNK_GENERATION)
         mock_create_job.return_value = mock_job
         mock_task.delay.return_value = MagicMock(id="celery-1")
@@ -181,10 +181,10 @@ class TestJobRouterCreateJobs:
         )
         assert resp.status_code == 201
 
-    @patch("app.api.knowledge.job_router._run_async")
     @patch("app.workers.summarization.tasks.generate_summary_task")
-    @patch("app.api.knowledge.job_router.create_job", new_callable=AsyncMock)
-    def test_create_summary_generation_job(self, mock_create_job, mock_task, mock_run_async, client):
+    @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)
+    def test_create_summary_generation_job(self, mock_create_job, mock_task, mock_set_task, client):
         mock_job = make_knowledge_job(job_type=JobType.SUMMARY_GENERATION)
         mock_create_job.return_value = mock_job
         mock_task.delay.return_value = MagicMock(id="celery-1")
@@ -195,10 +195,10 @@ class TestJobRouterCreateJobs:
         )
         assert resp.status_code == 201
 
-    @patch("app.api.knowledge.job_router._run_async")
     @patch("app.workers.embedding.tasks.generate_embeddings_task")
-    @patch("app.api.knowledge.job_router.create_job", new_callable=AsyncMock)
-    def test_create_embedding_generation_job(self, mock_create_job, mock_task, mock_run_async, client):
+    @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)
+    def test_create_embedding_generation_job(self, mock_create_job, mock_task, mock_set_task, client):
         mock_job = make_knowledge_job(job_type=JobType.EMBEDDING_GENERATION)
         mock_create_job.return_value = mock_job
         mock_task.delay.return_value = MagicMock(id="celery-1")
@@ -209,10 +209,10 @@ class TestJobRouterCreateJobs:
         )
         assert resp.status_code == 201
 
-    @patch("app.api.knowledge.job_router._run_async")
     @patch("app.workers.embedding.tasks.sync_vectors_task")
-    @patch("app.api.knowledge.job_router.create_job", new_callable=AsyncMock)
-    def test_create_vector_sync_job(self, mock_create_job, mock_task, mock_run_async, client):
+    @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)
+    def test_create_vector_sync_job(self, mock_create_job, mock_task, mock_set_task, client):
         mock_job = make_knowledge_job(job_type=JobType.VECTOR_SYNC)
         mock_create_job.return_value = mock_job
         mock_task.delay.return_value = MagicMock(id="celery-1")

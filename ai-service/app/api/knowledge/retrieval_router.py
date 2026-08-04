@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request
 
 from app.api.knowledge.retrieval_dependencies import get_retriever_service
 from app.api.knowledge.retrieval_schemas import RetrievalRequestSchema, RetrievalResponseSchema, RetrievedChunkSchema
@@ -31,37 +31,30 @@ async def search(
     request: Request,
     service: RetrieverService = Depends(get_retriever_service),
 ) -> RetrievalResponseSchema:
-    try:
-        config = RetrievalConfig(
-            top_k=payload.top_k,
-            score_threshold=payload.score_threshold,
-            use_hybrid=payload.use_hybrid,
-            use_mmr=payload.use_mmr,
-            mmr_lambda=payload.mmr_lambda,
-            rerank=payload.rerank,
-            rerank_top_k=payload.rerank_top_k,
-            embedding_model=payload.embedding_model,
-        )
+    config = RetrievalConfig(
+        top_k=payload.top_k,
+        score_threshold=payload.score_threshold,
+        use_hybrid=payload.use_hybrid,
+        use_mmr=payload.use_mmr,
+        mmr_lambda=payload.mmr_lambda,
+        rerank=payload.rerank,
+        rerank_top_k=payload.rerank_top_k,
+        embedding_model=payload.embedding_model,
+    )
 
-        filters = _resolve_filters(payload, request)
+    filters = _resolve_filters(payload, request)
 
-        result = await service.search(
-            query=payload.query,
-            filters=filters,
-            config=config,
-        )
+    result = await service.search(
+        query=payload.query,
+        filters=filters,
+        config=config,
+    )
 
-        return RetrievalResponseSchema(
-            query=result.query,
-            results=[RetrievedChunkSchema(**dto.model_dump()) for dto in result.results],
-            total_count=result.total_count,
-            strategy=result.strategy,
-            latency_ms=result.latency_ms,
-            filters_applied=result.filters_applied,
-        )
-    except Exception as exc:
-        logger.error("Retrieval search failed: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Search failed: {exc}",
-        )
+    return RetrievalResponseSchema(
+        query=result.query,
+        results=[RetrievedChunkSchema(**dto.model_dump()) for dto in result.results],
+        total_count=result.total_count,
+        strategy=result.strategy,
+        latency_ms=result.latency_ms,
+        filters_applied=result.filters_applied,
+    )

@@ -1,4 +1,4 @@
-from fastapi import Depends
+from fastapi import Depends, Request
 
 from app.agents.escalation.agent import EscalationAgent
 from app.agents.support.agent import SupportAgent
@@ -12,6 +12,7 @@ from app.api.ai.dependencies import (
 from app.api.knowledge.retrieval_dependencies import get_retriever_service
 from app.api.ticket.dependencies import get_notification_service, get_ticket_service
 from app.application.knowledge.retrieval.service import RetrieverService
+from app.application.rag.resolver import TenantContextResolver
 from app.application.rag.service import RagOrchestrationService
 from app.application.services.chat_service import ChatService
 from app.application.services.conversation_service import ConversationService
@@ -20,8 +21,25 @@ from app.application.ticket.services.ticket_service import TicketService
 from app.domain.commerce.repositories.order_repository import OrderRepository
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
 from app.domain.knowledge.repositories.business_summary_repository import BusinessSummaryRepository
+from app.domain.knowledge.value_objects.tenant_context import TenantContext
 from app.infrastructure.mongodb.repositories.business_summary_repository import BusinessSummaryRepository
 from app.infrastructure.providers.base import BaseLLMProvider
+
+
+def get_tenant_context(request: Request) -> TenantContext | None:
+    """Resolve the authoritative tenant context from the authenticated request.
+
+    Returns None in anonymous mode (no token or token without tenant claims);
+    callers then fall back to client-supplied tenant identifiers.
+    """
+    claims = {
+        "organization_id": getattr(request.state, "organization_id", None),
+        "store_id": getattr(request.state, "store_id", None),
+    }
+    if not claims["organization_id"] and not claims["store_id"]:
+        return None
+    return TenantContextResolver.from_claims(claims)
+
 
 
 def get_summary_repository() -> BusinessSummaryRepository:

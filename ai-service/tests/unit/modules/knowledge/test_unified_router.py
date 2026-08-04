@@ -177,10 +177,10 @@ class TestUnifiedDocumentEndpoints:
 
 
 class TestUnifiedAsyncEndpoints:
-    @patch("app.api.knowledge.unified_router._run_async")
-    @patch("app.api.knowledge.unified_router.create_job", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)
     @patch("app.workers.ingestion.tasks.process_document_task")
-    def test_process_document(self, mock_task, mock_create_job, mock_run_async, client):
+    def test_process_document(self, mock_task, mock_create_job, mock_set_task, client):
         mock_job = MagicMock()
         mock_job.id = "job-1"
         mock_create_job.return_value = mock_job
@@ -199,10 +199,10 @@ class TestUnifiedAsyncEndpoints:
         assert data["job_id"] == "job-1"
         assert data["job_type"] == "document_processing"
 
-    @patch("app.api.knowledge.unified_router._run_async")
-    @patch("app.api.knowledge.unified_router.create_job", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)
     @patch("app.workers.ingestion.tasks.generate_chunks_task")
-    def test_chunk_document(self, mock_task, mock_create_job, mock_run_async, client):
+    def test_chunk_document(self, mock_task, mock_create_job, mock_set_task, client):
         mock_job = MagicMock()
         mock_job.id = "job-1"
         mock_create_job.return_value = mock_job
@@ -221,10 +221,10 @@ class TestUnifiedAsyncEndpoints:
         data = resp.json()
         assert data["job_id"] == "job-1"
 
-    @patch("app.api.knowledge.unified_router._run_async")
-    @patch("app.api.knowledge.unified_router.create_job", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)
     @patch("app.workers.embedding.tasks.generate_embeddings_task")
-    def test_embed_document(self, mock_task, mock_create_job, mock_run_async, client):
+    def test_embed_document(self, mock_task, mock_create_job, mock_set_task, client):
         with patch("app.infrastructure.mongodb.repositories.chunk_repository.ChunkRepository") as mock_repo_cls:
             mock_repo = MagicMock()
             mock_repo.find_by_document_id = AsyncMock(return_value=[MagicMock(id="chunk-1")])

@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import StreamingResponse
 
 from app.api.ai.dependencies import get_ai_service, get_provider_factory, get_store_context
@@ -53,22 +53,16 @@ async def chat(
     Injects e-commerce system prompt if no system message is present.
     Chat traffic flows through the Phase 01 coordinator + conversation workflow.
     """
-    try:
-        payload.messages = _inject_ecommerce_system_message(payload.messages)
-        request_dto = ChatRequest(**payload.model_dump())
-        store_id, customer_id = get_store_context(request)
-        response_dto = await ai_service.chat(
-            request_dto,
-            conversation_id=conversation_id,
-            store_id=store_id,
-            customer_id=customer_id,
-        )
-        return response_dto
-    except Exception as e:
-        status_code = getattr(e, "status_code", 500)
-        raise HTTPException(status_code=status_code, detail=str(e))
-
-
+    payload.messages = _inject_ecommerce_system_message(payload.messages)
+    request_dto = ChatRequest(**payload.model_dump())
+    store_id, customer_id = get_store_context(request)
+    response_dto = await ai_service.chat(
+        request_dto,
+        conversation_id=conversation_id,
+        store_id=store_id,
+        customer_id=customer_id,
+    )
+    return response_dto
 @router.post("/chat/stream")
 async def chat_stream(
     request: StreamingSchema, conversation_id: str | None = None, ai_service: ChatService = Depends(get_ai_service)
@@ -77,67 +71,43 @@ async def chat_stream(
     Stream chat completion response back in SSE (Server-Sent Events) format.
     Injects e-commerce system prompt if no system message is present.
     """
-    try:
-        request.messages = _inject_ecommerce_system_message(request.messages)
-        request_dto = ChatRequest(**request.model_dump())
+    request.messages = _inject_ecommerce_system_message(request.messages)
+    request_dto = ChatRequest(**request.model_dump())
 
-        async def event_generator():
-            async for chunk in ai_service.stream(request_dto, conversation_id=conversation_id):
-                yield f"data: {chunk.model_dump_json()}\n\n"
+    async def event_generator():
+        async for chunk in ai_service.stream(request_dto, conversation_id=conversation_id):
+            yield f"data: {chunk.model_dump_json()}\n\n"
 
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
-    except Exception as e:
-        status_code = getattr(e, "status_code", 500)
-        raise HTTPException(status_code=status_code, detail=str(e))
-
-
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 @router.post("/chat/structured", response_model=ChatResponseSchema)
 async def chat_structured(request: StructuredOutputSchema, ai_service: ChatService = Depends(get_ai_service)) -> Any:
     """
     Generate structured outputs matching the schema_definition.
     """
-    try:
-        # Map back message format
-        request_dto = ChatRequest(
-            messages=[m.model_dump() for m in request.messages],  # type: ignore
-            model=request.model,
-            json_mode=True,
-        )
-        response_dto = await ai_service.structured_output(request_dto, request.schema_definition)
-        return response_dto
-    except Exception as e:
-        status_code = getattr(e, "status_code", 500)
-        raise HTTPException(status_code=status_code, detail=str(e))
-
-
+    # Map back message format
+    request_dto = ChatRequest(
+        messages=[m.model_dump() for m in request.messages],  # type: ignore
+        model=request.model,
+        json_mode=True,
+    )
+    response_dto = await ai_service.structured_output(request_dto, request.schema_definition)
+    return response_dto
 @router.post("/chat/tools", response_model=ChatResponseSchema)
 async def chat_tools(request: ChatRequestSchema, ai_service: ChatService = Depends(get_ai_service)) -> Any:
     """
     Chat completion with tool/function definitions.
     """
-    try:
-        request_dto = ChatRequest(**request.model_dump())
-        response_dto = await ai_service.tool_call(request_dto)
-        return response_dto
-    except Exception as e:
-        status_code = getattr(e, "status_code", 500)
-        raise HTTPException(status_code=status_code, detail=str(e))
-
-
+    request_dto = ChatRequest(**request.model_dump())
+    response_dto = await ai_service.tool_call(request_dto)
+    return response_dto
 @router.post("/embeddings", response_model=EmbeddingResponseSchema)
 async def embeddings(request: EmbeddingSchema, ai_service: ChatService = Depends(get_ai_service)) -> Any:
     """
     Generate text embeddings.
     """
-    try:
-        request_dto = EmbeddingRequest(**request.model_dump())
-        response_dto = await ai_service.embeddings(request_dto)
-        return response_dto
-    except Exception as e:
-        status_code = getattr(e, "status_code", 500)
-        raise HTTPException(status_code=status_code, detail=str(e))
-
-
+    request_dto = EmbeddingRequest(**request.model_dump())
+    response_dto = await ai_service.embeddings(request_dto)
+    return response_dto
 @router.get("/models", response_model=list[dict[str, Any]])
 async def list_models() -> list[dict[str, Any]]:
     """
@@ -187,14 +157,9 @@ async def health(factory: LLMProviderFactory = Depends(get_provider_factory)) ->
     """
     Health check for default configured AI provider.
     """
-    try:
-        provider = factory.get_provider(ai_settings.DEFAULT_PROVIDER)
-        health_dto = await provider.health_check()
-        return health_dto
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+    provider = factory.get_provider(ai_settings.DEFAULT_PROVIDER)
+    health_dto = await provider.health_check()
+    return health_dto
 @router.get("/provider/{provider}/models", response_model=list[str])
 async def provider_models(
     provider: str = Path(..., description="The name of the AI provider"),
@@ -203,14 +168,8 @@ async def provider_models(
     """
     List all supported models for a specific AI provider.
     """
-    try:
-        prov = factory.get_provider(provider)
-        return await prov.list_models()
-    except Exception as e:
-        status_code = getattr(e, "status_code", 500)
-        raise HTTPException(status_code=status_code, detail=str(e))
-
-
+    prov = factory.get_provider(provider)
+    return await prov.list_models()
 @router.get("/provider/{provider}/health", response_model=HealthResponseSchema)
 async def provider_health(
     provider: str = Path(..., description="The name of the AI provider"),
@@ -219,10 +178,6 @@ async def provider_health(
     """
     Run the health check for a specific AI provider.
     """
-    try:
-        prov = factory.get_provider(provider)
-        health_dto = await prov.health_check()
-        return health_dto
-    except Exception as e:
-        status_code = getattr(e, "status_code", 500)
-        raise HTTPException(status_code=status_code, detail=str(e))
+    prov = factory.get_provider(provider)
+    health_dto = await prov.health_check()
+    return health_dto

@@ -4,11 +4,10 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.domain.commerce.aggregates.product import Product, ProductOption, Variant
-from app.domain.commerce.value_objects.audit import AuditInfo
 from app.domain.commerce.value_objects.image import Image
 from app.domain.commerce.value_objects.money import Money
 from app.domain.commerce.value_objects.seo import SEO
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+from app.infrastructure.mongodb.documents.base_document import AuditInfoModel, BaseMongoDocument
 
 
 class MoneyModel(BaseModel):
@@ -61,19 +60,6 @@ class SEOModel(BaseModel):
     @classmethod
     def from_vo(cls, vo: SEO) -> "SEOModel":
         return cls(title=vo.title, description=vo.description, url_slug=vo.url_slug)
-
-
-class AuditInfoModel(BaseModel):
-    created_at: Any
-    updated_at: Any
-    updated_by: str | None = None
-
-    def to_vo(self) -> AuditInfo:
-        return AuditInfo(created_at=self.created_at, updated_at=self.updated_at, updated_by=self.updated_by)
-
-    @classmethod
-    def from_vo(cls, vo: AuditInfo) -> "AuditInfoModel":
-        return cls(created_at=vo.created_at, updated_at=vo.updated_at, updated_by=vo.updated_by)
 
 
 class VariantModel(BaseModel):

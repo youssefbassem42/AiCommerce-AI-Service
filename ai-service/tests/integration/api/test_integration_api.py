@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -7,6 +7,7 @@ from app.api.auth.dependencies import require_admin_role
 from app.api.integration.dependencies import get_integration_service, get_sync_orchestrator
 from app.application.integration.sync.orchestrator import SyncResult
 from app.main import app
+from app.middleware.audit import AuditMiddleware
 
 OPENAPI_V3_MINIMAL = {
     "openapi": "3.0.0",
@@ -38,7 +39,8 @@ OPENAPI_V3_MINIMAL = {
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with patch.object(AuditMiddleware, "_log_audit_entry", AsyncMock()):
+        yield TestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture

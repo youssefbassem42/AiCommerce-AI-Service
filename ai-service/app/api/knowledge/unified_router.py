@@ -2,7 +2,7 @@ import contextlib
 import logging
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, Query, UploadFile, status
 
 from app.api.knowledge.dependencies import (
     get_document_upload_service,
@@ -36,6 +36,7 @@ from app.api.knowledge.unified_schemas import (
     EmbedDocumentRequestSchema,
     ProcessDocumentRequestSchema,
 )
+from app.application.jobs.job_dispatcher import JobDispatcher
 from app.application.knowledge.commands.generate_business_summary_command import (
     GenerateBusinessSummaryCommand,
     RegenerateBusinessSummaryCommand,
@@ -53,43 +54,25 @@ from app.application.knowledge.services import (
 )
 from app.core.knowledge_settings import knowledge_settings
 from app.domain.job.exceptions import JobNotFoundException
-from app.domain.job.repositories.job_repository import JobRepository
+from app.domain.job.value_objects import JobType
 from app.domain.knowledge.exceptions import (
-    BusinessSummaryNotFoundException,
-    DuplicateUploadException,
-    FileValidationException,
-    KnowledgeChunkNotFoundException,
     KnowledgeDocumentNotFoundException,
-    KnowledgeDomainException,
 )
 from app.infrastructure.mongodb.repositories.job_repository import JobRepository
-from app.infrastructure.tasks.helpers import _run_async, create_job, set_celery_task_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix=knowledge_settings.route_prefix, tags=["Knowledge Base"])
 
 
-def _handle_exception(exc: Exception) -> None:
-    if isinstance(
-        exc,
-        (
-            KnowledgeDocumentNotFoundException,
-            KnowledgeChunkNotFoundException,
-            BusinessSummaryNotFoundException,
-            JobNotFoundException,
-        ),
-    ):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    if isinstance(exc, (FileValidationException, DuplicateUploadException)):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    if isinstance(exc, KnowledgeDomainException):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
 
 def _get_job_repository() -> JobRepository:
     return JobRepository()
+
+
+def get_job_dispatcher() -> JobDispatcher:
+    return JobDispatcher()
 
 
 @router.post(
@@ -106,29 +89,24 @@ async def upload_document(
     knowledge_scope: str = Query(default="general"),
     service: DocumentUploadService = Depends(get_document_upload_service),
 ) -> UploadResponseSchema:
-    try:
-        temp_path = await write_upload_temp(file)
-        mime_type = file.content_type or "application/octet-stream"
-        file_size = 0
-        with contextlib.suppress(OSError):
-            file_size = os.path.getsize(temp_path)
+    temp_path = await write_upload_temp(file)
+    mime_type = file.content_type or "application/octet-stream"
+    file_size = 0
+    with contextlib.suppress(OSError):
+        file_size = os.path.getsize(temp_path)
 
-        command = UploadDocumentCommand(
-            file_path=temp_path,
-            original_filename=file.filename or "upload",
-            mime_type=mime_type,
-            file_size=file_size,
-            uploaded_by=uploaded_by,
-            organization_id=organization_id,
-            store_id=store_id,
-            knowledge_scope=knowledge_scope,
-        )
-        result = await service.upload(command)
-        return UploadResponseSchema(**result.model_dump())
-    except Exception as exc:
-        _handle_exception(exc)
-
-
+    command = UploadDocumentCommand(
+        file_path=temp_path,
+        original_filename=file.filename or "upload",
+        mime_type=mime_type,
+        file_size=file_size,
+        uploaded_by=uploaded_by,
+        organization_id=organization_id,
+        store_id=store_id,
+        knowledge_scope=knowledge_scope,
+    )
+    result = await service.upload(command)
+    return UploadResponseSchema(**result.model_dump())
 @router.get(
     "/documents",
     response_model=PaginatedKnowledgeDocumentResponseSchema,
@@ -145,13 +123,8 @@ async def list_documents(
     status_filter: str | None = Query(default=None, alias="status"),
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
 ) -> PaginatedKnowledgeDocumentResponseSchema:
-    try:
-        result = await service.list(page=page, page_size=page_size, store_id=store_id, status=status_filter)
-        return PaginatedKnowledgeDocumentResponseSchema(**result.model_dump())
-    except Exception as exc:
-        _handle_exception(exc)
-
-
+    result = await service.list(page=page, page_size=page_size, store_id=store_id, status=status_filter)
+    return PaginatedKnowledgeDocumentResponseSchema(**result.model_dump())
 @router.get(
     "/documents/{document_id}",
     response_model=KnowledgeDocumentResponseSchema,
@@ -161,13 +134,8 @@ async def get_document(
     document_id: str,
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
 ) -> KnowledgeDocumentResponseSchema:
-    try:
-        result = await service.get_by_id(document_id)
-        return KnowledgeDocumentResponseSchema(**result.model_dump())
-    except Exception as exc:
-        _handle_exception(exc)
-
-
+    result = await service.get_by_id(document_id)
+    return KnowledgeDocumentResponseSchema(**result.model_dump())
 @router.delete(
     "/documents/{document_id}",
     response_model=DeleteResponseSchema,
@@ -177,12 +145,7 @@ async def delete_document(
     document_id: str,
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
 ) -> DeleteResponseSchema:
-    try:
-        return DeleteResponseSchema(success=await service.delete(document_id))
-    except Exception as exc:
-        _handle_exception(exc)
-
-
+    return DeleteResponseSchema(success=await service.delete(document_id))
 @router.post(
     "/process",
     response_model=AsyncJobAcceptedResponseSchema,
@@ -191,63 +154,57 @@ async def delete_document(
 )
 async def process_document(
     body: ProcessDocumentRequestSchema,
+    dispatcher: JobDispatcher = Depends(get_job_dispatcher),
 ) -> AsyncJobAcceptedResponseSchema:
-    try:
-        from app.workers.ingestion.tasks import generate_chunks_task, process_document_task
+    from app.workers.ingestion.tasks import generate_chunks_task, process_document_task
 
-        proc_job = await create_job(
-            job_type="document_processing",
-            payload=body.model_dump(),
-            store_id=body.store_id,
-            organization_id=body.organization_id,
-            triggered_by=body.triggered_by,
-        )
-        proc_task = process_document_task.delay(
+    proc_job = await dispatcher.dispatch(
+        job_type=JobType.DOCUMENT_PROCESSING,
+        payload=body.model_dump(),
+        enqueue=lambda job_id: process_document_task.delay(
             document_id=body.document_id,
             file_path=body.file_path,
             mime_type=body.mime_type,
-            job_id=proc_job.id,
-        )
-        _run_async(set_celery_task_id(proc_job.id, proc_task.id))
+            job_id=job_id,
+        ),
+        store_id=body.store_id,
+        organization_id=body.organization_id,
+        triggered_by=body.triggered_by,
+    )
 
-        if body.also_chunk:
-            chunk_job = await create_job(
-                job_type="chunk_generation",
-                payload={
-                    "document_id": body.document_id,
-                    "strategy": body.strategy,
-                    "chunk_size": body.chunk_size,
-                    "overlap": body.overlap,
-                    "depends_on": proc_job.id,
-                },
-                store_id=body.store_id,
-                organization_id=body.organization_id,
-                triggered_by=body.triggered_by,
-            )
-            chunk_task = generate_chunks_task.delay(
+    if body.also_chunk:
+        chunk_job = await dispatcher.dispatch(
+            job_type=JobType.CHUNK_GENERATION,
+            payload={
+                "document_id": body.document_id,
+                "strategy": body.strategy,
+                "chunk_size": body.chunk_size,
+                "overlap": body.overlap,
+                "depends_on": proc_job.id,
+            },
+            enqueue=lambda job_id: generate_chunks_task.delay(
                 document_id=body.document_id,
                 strategy=body.strategy,
                 chunk_size=body.chunk_size,
                 overlap=body.overlap,
-                job_id=chunk_job.id,
-            )
-            _run_async(set_celery_task_id(chunk_job.id, chunk_task.id))
-
-            return AsyncJobAcceptedResponseSchema(
-                job_id=proc_job.id,
-                job_type="document_processing_with_chunking",
-                message=f"Processing job {proc_job.id} + chunk job {chunk_job.id} enqueued",
-            )
+                job_id=job_id,
+            ),
+            store_id=body.store_id,
+            organization_id=body.organization_id,
+            triggered_by=body.triggered_by,
+        )
 
         return AsyncJobAcceptedResponseSchema(
             job_id=proc_job.id,
-            job_type="document_processing",
-            message=f"Processing job {proc_job.id} enqueued",
+            job_type="document_processing_with_chunking",
+            message=f"Processing job {proc_job.id} + chunk job {chunk_job.id} enqueued",
         )
-    except Exception as exc:
-        _handle_exception(exc)
 
-
+    return AsyncJobAcceptedResponseSchema(
+        job_id=proc_job.id,
+        job_type="document_processing",
+        message=f"Processing job {proc_job.id} enqueued",
+    )
 @router.post(
     "/chunk",
     response_model=AsyncJobAcceptedResponseSchema,
@@ -256,35 +213,30 @@ async def process_document(
 )
 async def chunk_document(
     body: ChunkDocumentRequestSchema,
+    dispatcher: JobDispatcher = Depends(get_job_dispatcher),
 ) -> AsyncJobAcceptedResponseSchema:
-    try:
-        from app.workers.ingestion.tasks import generate_chunks_task
+    from app.workers.ingestion.tasks import generate_chunks_task
 
-        job = await create_job(
-            job_type="chunk_generation",
-            payload=body.model_dump(),
-            store_id=body.store_id,
-            organization_id=body.organization_id,
-            triggered_by=body.triggered_by,
-        )
-        task = generate_chunks_task.delay(
+    job = await dispatcher.dispatch(
+        job_type=JobType.CHUNK_GENERATION,
+        payload=body.model_dump(),
+        enqueue=lambda job_id: generate_chunks_task.delay(
             document_id=body.document_id,
             strategy=body.strategy,
             chunk_size=body.chunk_size,
             overlap=body.overlap,
-            job_id=job.id,
-        )
-        _run_async(set_celery_task_id(job.id, task.id))
+            job_id=job_id,
+        ),
+        store_id=body.store_id,
+        organization_id=body.organization_id,
+        triggered_by=body.triggered_by,
+    )
 
-        return AsyncJobAcceptedResponseSchema(
-            job_id=job.id,
-            job_type="chunk_generation",
-            message=f"Chunk job {job.id} enqueued for document {body.document_id}",
-        )
-    except Exception as exc:
-        _handle_exception(exc)
-
-
+    return AsyncJobAcceptedResponseSchema(
+        job_id=job.id,
+        job_type="chunk_generation",
+        message=f"Chunk job {job.id} enqueued for document {body.document_id}",
+    )
 @router.post(
     "/embed",
     response_model=AsyncJobAcceptedResponseSchema,
@@ -293,76 +245,68 @@ async def chunk_document(
 )
 async def embed_document(
     body: EmbedDocumentRequestSchema,
+    dispatcher: JobDispatcher = Depends(get_job_dispatcher),
 ) -> AsyncJobAcceptedResponseSchema:
-    try:
-        from app.application.knowledge.services import KnowledgeChunkService
-        from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
+    from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
 
-        chunk_repo = ChunkRepository()
-        KnowledgeChunkService(repository=chunk_repo)
+    chunk_repo = ChunkRepository()
 
-        chunks = await chunk_repo.find_by_document_id(body.document_id, limit=10_000)
-        chunk_ids = [c.id for c in chunks]
+    chunks = await chunk_repo.find_by_document_id(body.document_id, limit=10_000)
+    chunk_ids = [c.id for c in chunks]
 
-        if not chunk_ids:
-            raise KnowledgeDocumentNotFoundException(f"No chunks found for document '{body.document_id}'")
+    if not chunk_ids:
+        raise KnowledgeDocumentNotFoundException(f"No chunks found for document '{body.document_id}'")
 
-        from app.workers.embedding.tasks import generate_embeddings_task, sync_vectors_task
+    from app.workers.embedding.tasks import generate_embeddings_task, sync_vectors_task
 
-        embed_job = await create_job(
-            job_type="embedding_generation",
+    embed_job = await dispatcher.dispatch(
+        job_type=JobType.EMBEDDING_GENERATION,
+        payload={
+            "document_id": body.document_id,
+            "chunk_count": len(chunk_ids),
+            "model": body.model,
+        },
+        enqueue=lambda job_id: generate_embeddings_task.delay(
+            chunk_ids=chunk_ids,
+            model=body.model,
+            job_id=job_id,
+        ),
+        store_id=body.store_id,
+        organization_id=body.organization_id,
+        triggered_by=body.triggered_by,
+    )
+
+    if body.sync_to_vector_store:
+        sync_job = await dispatcher.dispatch(
+            job_type=JobType.VECTOR_SYNC,
             payload={
                 "document_id": body.document_id,
                 "chunk_count": len(chunk_ids),
+                "collection": body.collection_name,
                 "model": body.model,
             },
+            enqueue=lambda job_id: sync_vectors_task.delay(
+                chunk_ids=chunk_ids,
+                collection_name=body.collection_name,
+                model=body.model,
+                job_id=job_id,
+            ),
             store_id=body.store_id,
             organization_id=body.organization_id,
             triggered_by=body.triggered_by,
         )
-        embed_task = generate_embeddings_task.delay(
-            chunk_ids=chunk_ids,
-            model=body.model,
-            job_id=embed_job.id,
-        )
-        _run_async(set_celery_task_id(embed_job.id, embed_task.id))
-
-        if body.sync_to_vector_store:
-            sync_job = await create_job(
-                job_type="vector_sync",
-                payload={
-                    "document_id": body.document_id,
-                    "chunk_count": len(chunk_ids),
-                    "collection": body.collection_name,
-                    "model": body.model,
-                },
-                store_id=body.store_id,
-                organization_id=body.organization_id,
-                triggered_by=body.triggered_by,
-            )
-            sync_task = sync_vectors_task.delay(
-                chunk_ids=chunk_ids,
-                collection_name=body.collection_name,
-                model=body.model,
-                job_id=sync_job.id,
-            )
-            _run_async(set_celery_task_id(sync_job.id, sync_task.id))
-
-            return AsyncJobAcceptedResponseSchema(
-                job_id=embed_job.id,
-                job_type="embedding_and_vector_sync",
-                message=f"Embed job {embed_job.id} + sync job {sync_job.id} enqueued for {len(chunk_ids)} chunks",
-            )
 
         return AsyncJobAcceptedResponseSchema(
             job_id=embed_job.id,
-            job_type="embedding_generation",
-            message=f"Embed job {embed_job.id} enqueued for {len(chunk_ids)} chunks",
+            job_type="embedding_and_vector_sync",
+            message=f"Embed job {embed_job.id} + sync job {sync_job.id} enqueued for {len(chunk_ids)} chunks",
         )
-    except Exception as exc:
-        _handle_exception(exc)
 
-
+    return AsyncJobAcceptedResponseSchema(
+        job_id=embed_job.id,
+        job_type="embedding_generation",
+        message=f"Embed job {embed_job.id} enqueued for {len(chunk_ids)} chunks",
+    )
 @router.post(
     "/search",
     response_model=RetrievalResponseSchema,
@@ -372,41 +316,36 @@ async def search_knowledge(
     body: RetrievalRequestSchema,
     service: RetrieverService = Depends(get_retriever_service),
 ) -> RetrievalResponseSchema:
-    try:
-        from app.application.knowledge.retrieval.config import RetrievalConfig as RC
-        from app.application.knowledge.retrieval.config import RetrievalFilters as RF
+    from app.application.knowledge.retrieval.config import RetrievalConfig as RC
+    from app.application.knowledge.retrieval.config import RetrievalFilters as RF
 
-        config = RC(
-            top_k=body.top_k,
-            score_threshold=body.score_threshold,
-            use_hybrid=body.use_hybrid or False,
-            use_mmr=body.use_mmr,
-            mmr_lambda=body.mmr_lambda,
-            rerank=body.rerank,
-            rerank_top_k=body.rerank_top_k,
-            embedding_model=body.embedding_model,
-        )
-        filters = RF(
-            organization_id=body.organization_id,
-            store_id=body.store_id,
-            language=body.language,
-            document_type=body.document_type,
-            knowledge_scope=body.knowledge_scope,
-            business_version=body.business_version,
-        )
-        result = await service.search(query=body.query, filters=filters, config=config)
-        return RetrievalResponseSchema(
-            query=result.query,
-            results=[RetrievedChunkSchema(**dto.model_dump()) for dto in result.results],
-            total_count=result.total_count,
-            strategy=result.strategy,
-            latency_ms=result.latency_ms,
-            filters_applied=result.filters_applied,
-        )
-    except Exception as exc:
-        _handle_exception(exc)
-
-
+    config = RC(
+        top_k=body.top_k,
+        score_threshold=body.score_threshold,
+        use_hybrid=body.use_hybrid or False,
+        use_mmr=body.use_mmr,
+        mmr_lambda=body.mmr_lambda,
+        rerank=body.rerank,
+        rerank_top_k=body.rerank_top_k,
+        embedding_model=body.embedding_model,
+    )
+    filters = RF(
+        organization_id=body.organization_id,
+        store_id=body.store_id,
+        language=body.language,
+        document_type=body.document_type,
+        knowledge_scope=body.knowledge_scope,
+        business_version=body.business_version,
+    )
+    result = await service.search(query=body.query, filters=filters, config=config)
+    return RetrievalResponseSchema(
+        query=result.query,
+        results=[RetrievedChunkSchema(**dto.model_dump()) for dto in result.results],
+        total_count=result.total_count,
+        strategy=result.strategy,
+        latency_ms=result.latency_ms,
+        filters_applied=result.filters_applied,
+    )
 @router.post(
     "/search/hybrid",
     response_model=RetrievalResponseSchema,
@@ -416,41 +355,36 @@ async def hybrid_search_knowledge(
     body: RetrievalRequestSchema,
     service: RetrieverService = Depends(get_retriever_service),
 ) -> RetrievalResponseSchema:
-    try:
-        from app.application.knowledge.retrieval.config import RetrievalConfig as RC
-        from app.application.knowledge.retrieval.config import RetrievalFilters as RF
+    from app.application.knowledge.retrieval.config import RetrievalConfig as RC
+    from app.application.knowledge.retrieval.config import RetrievalFilters as RF
 
-        config = RC(
-            top_k=body.top_k,
-            score_threshold=body.score_threshold,
-            use_hybrid=True,
-            use_mmr=body.use_mmr,
-            mmr_lambda=body.mmr_lambda,
-            rerank=body.rerank,
-            rerank_top_k=body.rerank_top_k,
-            embedding_model=body.embedding_model,
-        )
-        filters = RF(
-            organization_id=body.organization_id,
-            store_id=body.store_id,
-            language=body.language,
-            document_type=body.document_type,
-            knowledge_scope=body.knowledge_scope,
-            business_version=body.business_version,
-        )
-        result = await service.search(query=body.query, filters=filters, config=config)
-        return RetrievalResponseSchema(
-            query=result.query,
-            results=[RetrievedChunkSchema(**dto.model_dump()) for dto in result.results],
-            total_count=result.total_count,
-            strategy=result.strategy,
-            latency_ms=result.latency_ms,
-            filters_applied=result.filters_applied,
-        )
-    except Exception as exc:
-        _handle_exception(exc)
-
-
+    config = RC(
+        top_k=body.top_k,
+        score_threshold=body.score_threshold,
+        use_hybrid=True,
+        use_mmr=body.use_mmr,
+        mmr_lambda=body.mmr_lambda,
+        rerank=body.rerank,
+        rerank_top_k=body.rerank_top_k,
+        embedding_model=body.embedding_model,
+    )
+    filters = RF(
+        organization_id=body.organization_id,
+        store_id=body.store_id,
+        language=body.language,
+        document_type=body.document_type,
+        knowledge_scope=body.knowledge_scope,
+        business_version=body.business_version,
+    )
+    result = await service.search(query=body.query, filters=filters, config=config)
+    return RetrievalResponseSchema(
+        query=result.query,
+        results=[RetrievedChunkSchema(**dto.model_dump()) for dto in result.results],
+        total_count=result.total_count,
+        strategy=result.strategy,
+        latency_ms=result.latency_ms,
+        filters_applied=result.filters_applied,
+    )
 @router.post(
     "/summary",
     response_model=BusinessSummaryGenerationResponseSchema,
@@ -462,24 +396,19 @@ async def generate_summary(
     body: GenerateBusinessSummaryRequestSchema = Depends(lambda: GenerateBusinessSummaryRequestSchema()),
     handler: GenerateBusinessSummaryHandler = Depends(get_generate_handler),
 ) -> BusinessSummaryGenerationResponseSchema:
-    try:
-        gen_config = GenerationConfig()
-        if body.model:
-            gen_config.model = body.model
-        if body.temperature is not None:
-            gen_config.temperature = body.temperature
-        if body.max_tokens is not None:
-            gen_config.max_tokens = body.max_tokens
-        command = GenerateBusinessSummaryCommand(
-            store_id=store_id,
-            config=gen_config,
-        )
-        result = await handler.handle(command)
-        return BusinessSummaryGenerationResponseSchema(**result.model_dump())
-    except Exception as exc:
-        _handle_exception(exc)
-
-
+    gen_config = GenerationConfig()
+    if body.model:
+        gen_config.model = body.model
+    if body.temperature is not None:
+        gen_config.temperature = body.temperature
+    if body.max_tokens is not None:
+        gen_config.max_tokens = body.max_tokens
+    command = GenerateBusinessSummaryCommand(
+        store_id=store_id,
+        config=gen_config,
+    )
+    result = await handler.handle(command)
+    return BusinessSummaryGenerationResponseSchema(**result.model_dump())
 @router.post(
     "/summary/regenerate",
     response_model=BusinessSummaryGenerationResponseSchema,
@@ -490,24 +419,19 @@ async def regenerate_summary(
     body: GenerateBusinessSummaryRequestSchema = Depends(lambda: GenerateBusinessSummaryRequestSchema()),
     handler: RegenerateBusinessSummaryHandler = Depends(get_regenerate_handler),
 ) -> BusinessSummaryGenerationResponseSchema:
-    try:
-        gen_config = GenerationConfig()
-        if body.model:
-            gen_config.model = body.model
-        if body.temperature is not None:
-            gen_config.temperature = body.temperature
-        if body.max_tokens is not None:
-            gen_config.max_tokens = body.max_tokens
-        command = RegenerateBusinessSummaryCommand(
-            store_id=store_id,
-            config=gen_config,
-        )
-        result = await handler.handle(command)
-        return BusinessSummaryGenerationResponseSchema(**result.model_dump())
-    except Exception as exc:
-        _handle_exception(exc)
-
-
+    gen_config = GenerationConfig()
+    if body.model:
+        gen_config.model = body.model
+    if body.temperature is not None:
+        gen_config.temperature = body.temperature
+    if body.max_tokens is not None:
+        gen_config.max_tokens = body.max_tokens
+    command = RegenerateBusinessSummaryCommand(
+        store_id=store_id,
+        config=gen_config,
+    )
+    result = await handler.handle(command)
+    return BusinessSummaryGenerationResponseSchema(**result.model_dump())
 @router.get(
     "/jobs/{job_id}",
     response_model=JobResponseSchema,
@@ -517,30 +441,25 @@ async def get_job_status(
     job_id: str,
     repo: JobRepository = Depends(_get_job_repository),
 ) -> JobResponseSchema:
-    try:
-        job = await repo.find_by_id(job_id)
-        if not job:
-            raise JobNotFoundException(f"Job '{job_id}' not found")
-        return JobResponseSchema(
-            id=job.id,
-            job_type=job.job_type.value if hasattr(job.job_type, "value") else str(job.job_type),
-            status=job.status.value if hasattr(job.status, "value") else str(job.status),
-            progress=job.progress,
-            payload=job.payload,
-            result=job.result,
-            error_message=job.error_message,
-            retry_count=job.retry_count,
-            max_retries=job.max_retries,
-            store_id=job.store_id,
-            organization_id=job.organization_id,
-            triggered_by=job.triggered_by,
-            celery_task_id=job.celery_task_id,
-            started_at=job.started_at,
-            completed_at=job.completed_at,
-            created_at=job.created_at,
-            updated_at=job.updated_at,
-        )
-    except JobNotFoundException:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Job '{job_id}' not found")
-    except Exception as exc:
-        _handle_exception(exc)
+    job = await repo.find_by_id(job_id)
+    if not job:
+        raise JobNotFoundException(f"Job '{job_id}' not found")
+    return JobResponseSchema(
+        id=job.id,
+        job_type=job.job_type.value if hasattr(job.job_type, "value") else str(job.job_type),
+        status=job.status.value if hasattr(job.status, "value") else str(job.status),
+        progress=job.progress,
+        payload=job.payload,
+        result=job.result,
+        error_message=job.error_message,
+        retry_count=job.retry_count,
+        max_retries=job.max_retries,
+        store_id=job.store_id,
+        organization_id=job.organization_id,
+        triggered_by=job.triggered_by,
+        celery_task_id=job.celery_task_id,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+    )

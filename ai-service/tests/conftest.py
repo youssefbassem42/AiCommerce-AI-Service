@@ -19,6 +19,9 @@ os.environ["DEFAULT_PROVIDER"] = "openai"
 os.environ["DEFAULT_MODEL"] = "gpt-4o-mini"
 os.environ["REQUEST_TIMEOUT"] = "30.0"
 os.environ["MAX_RETRIES"] = "1"
+# Keep the shared in-memory rate limiter (wall-clock 100 req/min default) from
+# tripping with 429s during fast/back-to-back suite runs.
+os.environ["RATE_LIMIT_PER_MINUTE"] = "1000000"
 
 
 @pytest.fixture
