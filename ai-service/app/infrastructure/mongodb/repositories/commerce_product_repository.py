@@ -18,5 +18,5 @@ class CommerceProductRepository(BaseMongoRepository[ProductDocument, Product], I
         products = await self.find_many({"store_id": store_id, "external_id": external_id}, limit=1)
         return products[0] if products else None
 
-    async def search(self, query: str, limit: int = 20) -> list[Product]:
-        return await self.find_many({"$text": {"$search": query}}, limit=limit)
+    async def search(self, store_id: str, query: str, limit: int = 20) -> list[Product]:
+        return await self.find_many({"store_id": store_id, "$text": {"$search": query}}, limit=limit)

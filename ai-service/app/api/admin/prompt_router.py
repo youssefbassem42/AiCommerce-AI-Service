@@ -9,11 +9,16 @@ from app.api.admin.schemas import (
     PromptResponse,
     PromptUpdateRequest,
 )
+from app.api.auth.dependencies import require_super_admin_role
 from app.application.admin.services.prompt_service import PromptService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/admin/prompts", tags=["Admin Prompts"])
+router = APIRouter(
+    prefix="/api/v1/admin/prompts",
+    tags=["Admin Prompts"],
+    dependencies=[Depends(require_super_admin_role)],
+)
 
 
 def _to_response(prompt) -> PromptResponse:

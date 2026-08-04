@@ -7,6 +7,9 @@ import jwt as pyjwt
 import pytest
 from fastapi import Request, Response
 
+ISSUER = "AI-Sales-Agent"
+AUDIENCE = "AI-Sales-Agent"
+
 
 def create_mock_request(path="/api/v1/chat", auth_header=None, method="GET"):
     scope = {
@@ -66,11 +69,13 @@ class TestAuthMiddleware:
         secret = "test-secret"
         payload = {
             "sub": "user-1",
-            "tenant_id": "store-1",
-            "roles": ["admin"],
+            "email": "user-1@example.com",
+            "store_id": "store-1",
+            "organization_id": "org-1",
+            "roles": ["Seller"],
             "scopes": ["read"],
-            "iss": "ai-commerce",
-            "aud": "ai-service",
+            "iss": ISSUER,
+            "aud": AUDIENCE,
             "exp": datetime.now(UTC) + timedelta(hours=1),
         }
         token = pyjwt.encode(payload, secret, algorithm="HS256")
@@ -78,8 +83,8 @@ class TestAuthMiddleware:
         with (
             patch("app.middleware.auth.auth_settings.JWT_SECRET_KEY", secret),
             patch("app.middleware.auth.auth_settings.JWT_ALGORITHM", "HS256"),
-            patch("app.middleware.auth.auth_settings.JWT_ISSUER", "ai-commerce"),
-            patch("app.middleware.auth.auth_settings.JWT_AUDIENCE", "ai-service"),
+            patch("app.middleware.auth.auth_settings.JWT_ISSUER", ISSUER),
+            patch("app.middleware.auth.auth_settings.JWT_AUDIENCE", AUDIENCE),
             patch("app.middleware.auth.auth_settings.JWT_REQUIRED", True),
         ):
             request = create_mock_request(path="/api/v1/chat", auth_header=f"Bearer {token}")
@@ -88,7 +93,9 @@ class TestAuthMiddleware:
             call_next = AsyncMock(return_value=Response("OK", status_code=200))
             await middleware.dispatch(request, call_next)
             assert request.state.user_id == "user-1"
-            assert request.state.tenant_id == "store-1"
+            assert request.state.store_id == "store-1"
+            assert request.state.organization_id == "org-1"
+            assert request.state.email == "user-1@example.com"
             assert request.state.roles == ["admin"]
             assert request.state.scopes == ["read"]
 
@@ -98,8 +105,8 @@ class TestAuthMiddleware:
         secret = "test-secret"
         payload = {
             "sub": "user-1",
-            "iss": "ai-commerce",
-            "aud": "ai-service",
+            "iss": ISSUER,
+            "aud": AUDIENCE,
             "exp": datetime.now(UTC) - timedelta(hours=1),
         }
         token = pyjwt.encode(payload, secret, algorithm="HS256")
@@ -107,8 +114,8 @@ class TestAuthMiddleware:
         with (
             patch("app.middleware.auth.auth_settings.JWT_SECRET_KEY", secret),
             patch("app.middleware.auth.auth_settings.JWT_ALGORITHM", "HS256"),
-            patch("app.middleware.auth.auth_settings.JWT_ISSUER", "ai-commerce"),
-            patch("app.middleware.auth.auth_settings.JWT_AUDIENCE", "ai-service"),
+            patch("app.middleware.auth.auth_settings.JWT_ISSUER", ISSUER),
+            patch("app.middleware.auth.auth_settings.JWT_AUDIENCE", AUDIENCE),
         ):
             request = create_mock_request(path="/api/v1/chat", auth_header=f"Bearer {token}")
             middleware = AuthMiddleware(lambda app: None)

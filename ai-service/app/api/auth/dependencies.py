@@ -12,11 +12,15 @@ def get_audit_log_repository() -> AuditLogRepository:
     return AuditLogRepository()
 
 
-def get_current_tenant(request: Request) -> str:
-    tenant_id = getattr(request.state, "tenant_id", None)
-    if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant context not found")
-    return tenant_id
+def get_current_store_id(request: Request) -> str:
+    store_id = getattr(request.state, "store_id", None)
+    if not store_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Store context not found")
+    return store_id
+
+
+def get_current_organization_id(request: Request) -> str | None:
+    return getattr(request.state, "organization_id", None)
 
 
 def require_role(role: str):

@@ -31,18 +31,18 @@ def customer_repo():
 def order_repo():
     r = AsyncMock()
     r.find_by_customer.return_value = [
-            MagicMock(
-                id="order_1",
-                external_id="ORD-001",
-                store_id="store_1",
-                fulfillment_status="fulfilled",
-                financial_status="paid",
-                cancelled_at=None,
-                currency="USD",
-                line_items=[
-                    MagicMock(title="Laptop", quantity=1, price=999.0),
-                ],
-            )
+        MagicMock(
+            id="order_1",
+            external_id="ORD-001",
+            store_id="store_1",
+            fulfillment_status="fulfilled",
+            financial_status="paid",
+            cancelled_at=None,
+            currency="USD",
+            line_items=[
+                MagicMock(title="Laptop", quantity=1, price=999.0),
+            ],
+        )
     ]
     return r
 

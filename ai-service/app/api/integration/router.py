@@ -90,8 +90,8 @@ async def agent_parse_spec(
     agent: IntegrationMappingAgent = Depends(get_integration_agent),
 ) -> AgentParseResponseSchema:
     try:
-        store_id = getattr(request.state, "store_id", "default")
-        org_id = getattr(request.state, "tenant_id", "default")
+        store_id = getattr(request.state, "store_id", None)
+        org_id = getattr(request.state, "organization_id", None)
 
         report, error, capabilities = await agent.analyze(
             raw_spec=payload.raw_spec,
@@ -144,7 +144,7 @@ async def agent_sync(
     workflow: IntegrationWorkflow = Depends(get_integration_workflow),
 ) -> AgentSyncResponseSchema:
     try:
-        organization_id = getattr(request.state, "tenant_id", payload.store_id)
+        organization_id = getattr(request.state, "organization_id", None) or payload.store_id
 
         result = await workflow.run(
             raw_spec=payload.raw_spec,
@@ -195,7 +195,7 @@ async def create_connection(
     service: IntegrationApplicationService = Depends(get_integration_service),
 ) -> ConnectionResponseSchema:
     try:
-        organization_id = getattr(request.state, "tenant_id", payload.store_id)
+        organization_id = getattr(request.state, "organization_id", None) or payload.store_id
         dto = ConnectionCreateDTO(
             store_id=payload.store_id,
             organization_id=organization_id,

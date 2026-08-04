@@ -97,9 +97,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return False, remaining, reset_time
 
     def _get_rate_limit_key(self, request: Request) -> str:
-        tenant_id = getattr(request.state, "tenant_id", None)
-        if tenant_id:
-            return f"tenant:{tenant_id}"
+        store_id = getattr(request.state, "store_id", None)
+        if store_id:
+            return f"store:{store_id}"
         client_ip = request.client.host if request.client else "unknown-ip"
         return f"ip:{client_ip}"
 

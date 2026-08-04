@@ -16,8 +16,8 @@ class AuditLogRepository(BaseMongoRepository[AuditLogDocument, AuditLog], IAudit
     async def create(self, entity: AuditLog, session: Any = None) -> AuditLog:
         return await super().create(entity, session=session)
 
-    async def find_by_tenant_id(self, tenant_id: str, limit: int = 50, skip: int = 0) -> list[AuditLog]:
-        return await self.find_many({"tenant_id": tenant_id}, limit=limit, skip=skip)
+    async def find_by_store_id(self, store_id: str, limit: int = 50, skip: int = 0) -> list[AuditLog]:
+        return await self.find_many({"store_id": store_id}, limit=limit, skip=skip)
 
     async def find_by_actor_id(self, actor_id: str, limit: int = 50, skip: int = 0) -> list[AuditLog]:
         return await self.find_many({"actor_id": actor_id}, limit=limit, skip=skip)

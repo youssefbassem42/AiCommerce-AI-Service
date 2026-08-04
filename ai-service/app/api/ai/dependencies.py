@@ -93,7 +93,7 @@ def get_ai_service(
 
 def get_store_context(request: Request) -> tuple[str | None, str | None]:
     """Extract store_id (tenant) and customer_id from the authenticated request state."""
-    return getattr(request.state, "tenant_id", None), getattr(request.state, "user_id", None)
+    return getattr(request.state, "store_id", None), getattr(request.state, "user_id", None)
 
 
 def get_provider(

@@ -14,5 +14,5 @@ class ProductRepository(AsyncRepository[Product, str], ABC):
         pass
 
     @abstractmethod
-    async def search(self, query: str, limit: int = 20) -> list[Product]:
+    async def search(self, store_id: str, query: str, limit: int = 20) -> list[Product]:
         pass

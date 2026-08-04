@@ -22,7 +22,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         if request.method == "GET":
             return await call_next(request)
 
-        tenant_id = getattr(request.state, "tenant_id", None)
+        store_id = getattr(request.state, "store_id", None)
         user_id = getattr(request.state, "user_id", None)
 
         start_time = datetime.now(UTC)
@@ -36,7 +36,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         finally:
             try:
                 await self._log_audit_entry(
-                    tenant_id=tenant_id,
+                    store_id=store_id,
                     actor_id=user_id,
                     action=f"{request.method} {request.url.path}",
                     resource_type=request.url.path,
@@ -55,7 +55,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
     async def _log_audit_entry(
         self,
-        tenant_id: str | None,
+        store_id: str | None,
         actor_id: str | None,
         action: str,
         resource_type: str,
@@ -66,7 +66,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             repo = AuditLogRepository()
             log_entry = AuditLog(
                 id=str(ObjectId()),
-                tenant_id=tenant_id or "unknown",
+                store_id=store_id or "unknown",
                 actor_id=actor_id or "anonymous",
                 action=action,
                 resource_type=resource_type,

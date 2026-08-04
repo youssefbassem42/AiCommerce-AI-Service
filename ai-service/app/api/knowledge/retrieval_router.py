@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.knowledge.retrieval_dependencies import get_retriever_service
 from app.api.knowledge.retrieval_schemas import RetrievalRequestSchema, RetrievalResponseSchema, RetrievedChunkSchema
@@ -12,9 +12,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/knowledge/retrieval", tags=["Knowledge Retrieval"])
 
 
+def _resolve_filters(payload: RetrievalRequestSchema, request: Request) -> RetrievalFilters:
+    store_id = getattr(request.state, "store_id", None)
+    organization_id = getattr(request.state, "organization_id", None)
+    return RetrievalFilters(
+        organization_id=organization_id or payload.organization_id,
+        store_id=store_id or payload.store_id,
+        language=payload.language,
+        document_type=payload.document_type,
+        knowledge_scope=payload.knowledge_scope,
+        business_version=payload.business_version,
+    )
+
+
 @router.post("/search", response_model=RetrievalResponseSchema)
 async def search(
     payload: RetrievalRequestSchema,
+    request: Request,
     service: RetrieverService = Depends(get_retriever_service),
 ) -> RetrievalResponseSchema:
     try:
@@ -29,14 +43,7 @@ async def search(
             embedding_model=payload.embedding_model,
         )
 
-        filters = RetrievalFilters(
-            organization_id=payload.organization_id,
-            store_id=payload.store_id,
-            language=payload.language,
-            document_type=payload.document_type,
-            knowledge_scope=payload.knowledge_scope,
-            business_version=payload.business_version,
-        )
+        filters = _resolve_filters(payload, request)
 
         result = await service.search(
             query=payload.query,
