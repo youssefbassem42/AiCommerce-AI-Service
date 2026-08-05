@@ -34,22 +34,15 @@ async def track_bundle_copy(
     store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> TrackCopyEventResponse:
-    try:
-        result = await service.track_copy_event(
-            store_id=store_id,
-            promo_code=payload.promo_code,
-            product_ids=payload.product_ids,
-            discount_pct=payload.discount_pct,
-            total_discount=payload.total_discount,
-            total_original=payload.total_original,
-        )
-        return TrackCopyEventResponse(**result)
-    except Exception as exc:
-        logger.error("Failed to track bundle copy: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to track bundle copy: {exc}",
-        )
+    result = await service.track_copy_event(
+        store_id=store_id,
+        promo_code=payload.promo_code,
+        product_ids=payload.product_ids,
+        discount_pct=payload.discount_pct,
+        total_discount=payload.total_discount,
+        total_original=payload.total_original,
+    )
+    return TrackCopyEventResponse(**result)
 
 
 @router.get(
@@ -62,15 +55,8 @@ async def list_tracked_bundles(
     top_only: bool = False,
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> list[TrackedBundleResponse]:
-    try:
-        bundles = await service.get_tracked_bundles(store_id, is_top_only=top_only)
-        return [_format_tracked(b) for b in bundles]
-    except Exception as exc:
-        logger.error("Failed to list tracked bundles: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list tracked bundles: {exc}",
-        )
+    bundles = await service.get_tracked_bundles(store_id, is_top_only=top_only)
+    return [_format_tracked(b) for b in bundles]
 
 
 @router.get(
@@ -83,22 +69,13 @@ async def get_tracked_bundle(
     store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> TrackedBundleResponse:
-    try:
-        bundle = await service.get_tracked_bundle(store_id, bundle_key)
-        if not bundle:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Bundle {bundle_key} not found for store {store_id}",
-            )
-        return _format_tracked(bundle)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("Failed to get tracked bundle: %s", exc, exc_info=True)
+    bundle = await service.get_tracked_bundle(store_id, bundle_key)
+    if not bundle:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get tracked bundle: {exc}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Bundle {bundle_key} not found for store {store_id}",
         )
+    return _format_tracked(bundle)
 
 
 @router.post(
@@ -110,22 +87,13 @@ async def promote_bundle(
     store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> dict:
-    try:
-        success = await service.promote_bundle(store_id, payload.bundle_key)
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Bundle {payload.bundle_key} not found for store {store_id}",
-            )
-        return {"status": "promoted", "bundle_key": payload.bundle_key}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("Failed to promote bundle: %s", exc, exc_info=True)
+    success = await service.promote_bundle(store_id, payload.bundle_key)
+    if not success:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to promote bundle: {exc}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Bundle {payload.bundle_key} not found for store {store_id}",
         )
+    return {"status": "promoted", "bundle_key": payload.bundle_key}
 
 
 @router.delete(
@@ -137,22 +105,13 @@ async def demote_bundle(
     store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> dict:
-    try:
-        success = await service.demote_bundle(store_id, bundle_key)
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Bundle {bundle_key} not found for store {store_id}",
-            )
-        return {"status": "demoted", "bundle_key": bundle_key}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("Failed to demote bundle: %s", exc, exc_info=True)
+    success = await service.demote_bundle(store_id, bundle_key)
+    if not success:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to demote bundle: {exc}",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Bundle {bundle_key} not found for store {store_id}",
         )
+    return {"status": "demoted", "bundle_key": bundle_key}
 
 
 @router.get(
@@ -164,15 +123,8 @@ async def get_tracking_config(
     store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> TrackingConfigResponse:
-    try:
-        config = await service.get_config(store_id)
-        return TrackingConfigResponse(**config)
-    except Exception as exc:
-        logger.error("Failed to get tracking config: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get tracking config: {exc}",
-        )
+    config = await service.get_config(store_id)
+    return TrackingConfigResponse(**config)
 
 
 @router.put(
@@ -185,19 +137,12 @@ async def update_tracking_config(
     store_id: str = Depends(get_current_store_id),
     service: BundleTrackingService = Depends(get_bundle_tracking_service),
 ) -> TrackingConfigUpdateResponse:
-    try:
-        config = await service.update_config(
-            store_id=store_id,
-            threshold=payload.threshold,
-            enabled=payload.enabled,
-        )
-        return TrackingConfigUpdateResponse(**config)
-    except Exception as exc:
-        logger.error("Failed to update tracking config: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update tracking config: {exc}",
-        )
+    config = await service.update_config(
+        store_id=store_id,
+        threshold=payload.threshold,
+        enabled=payload.enabled,
+    )
+    return TrackingConfigUpdateResponse(**config)
 
 
 def _format_tracked(doc: dict) -> TrackedBundleResponse:

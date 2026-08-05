@@ -63,6 +63,22 @@ class TestProcessDocumentTask:
         with pytest.raises(ValueError, match="not found"):
             process_document_task.run("doc-1", "/tmp/file.pdf", job_id="job-1")
 
+    @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)
+    @patch("app.workers.ingestion.tasks.KnowledgeRepository")
+    @patch("app.workers.ingestion.tasks.DocumentProcessor")
+    @patch("app.workers.ingestion.tasks.fail_job", new_callable=AsyncMock)
+    def test_rejects_unsafe_file_path(self, mock_fail, mock_processor_cls, mock_repo_cls, mock_progress):
+        from app.workers.ingestion.tasks import process_document_task
+
+        mock_processor = MagicMock()
+        mock_processor.process = AsyncMock()
+        mock_processor_cls.return_value = mock_processor
+
+        with pytest.raises(ValueError, match="Unsafe document file path"):
+            process_document_task.run("doc-1", "/etc/passwd", job_id="job-1")
+
+        mock_processor.process.assert_not_awaited()
+
     @patch("app.workers.ingestion.tasks.KnowledgeRepository")
     @patch("app.workers.ingestion.tasks.DocumentProcessor")
     @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)

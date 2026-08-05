@@ -90,9 +90,6 @@ async def create_prompt(
         return _to_response(prompt)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
-    except Exception as e:
-        logger.error("Failed to create prompt: %s", e, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.put("/{key}", response_model=PromptResponse)
@@ -114,9 +111,6 @@ async def update_prompt(
         return _to_response(prompt)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except Exception as e:
-        logger.error("Failed to update prompt '%s': %s", key, e, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.delete("/{key}", status_code=status.HTTP_204_NO_CONTENT)

@@ -12,6 +12,8 @@ class IntegrationValidationException(IntegrationDomainException):
 class IntegrationConnectionNotFoundException(IntegrationDomainException):
     """Raised when an integration connection cannot be found."""
 
+    status_code = 404
+
     def __init__(self, connection_id: str):
         super().__init__(f"Integration connection '{connection_id}' was not found.")
 
@@ -26,3 +28,5 @@ class InvalidMappingException(IntegrationValidationException):
 
 class DuplicateConnectionException(IntegrationValidationException):
     """Raised when a connection with the same name already exists in the store."""
+
+    status_code = 409

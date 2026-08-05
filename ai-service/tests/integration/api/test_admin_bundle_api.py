@@ -1,21 +1,47 @@
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import jwt as pyjwt
 import pytest
 from fastapi.testclient import TestClient
 
 from app.api.admin.dependencies import get_bundle_tracking_service
+from app.core.auth_settings import auth_settings
 from app.main import app
+from app.middleware.audit import AuditMiddleware
+
+
+def _admin_headers() -> dict[str, str]:
+    payload = {
+        "sub": "11111111-1111-1111-1111-111111111111",
+        "store_id": "22222222-2222-2222-2222-222222222222",
+        "org_id": "33333333-3333-3333-3333-333333333333",
+        "http://schemas.microsoft.com/ws/2008/06/identity/claims/role": "Admin",
+        "iss": auth_settings.JWT_ISSUER,
+        "aud": auth_settings.JWT_AUDIENCE,
+        "exp": datetime.now(UTC) + timedelta(hours=1),
+    }
+    token = pyjwt.encode(payload, auth_settings.JWT_SECRET, algorithm=auth_settings.JWT_ALGORITHM)
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with patch.object(AuditMiddleware, "_log_audit_entry", AsyncMock()):
+        yield TestClient(app, raise_server_exceptions=False, headers=_admin_headers())
 
 
 @pytest.fixture
 def mock_tracking_service():
     svc = MagicMock()
-    svc.track_copy_event = AsyncMock()
+    svc.track_copy_event = AsyncMock(
+        return_value={
+            "bundle_key": "abc123",
+            "copy_count": 3,
+            "is_top": False,
+            "threshold": 5,
+        }
+    )
     svc.get_tracked_bundles = AsyncMock()
     svc.get_tracked_bundle = AsyncMock()
     svc.promote_bundle = AsyncMock()
@@ -30,19 +56,23 @@ def _clear_overrides():
 
 
 class TestAdminBundleAPI:
-    def test_track_copy_event_endpoint_exists(self, client):
-        response = client.post(
-            "/api/v1/admin/bundles/track",
-            json={
-                "store_id": "store_1",
-                "promo_code": "BUNDLE-TEST",
-                "product_ids": ["p1", "p2"],
-                "discount_pct": 10.0,
-                "total_discount": 50.0,
-                "total_original": 500.0,
-            },
-        )
-        assert response.status_code in (200, 422, 500)
+    def test_track_copy_event_endpoint_exists(self, client, mock_tracking_service):
+        app.dependency_overrides[get_bundle_tracking_service] = lambda: mock_tracking_service
+        try:
+            response = client.post(
+                "/api/v1/admin/bundles/track",
+                json={
+                    "store_id": "store_1",
+                    "promo_code": "BUNDLE-TEST",
+                    "product_ids": ["p1", "p2"],
+                    "discount_pct": 10.0,
+                    "total_discount": 50.0,
+                    "total_original": 500.0,
+                },
+            )
+            assert response.status_code == 200
+        finally:
+            _clear_overrides()
 
     def test_track_copy_event_validation_error(self, client):
         response = client.post(
@@ -163,9 +193,11 @@ class TestAdminBundleAPI:
 
         app.dependency_overrides[get_bundle_tracking_service] = lambda: mock_tracking_service
         try:
-            response = client.get("/api/v1/admin/bundles/tracking?store_id=store_1&top_only=true")
+            response = client.get("/api/v1/admin/bundles/tracking?top_only=true")
             assert response.status_code == 200
-            mock_tracking_service.get_tracked_bundles.assert_called_once_with("store_1", is_top_only=True)
+            mock_tracking_service.get_tracked_bundles.assert_called_once_with(
+                "22222222-2222-2222-2222-222222222222", is_top_only=True
+            )
         finally:
             _clear_overrides()
 

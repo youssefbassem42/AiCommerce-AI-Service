@@ -3,26 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
-class ApiKeyCreateRequest(BaseModel):
-    store_id: str
-    name: str
-    scopes: list[str] = []
-    expires_at: datetime | None = None
-
-
-class ApiKeyResponse(BaseModel):
-    key_prefix: str
-    name: str
-    scopes: list[str]
-    is_active: bool
-    expires_at: datetime | None = None
-    created_at: datetime
-
-
-class ApiKeyListResponse(BaseModel):
-    api_keys: list[ApiKeyResponse]
-
-
 class AuditLogResponse(BaseModel):
     id: str
     store_id: str

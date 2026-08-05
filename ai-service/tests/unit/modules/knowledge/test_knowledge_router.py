@@ -56,6 +56,7 @@ def override_deps_and_app(mock_doc_service, mock_chunk_service, mock_summary_ser
     )
     from app.api.knowledge.router import router as knowledge_router
     from app.main import app
+    from tests.conftest import override_auth_dependencies
 
     app.dependency_overrides.clear()
     overrides = {
@@ -64,6 +65,7 @@ def override_deps_and_app(mock_doc_service, mock_chunk_service, mock_summary_ser
         get_business_summary_service: lambda: mock_summary_service,
     }
     app.dependency_overrides.update(overrides)
+    override_auth_dependencies(app)
     if not any(r.path == "/api/v1/knowledge-base" for r in app.routes if hasattr(r, "path")):
         app.include_router(knowledge_router)
     yield

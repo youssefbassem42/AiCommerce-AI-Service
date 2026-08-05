@@ -77,3 +77,29 @@ def generate_summary_task(
         if job_id:
             _run_async(fail_job(job_id, str(exc), self.request.retries, self.max_retries))
         raise self.retry(exc=exc, countdown=2**self.request.retries * 60)
+
+
+@celery_app.task(name="kb.generate_summary", bind=True, max_retries=2, default_retry_delay=60)
+def regenerate_summary_task(self, store_id: str, model: str, org_id: str, store_slug: str) -> bool:  # noqa: ARG001
+    """Regenerate the business summary for a store (coordinator dispatch)."""
+
+    async def _run() -> bool:
+        repo = KnowledgeRepository()
+        summary_repo = BusinessSummaryRepository()
+        factory = LLMProviderFactory()
+        provider = factory.get_provider("openai")
+        gen_service = BusinessSummaryGenerationService(
+            knowledge_repository=repo,
+            summary_repository=summary_repo,
+            provider=provider,
+        )
+        config = GenerationConfig(model=model)
+        await gen_service.generate(store_id, config)
+        logger.info("Summary regenerated for store '%s'", store_id)
+        return True
+
+    try:
+        return _run_async(_run())
+    except Exception as exc:
+        logger.error("generate_summary_task failed for store '%s': %s", store_id, exc)
+        raise self.retry(exc=exc)

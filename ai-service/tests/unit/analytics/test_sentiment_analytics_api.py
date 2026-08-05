@@ -33,7 +33,7 @@ def collection(monkeypatch):
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture
@@ -89,7 +89,7 @@ class TestSentimentAnalyticsApi:
     def test_overview_requires_super_admin_role(self, client, collection):
         resp = client.get("/api/v1/admin/analytics/sentiment/overview")
 
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_overview_only_registers_expected_overrides(self, client, collection, admin_override):
         resp = client.get("/api/v1/admin/analytics/sentiment/overview")

@@ -1,6 +1,8 @@
 import logging
 from datetime import UTC, datetime
 
+from bson import ObjectId
+
 from app.domain.recommendation.entities.store_capabilities import StoreCapabilities
 from app.domain.recommendation.repositories.store_capabilities_repository import (
     StoreCapabilitiesRepository as IStoreCapabilitiesRepository,
@@ -54,6 +56,7 @@ class StoreCapabilitiesMongoRepository(
             return existing
 
         entity = StoreCapabilities(
+            id=str(ObjectId()),
             store_id=store_id,
             capabilities=detected,
             auto_detected=dict.fromkeys(detected, True),
@@ -69,6 +72,7 @@ class StoreCapabilitiesMongoRepository(
             return await self.update(existing)
 
         entity = StoreCapabilities(
+            id=str(ObjectId()),
             store_id=store_id,
             capabilities={key: value},
             auto_detected={key: not is_manual},

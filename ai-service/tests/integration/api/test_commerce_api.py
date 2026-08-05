@@ -18,11 +18,14 @@ from app.application.commerce.dto.commerce_dto import (
     ProductDTO,
 )
 from app.main import app
+from tests.conftest import admin_headers
+
+STORE_ID = "22222222-2222-2222-2222-222222222222"
 
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    return TestClient(app, headers=admin_headers())
 
 
 @pytest.fixture
@@ -119,7 +122,7 @@ class TestProductAPI:
         now = datetime.now(UTC)
         mock_product_service.get_by_id.return_value = ProductDTO(
             id="p1",
-            store_id="store1",
+            store_id=STORE_ID,
             organization_id="org1",
             title="Found",
             status="active",
@@ -136,6 +139,32 @@ class TestProductAPI:
         response = client.get("/api/v1/commerce/products/p1")
         assert response.status_code == 200
         assert response.json()["title"] == "Found"
+        _clear_overrides()
+
+    def test_get_product_cross_store_denied(self, client, mock_product_service):
+        _clear_overrides()
+        app.dependency_overrides[get_product_service] = lambda: mock_product_service
+
+        now = datetime.now(UTC)
+        mock_product_service.get_by_id.return_value = ProductDTO(
+            id="p1",
+            store_id=STORE_ID,
+            organization_id="org1",
+            title="Other Store",
+            status="active",
+            tags=[],
+            images=[],
+            variants=[],
+            options=[],
+            seo={"title": None, "description": None, "url_slug": None},
+            audit=AuditInfoDTO(created_at=now, updated_at=now),
+            metadata={},
+            created_at=now,
+            updated_at=now,
+        )
+        other_store = TestClient(app, headers=admin_headers(store_id="44444444-4444-4444-4444-444444444444"))
+        response = other_store.get("/api/v1/commerce/products/p1")
+        assert response.status_code == 404
         _clear_overrides()
 
     def test_get_product_not_found(self, client, mock_product_service):
@@ -164,6 +193,23 @@ class TestProductAPI:
     def test_delete_product(self, client, mock_product_service):
         _clear_overrides()
         app.dependency_overrides[get_product_service] = lambda: mock_product_service
+        now = datetime.now(UTC)
+        mock_product_service.get_by_id.return_value = ProductDTO(
+            id="p1",
+            store_id=STORE_ID,
+            organization_id="org1",
+            title="Found",
+            status="active",
+            tags=[],
+            images=[],
+            variants=[],
+            options=[],
+            seo={"title": None, "description": None, "url_slug": None},
+            audit=AuditInfoDTO(created_at=now, updated_at=now),
+            metadata={},
+            created_at=now,
+            updated_at=now,
+        )
         mock_product_service.delete.return_value = True
         response = client.delete("/api/v1/commerce/products/p1")
         assert response.status_code == 200
@@ -214,6 +260,18 @@ class TestCategoryAPI:
     def test_get_category_children(self, client, mock_category_service):
         _clear_overrides()
         app.dependency_overrides[get_category_service] = lambda: mock_category_service
+        now = datetime.now(UTC)
+        mock_category_service.get_by_id.return_value = CategoryDTO(
+            id="c1",
+            store_id=STORE_ID,
+            org_id="org1",
+            name="Electronics",
+            sort_order=0,
+            product_count=0,
+            audit=AuditInfoDTO(created_at=now, updated_at=now),
+            created_at=now,
+            updated_at=now,
+        )
         mock_category_service.get_children.return_value = []
         response = client.get("/api/v1/commerce/categories/c1/children")
         assert response.status_code == 200
@@ -224,7 +282,7 @@ class TestCategoryAPI:
         _clear_overrides()
         app.dependency_overrides[get_category_service] = lambda: mock_category_service
         mock_category_service.get_root_categories.return_value = []
-        response = client.get("/api/v1/commerce/categories/root/store1")
+        response = client.get("/api/v1/commerce/categories/root")
         assert response.status_code == 200
         _clear_overrides()
 
@@ -269,7 +327,7 @@ class TestOrderAPI:
         now = datetime.now(UTC)
         mock_order_service.get_by_id.return_value = OrderDTO(
             id="o1",
-            store_id="store1",
+            store_id=STORE_ID,
             org_id="org1",
             financial_status="paid",
             fulfillment_status=None,
@@ -292,6 +350,22 @@ class TestOrderAPI:
         app.dependency_overrides[get_order_service] = lambda: mock_order_service
 
         now = datetime.now(UTC)
+        mock_order_service.get_by_id.return_value = OrderDTO(
+            id="o1",
+            store_id=STORE_ID,
+            org_id="org1",
+            financial_status="pending",
+            fulfillment_status=None,
+            currency="USD",
+            notes=None,
+            tags=[],
+            cancelled_at=None,
+            audit=AuditInfoDTO(created_at=now, updated_at=now),
+            metadata={},
+            created_at=now,
+            updated_at=now,
+            line_items=[],
+        )
         mock_order_service.update_status.return_value = OrderDTO(
             id="o1",
             store_id="store1",
@@ -401,6 +475,6 @@ class TestInventoryAPI:
         _clear_overrides()
         app.dependency_overrides[get_inventory_service] = lambda: mock_inventory_service
         mock_inventory_service.get_low_stock.return_value = []
-        response = client.get("/api/v1/commerce/inventory/low-stock/store1?threshold=5")
+        response = client.get("/api/v1/commerce/inventory/low-stock?threshold=5")
         assert response.status_code == 200
         _clear_overrides()

@@ -2,7 +2,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.domain.commerce.value_objects.audit import AuditInfo
 from app.domain.integration.entities.integration_connection import (
     ConnectionStatus,
     IntegrationConnection,
@@ -11,7 +10,7 @@ from app.domain.integration.value_objects.auth_config import AuthConfig, AuthTyp
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.field_mapping import FieldMapping
 from app.domain.integration.value_objects.pagination_config import PaginationConfig, PaginationStyle
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
+from app.infrastructure.mongodb.documents.base_document import AuditInfoModel, BaseMongoDocument
 
 
 class AuthConfigModel(BaseModel):
@@ -137,27 +136,6 @@ class EntityMappingModel(BaseModel):
             id_field=vo.id_field,
             pagination=PaginationConfigModel.from_vo(vo.pagination),
             field_mappings=[FieldMappingModel.from_vo(fm) for fm in vo.field_mappings],
-        )
-
-
-class AuditInfoModel(BaseModel):
-    created_at: Any
-    updated_at: Any
-    updated_by: str | None = None
-
-    def to_vo(self) -> AuditInfo:
-        return AuditInfo(
-            created_at=self.created_at,
-            updated_at=self.updated_at,
-            updated_by=self.updated_by,
-        )
-
-    @classmethod
-    def from_vo(cls, vo: AuditInfo) -> "AuditInfoModel":
-        return cls(
-            created_at=vo.created_at,
-            updated_at=vo.updated_at,
-            updated_by=vo.updated_by,
         )
 
 

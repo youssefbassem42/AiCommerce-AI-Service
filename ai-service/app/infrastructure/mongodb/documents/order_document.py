@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 from app.domain.commerce.aggregates.order import Fulfillment, LineItem, Order, TaxLine
 from app.domain.commerce.value_objects.address import Address
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
-from app.infrastructure.mongodb.documents.product_document import AuditInfoModel, MoneyModel
+from app.infrastructure.mongodb.documents.base_document import AuditInfoModel, BaseMongoDocument
+from app.infrastructure.mongodb.documents.product_document import MoneyModel
 
 
 class AddressModel(BaseModel):

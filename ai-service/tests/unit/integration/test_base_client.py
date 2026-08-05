@@ -8,10 +8,14 @@ from app.infrastructure.http.clients.base_client import ConnectionConfig, Extern
 
 @pytest.fixture
 def config() -> ConnectionConfig:
-    return ConnectionConfig(base_url="https://api.example.com", timeout=5.0)
+    return ConnectionConfig(base_url="https://93.184.216.34", timeout=5.0)
 
 
 class TestExternalApiClient:
+    def test_rejects_private_base_url(self) -> None:
+        with pytest.raises(ValueError, match="SSRF"):
+            ExternalApiClient(ConnectionConfig(base_url="http://169.254.169.254"))
+
     async def test_get_request(self, config: ConnectionConfig) -> None:
         with patch("httpx.AsyncClient.request") as mock_request:
             mock_request.return_value = httpx.Response(200, json={"data": "ok"})

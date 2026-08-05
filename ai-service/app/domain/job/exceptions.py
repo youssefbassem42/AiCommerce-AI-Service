@@ -2,12 +2,18 @@ from app.domain.knowledge.exceptions import KnowledgeDomainException
 
 
 class JobNotFoundException(KnowledgeDomainException):
-    pass
+    """Raised when a job cannot be found."""
+
+    status_code = 404
 
 
 class JobAlreadyCompletedException(KnowledgeDomainException):
-    pass
+    """Raised when an already completed job is mutated."""
+
+    status_code = 409
 
 
 class JobMaxRetriesExceededException(KnowledgeDomainException):
-    pass
+    """Raised when a job exceeds its retry budget."""
+
+    status_code = 409

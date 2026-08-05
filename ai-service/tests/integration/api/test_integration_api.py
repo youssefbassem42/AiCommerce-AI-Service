@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -7,6 +7,8 @@ from app.api.auth.dependencies import require_admin_role
 from app.api.integration.dependencies import get_integration_service, get_sync_orchestrator
 from app.application.integration.sync.orchestrator import SyncResult
 from app.main import app
+from app.middleware.audit import AuditMiddleware
+from tests.conftest import admin_headers
 
 OPENAPI_V3_MINIMAL = {
     "openapi": "3.0.0",
@@ -36,9 +38,47 @@ OPENAPI_V3_MINIMAL = {
 }
 
 
+STORE_ID = "11111111-1111-1111-1111-111111111111"
+
+
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with patch.object(AuditMiddleware, "_log_audit_entry", AsyncMock()):
+        yield TestClient(app, raise_server_exceptions=False, headers=admin_headers(store_id=STORE_ID))
+
+
+def connection_dto(**overrides):
+    base = {
+        "id": "conn1",
+        "store_id": STORE_ID,
+        "organization_id": "o1",
+        "name": "Test",
+        "platform_name": "shopify",
+        "status": "active",
+        "spec_version": "3.0",
+        "auth_config": {
+            "type": "apiKey",
+            "credentials_location": "header",
+            "scheme": None,
+            "name": "X-API-Key",
+            "token_url": None,
+            "flow": None,
+        },
+        "entity_mappings": [],
+        "discovered_endpoints": [],
+        "discovered_schemas": {},
+        "last_sync_at": None,
+        "last_sync_status": None,
+        "error_message": None,
+        "created_at": "2026-01-01T00:00:00",
+        "updated_at": "2026-01-01T00:00:00",
+    }
+    base.update(overrides)
+    obj = MagicMock()
+    obj.model_dump = MagicMock(return_value=base)
+    obj.store_id = base["store_id"]
+    obj.id = base["id"]
+    return obj
 
 
 @pytest.fixture
@@ -167,45 +207,23 @@ class TestIntegrationAPI:
         assert "total" in data
 
     def test_get_connection(self, client, mock_service, override_deps):
-        mock_service.get_connection = AsyncMock(
-            return_value=MagicMock(
-                model_dump=MagicMock(
-                    return_value={
-                        "id": "conn1",
-                        "store_id": "s1",
-                        "organization_id": "o1",
-                        "name": "Test",
-                        "platform_name": "shopify",
-                        "status": "active",
-                        "spec_version": "3.0",
-                        "auth_config": {
-                            "type": "apiKey",
-                            "credentials_location": "header",
-                            "scheme": None,
-                            "name": "X-API-Key",
-                            "token_url": None,
-                            "flow": None,
-                        },
-                        "entity_mappings": [],
-                        "discovered_endpoints": [],
-                        "discovered_schemas": {},
-                        "last_sync_at": None,
-                        "last_sync_status": None,
-                        "error_message": None,
-                        "created_at": "2026-01-01T00:00:00",
-                        "updated_at": "2026-01-01T00:00:00",
-                    }
-                )
-            )
-        )
+        mock_service.get_connection = AsyncMock(return_value=connection_dto())
         resp = client.get("/api/v1/integration/connections/conn1")
         assert resp.status_code == 200
         assert resp.json()["id"] == "conn1"
 
-    def test_sync_connection(self, client, mock_sync_orchestrator, override_deps):
+    def test_get_connection_cross_store_denied(self, client, mock_service, override_deps):
+        mock_service.get_connection = AsyncMock(
+            return_value=connection_dto(store_id="22222222-2222-2222-2222-222222222222")
+        )
+        resp = client.get("/api/v1/integration/connections/conn1")
+        assert resp.status_code == 404
+
+    def test_sync_connection(self, client, mock_service, mock_sync_orchestrator, override_deps):
         result = SyncResult(connection_id="conn1", store_id="s1")
         result.status = "completed"
         result.completed_at = result.started_at
+        mock_service.get_connection = AsyncMock(return_value=connection_dto())
         mock_sync_orchestrator.sync_connection = AsyncMock(return_value=result)
 
         resp = client.post("/api/v1/integration/connections/conn1/sync", json={})
@@ -215,60 +233,37 @@ class TestIntegrationAPI:
         assert data["status"] == "completed"
         assert "started_at" in data
 
-    def test_sync_connection_not_found(self, client, mock_sync_orchestrator, override_deps):
-        mock_sync_orchestrator.sync_connection = AsyncMock(side_effect=ValueError("not found"))
-        resp = client.post("/api/v1/integration/connections/nonexistent/sync", json={})
-        assert resp.status_code == 500
+    def test_sync_connection_not_found(self, client, mock_service, mock_sync_orchestrator, override_deps):
+        from app.domain.integration.exceptions import IntegrationConnectionNotFoundException
+
+        mock_service.get_connection = AsyncMock(side_effect=IntegrationConnectionNotFoundException("conn1"))
+        resp = client.post("/api/v1/integration/connections/conn1/sync", json={})
+        assert resp.status_code == 404
 
     def test_update_mappings(self, client, mock_service, override_deps):
+        mock_service.get_connection = AsyncMock(return_value=connection_dto())
         mock_service.update_mappings = AsyncMock(
-            return_value=MagicMock(
-                model_dump=MagicMock(
-                    return_value={
-                        "id": "conn1",
-                        "store_id": "s1",
-                        "organization_id": "o1",
-                        "name": "Test",
-                        "platform_name": "shopify",
-                        "status": "active",
-                        "spec_version": "3.0",
-                        "auth_config": {
-                            "type": "apiKey",
-                            "credentials_location": "header",
-                            "scheme": None,
-                            "name": "X-API-Key",
-                            "token_url": None,
-                            "flow": None,
+            return_value=connection_dto(
+                entity_mappings=[
+                    {
+                        "entity_type": "product",
+                        "list_path": "/products.json",
+                        "list_method": "GET",
+                        "detail_path": None,
+                        "detail_method": "GET",
+                        "id_field": "id",
+                        "pagination": {
+                            "style": "none",
+                            "page_param": None,
+                            "limit_param": None,
+                            "default_limit": 20,
+                            "cursor_field": None,
+                            "total_field": None,
+                            "next_link_field": None,
                         },
-                        "entity_mappings": [
-                            {
-                                "entity_type": "product",
-                                "list_path": "/products.json",
-                                "list_method": "GET",
-                                "detail_path": None,
-                                "detail_method": "GET",
-                                "id_field": "id",
-                                "pagination": {
-                                    "style": "none",
-                                    "page_param": None,
-                                    "limit_param": None,
-                                    "default_limit": 20,
-                                    "cursor_field": None,
-                                    "total_field": None,
-                                    "next_link_field": None,
-                                },
-                                "field_mappings": [],
-                            }
-                        ],
-                        "discovered_endpoints": [],
-                        "discovered_schemas": {},
-                        "last_sync_at": None,
-                        "last_sync_status": None,
-                        "error_message": None,
-                        "created_at": "2026-01-01T00:00:00",
-                        "updated_at": "2026-01-01T00:00:00",
+                        "field_mappings": [],
                     }
-                )
+                ]
             )
         )
         resp = client.put(
@@ -287,6 +282,7 @@ class TestIntegrationAPI:
         assert resp.status_code == 200
 
     def test_delete_connection(self, client, mock_service, override_deps):
+        mock_service.get_connection = AsyncMock(return_value=connection_dto())
         mock_service.delete_connection = AsyncMock(return_value=True)
         resp = client.delete("/api/v1/integration/connections/conn1")
         assert resp.status_code == 200

@@ -1,8 +1,7 @@
 from pydantic import Field
 
 from app.domain.commerce.aggregates.category import Category
-from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
-from app.infrastructure.mongodb.documents.product_document import AuditInfoModel
+from app.infrastructure.mongodb.documents.base_document import AuditInfoModel, BaseMongoDocument
 
 
 class CategoryDocument(BaseMongoDocument):

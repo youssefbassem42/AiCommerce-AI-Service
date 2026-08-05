@@ -38,7 +38,7 @@ class OpenRouterProvider(BaseLLMProvider):
             api_key=self.api_key,
             base_url="https://openrouter.ai/api/v1",
             default_headers={
-                "HTTP-Referer": "http://localhost:3000",
+                "HTTP-Referer": "https://ai-commerce-frontend-tau.vercel.app",
                 "X-Title": "AI-Commerce",
             },
             timeout=ai_settings.REQUEST_TIMEOUT,

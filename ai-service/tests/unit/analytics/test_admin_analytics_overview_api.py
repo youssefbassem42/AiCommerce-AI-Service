@@ -10,7 +10,7 @@ from app.main import app
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ class TestAdminAnalyticsOverviewApi:
         app.dependency_overrides[get_sentiment_analytics_service] = lambda: mock_service
         try:
             resp = client.get("/api/v1/admin/analytics/sentiment/overview")
-            assert resp.status_code == 403
+            assert resp.status_code == 401
         finally:
             app.dependency_overrides.pop(get_sentiment_analytics_service, None)
 

@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,11 +10,13 @@ from app.application.recommendation.dto.recommendation_dto import (
     RecommendationResponse,
 )
 from app.main import app
+from app.middleware.audit import AuditMiddleware
 
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with patch.object(AuditMiddleware, "_log_audit_entry", AsyncMock()):
+        yield TestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture

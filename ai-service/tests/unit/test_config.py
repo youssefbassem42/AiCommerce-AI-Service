@@ -9,9 +9,15 @@ class TestSettings:
         s = Settings()
         assert s.PROJECT_NAME == "AI Commerce Platform"
 
-    def test_cors_defaults_to_all(self):
+    def test_cors_defaults_to_explicit_allowlist(self):
         s = Settings()
-        assert s.CORS_ORIGINS == ["*"]
+        assert "*" not in s.CORS_ORIGINS
+        assert "http://localhost:3000" in s.CORS_ORIGINS
+
+    def test_cors_origins_readable_from_env(self):
+        with patch.dict(os.environ, {"CORS_ORIGINS": '["https://app.example.com"]'}, clear=True):
+            s = Settings()
+            assert s.CORS_ORIGINS == ["https://app.example.com"]
 
     def test_has_all_sub_settings(self):
         s = Settings()
@@ -24,14 +30,14 @@ class TestSettings:
         with patch.dict(os.environ, {}, clear=True):
             s = Settings()
             warnings = s.validate_required()
-            jwt_warnings = [w for w in warnings if "JWT_SECRET_KEY" in w]
+            jwt_warnings = [w for w in warnings if "JWT_SECRET" in w]
             assert len(jwt_warnings) == 1
 
     def test_validate_required_no_warnings_when_set(self):
         with patch.dict(
             os.environ,
             {
-                "JWT_SECRET_KEY": "test-secret-key-that-is-long-enough-for-hs256",
+                "JWT_SECRET": "test-secret-key-that-is-long-enough-for-hs256",
                 "OPENAI_API_KEY": "sk-test-key",
             },
             clear=True,
@@ -44,7 +50,7 @@ class TestSettings:
         with patch.dict(
             os.environ,
             {
-                "JWT_SECRET_KEY": "test-secret-key-that-is-long-enough-for-hs256",
+                "JWT_SECRET": "test-secret-key-that-is-long-enough-for-hs256",
             },
             clear=True,
         ):
@@ -66,7 +72,7 @@ class TestSettings:
             with patch.dict(
                 os.environ,
                 {
-                    "JWT_SECRET_KEY": "test-secret",
+                    "JWT_SECRET": "test-secret",
                     key: "some-api-key",
                 },
                 clear=True,
@@ -78,7 +84,7 @@ class TestSettings:
     def test_required_secrets_defined(self):
         assert len(REQUIRED_SECRETS) >= 1
         names = [r[0] for r in REQUIRED_SECRETS]
-        assert "JWT_SECRET_KEY" in names
+        assert "JWT_SECRET" in names
 
     def test_ai_provider_keys_defined(self):
         assert len(AI_PROVIDER_KEYS) >= 6

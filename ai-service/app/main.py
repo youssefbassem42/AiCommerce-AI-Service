@@ -22,7 +22,15 @@ from app.api.rag.router import router as rag_router
 from app.api.recommendation.router import router as recommendation_router
 from app.api.ticket.router import router as ticket_router
 from app.application.admin.services.prompt_service import PromptService
+from app.core.ai_exceptions import AIException
 from app.core.config import settings
+from app.core.exception_handlers import (
+    ai_exception_handler,
+    domain_exception_handler,
+    infrastructure_exception_handler,
+    unhandled_exception_handler,
+)
+from app.core.exceptions import DomainException, InfrastructureException
 from app.middleware.audit import AuditMiddleware
 from app.middleware.auth import AuthMiddleware
 from app.middleware.logging import AITracingMiddleware
@@ -45,16 +53,35 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
+app.add_exception_handler(DomainException, domain_exception_handler)
+app.add_exception_handler(InfrastructureException, infrastructure_exception_handler)
+app.add_exception_handler(AIException, ai_exception_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "Origin",
+        "X-Correlation-ID",
+    ],
+    expose_headers=[
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+        "Retry-After",
+        "X-Correlation-ID",
+    ],
+    max_age=3600,
 )
 app.add_middleware(AuditMiddleware)
 app.add_middleware(AuthMiddleware)
-app.add_middleware(RateLimitMiddleware, limit_per_minute=100)
+app.add_middleware(RateLimitMiddleware, limit_per_minute=settings.RATE_LIMIT_PER_MINUTE)
 app.add_middleware(AITracingMiddleware)
 
 app.include_router(analytics_router)

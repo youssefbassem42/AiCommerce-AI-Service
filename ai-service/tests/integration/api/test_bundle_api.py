@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,11 +11,13 @@ from app.application.recommendation.dto.recommendation_dto import (
     DiscountInfo,
 )
 from app.main import app
+from app.middleware.audit import AuditMiddleware
 
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with patch.object(AuditMiddleware, "_log_audit_entry", AsyncMock()):
+        yield TestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture
@@ -30,15 +32,26 @@ def _clear_overrides():
 
 
 class TestBundleAPI:
-    def test_bundle_suggestion_endpoint_exists(self, client):
-        response = client.post(
-            "/api/v1/recommendations/bundle-suggestion",
-            json={
-                "message": "I have $300 and want a monitor",
-                "store_id": "store_1",
-            },
+    def test_bundle_suggestion_endpoint_exists(self, client, mock_bundle_service):
+        mock_bundle_service.suggest.return_value = BundleResponse(
+            query="I have $300 and want a monitor",
+            store_id="store_1",
+            budget=300.0,
+            bundles=[],
         )
-        assert response.status_code in (200, 422, 500)
+
+        app.dependency_overrides[get_bundle_service] = lambda: mock_bundle_service
+        try:
+            response = client.post(
+                "/api/v1/recommendations/bundle-suggestion",
+                json={
+                    "message": "I have $300 and want a monitor",
+                    "store_id": "store_1",
+                },
+            )
+            assert response.status_code == 200
+        finally:
+            _clear_overrides()
 
     def test_bundle_suggestion_validation_error(self, client):
         response = client.post(

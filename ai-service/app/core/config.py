@@ -12,7 +12,7 @@ from app.core.redis_settings import RedisSettings
 load_dotenv()
 
 REQUIRED_SECRETS = [
-    ("JWT_SECRET_KEY", "JWT authentication"),
+    ("JWT_SECRET", "JWT authentication"),
 ]
 
 AI_PROVIDER_KEYS = [
@@ -31,7 +31,13 @@ class Settings(BaseSettings):
     OPEN_AI_SETTINGS: OpenAISettings = OpenAISettings()
     QDRANT_SETTINGS: QdrantSettings = QdrantSettings()
     REDIS_SETTINGS: RedisSettings = RedisSettings()
-    CORS_ORIGINS: list[str] = ["*"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://ai-commerce-frontend-tau.vercel.app",
+        "https://aicommerce-ai-service-production.up.railway.app",
+    ]
+    RATE_LIMIT_PER_MINUTE: int = 100
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=True)
 
