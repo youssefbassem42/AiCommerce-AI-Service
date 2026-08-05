@@ -1,6 +1,7 @@
 # AI Service API Documentation
 
-**Base URL:** `http://localhost:8001`
+**Base URL:** `https://aicommerce-ai-service-production.up.railway.app`
+**Local Base URL:** `http://localhost:8001`
 **Framework:** FastAPI (Python 3.12+)
 **Default Provider:** Gemini (`gemini-flash-lite-latest`)
 **Supported Providers:** OpenAI, Azure, Gemini, Claude, DeepSeek, Mistral, Ollama

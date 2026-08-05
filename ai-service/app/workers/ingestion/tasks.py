@@ -5,6 +5,7 @@ from app.application.knowledge.chunking.chunking_service import ChunkingConfig, 
 from app.application.knowledge.processing.pipeline import ProcessingPipeline
 from app.application.knowledge.processing.processor import DocumentProcessor
 from app.core.celery_app import celery_app
+from app.core.path_validation import is_safe_document_path
 from app.domain.job.value_objects import JobStatus
 from app.domain.knowledge.value_objects.tenant_context import TenantContext
 from app.infrastructure.knowledge.extractors import ExtractorFactory
@@ -35,6 +36,9 @@ def process_document_task(
             extractor_factory = ExtractorFactory()
             pipeline = ProcessingPipeline()
             processor = DocumentProcessor(repo, extractor_factory, pipeline)
+
+            if not is_safe_document_path(file_path):
+                raise ValueError(f"Unsafe document file path rejected: {file_path!r}")
 
             doc = await repo.find_by_id(document_id)
             if not doc:
@@ -78,6 +82,9 @@ def extract_document_task(self, doc_id: str, file_path: str, org_id: str, store_
 
     async def _run() -> bool:
         TenantContext(organization_id=org_id, store_id=store_id)
+        if not is_safe_document_path(file_path):
+            logger.warning("extract_document_task: unsafe file path rejected: %r", file_path)
+            return False
         repo = KnowledgeRepository()
         doc = await repo.find_by_id(doc_id)
         if not doc:

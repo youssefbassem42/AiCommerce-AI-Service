@@ -2,8 +2,15 @@ import contextlib
 import logging
 import os
 
-from fastapi import APIRouter, Depends, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 
+from app.api.auth.dependencies import (
+    get_current_organization_id,
+    get_current_store_id,
+    get_current_user,
+    get_optional_organization_id,
+    require_admin_role,
+)
 from app.api.knowledge.dependencies import (
     get_document_upload_service,
     get_knowledge_document_service,
@@ -53,6 +60,8 @@ from app.application.knowledge.services import (
     KnowledgeDocumentService,
 )
 from app.core.knowledge_settings import knowledge_settings
+from app.core.path_validation import is_safe_document_path
+from app.domain.auth.entities.authenticated_user import AuthenticatedUser
 from app.domain.job.exceptions import JobNotFoundException
 from app.domain.job.value_objects import JobType
 from app.domain.knowledge.exceptions import (
@@ -62,7 +71,11 @@ from app.infrastructure.mongodb.repositories.job_repository import JobRepository
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix=knowledge_settings.route_prefix, tags=["Knowledge Base"])
+router = APIRouter(
+    prefix=knowledge_settings.route_prefix,
+    tags=["Knowledge Base"],
+    dependencies=[Depends(require_admin_role)],
+)
 
 
 def _get_job_repository() -> JobRepository:
@@ -81,9 +94,9 @@ def get_job_dispatcher() -> JobDispatcher:
 )
 async def upload_document(
     file: UploadFile,
-    uploaded_by: str = Query(...),
-    organization_id: str = Query(...),
-    store_id: str = Query(...),
+    user: AuthenticatedUser = Depends(get_current_user),
+    organization_id: str = Depends(get_current_organization_id),
+    store_id: str = Depends(get_current_store_id),
     knowledge_scope: str = Query(default="general"),
     service: DocumentUploadService = Depends(get_document_upload_service),
 ) -> UploadResponseSchema:
@@ -98,7 +111,7 @@ async def upload_document(
         original_filename=file.filename or "upload",
         mime_type=mime_type,
         file_size=file_size,
-        uploaded_by=uploaded_by,
+        uploaded_by=str(user.user_id),
         organization_id=organization_id,
         store_id=store_id,
         knowledge_scope=knowledge_scope,
@@ -119,7 +132,7 @@ async def list_documents(
         ge=1,
         le=knowledge_settings.max_page_size,
     ),
-    store_id: str | None = Query(default=None),
+    store_id: str = Depends(get_current_store_id),
     status_filter: str | None = Query(default=None, alias="status"),
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
 ) -> PaginatedKnowledgeDocumentResponseSchema:
@@ -160,8 +173,13 @@ async def delete_document(
 )
 async def process_document(
     body: ProcessDocumentRequestSchema,
+    user: AuthenticatedUser = Depends(get_current_user),
+    store_id: str = Depends(get_current_store_id),
+    organization_id: str | None = Depends(get_optional_organization_id),
     dispatcher: JobDispatcher = Depends(get_job_dispatcher),
 ) -> AsyncJobAcceptedResponseSchema:
+    if body.file_path and not is_safe_document_path(body.file_path):
+        raise HTTPException(status_code=400, detail="Unsafe document file path rejected.")
     from app.workers.ingestion.tasks import generate_chunks_task, process_document_task
 
     proc_job = await dispatcher.dispatch(
@@ -173,9 +191,9 @@ async def process_document(
             mime_type=body.mime_type,
             job_id=job_id,
         ),
-        store_id=body.store_id,
-        organization_id=body.organization_id,
-        triggered_by=body.triggered_by,
+        store_id=store_id,
+        organization_id=organization_id,
+        triggered_by=str(user.user_id),
     )
 
     if body.also_chunk:
@@ -195,9 +213,9 @@ async def process_document(
                 overlap=body.overlap,
                 job_id=job_id,
             ),
-            store_id=body.store_id,
-            organization_id=body.organization_id,
-            triggered_by=body.triggered_by,
+            store_id=store_id,
+            organization_id=organization_id,
+            triggered_by=str(user.user_id),
         )
 
         return AsyncJobAcceptedResponseSchema(
@@ -221,6 +239,9 @@ async def process_document(
 )
 async def chunk_document(
     body: ChunkDocumentRequestSchema,
+    user: AuthenticatedUser = Depends(get_current_user),
+    store_id: str = Depends(get_current_store_id),
+    organization_id: str | None = Depends(get_optional_organization_id),
     dispatcher: JobDispatcher = Depends(get_job_dispatcher),
 ) -> AsyncJobAcceptedResponseSchema:
     from app.workers.ingestion.tasks import generate_chunks_task
@@ -235,9 +256,9 @@ async def chunk_document(
             overlap=body.overlap,
             job_id=job_id,
         ),
-        store_id=body.store_id,
-        organization_id=body.organization_id,
-        triggered_by=body.triggered_by,
+        store_id=store_id,
+        organization_id=organization_id,
+        triggered_by=str(user.user_id),
     )
 
     return AsyncJobAcceptedResponseSchema(
@@ -255,6 +276,9 @@ async def chunk_document(
 )
 async def embed_document(
     body: EmbedDocumentRequestSchema,
+    user: AuthenticatedUser = Depends(get_current_user),
+    store_id: str = Depends(get_current_store_id),
+    organization_id: str | None = Depends(get_optional_organization_id),
     dispatcher: JobDispatcher = Depends(get_job_dispatcher),
 ) -> AsyncJobAcceptedResponseSchema:
     from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
@@ -281,9 +305,9 @@ async def embed_document(
             model=body.model,
             job_id=job_id,
         ),
-        store_id=body.store_id,
-        organization_id=body.organization_id,
-        triggered_by=body.triggered_by,
+        store_id=store_id,
+        organization_id=organization_id,
+        triggered_by=str(user.user_id),
     )
 
     if body.sync_to_vector_store:
@@ -301,9 +325,9 @@ async def embed_document(
                 model=body.model,
                 job_id=job_id,
             ),
-            store_id=body.store_id,
-            organization_id=body.organization_id,
-            triggered_by=body.triggered_by,
+            store_id=store_id,
+            organization_id=organization_id,
+            triggered_by=str(user.user_id),
         )
 
         return AsyncJobAcceptedResponseSchema(
@@ -326,6 +350,8 @@ async def embed_document(
 )
 async def search_knowledge(
     body: RetrievalRequestSchema,
+    store_id: str = Depends(get_current_store_id),
+    organization_id: str = Depends(get_current_organization_id),
     service: RetrieverService = Depends(get_retriever_service),
 ) -> RetrievalResponseSchema:
     from app.application.knowledge.retrieval.config import RetrievalConfig as RC
@@ -342,8 +368,8 @@ async def search_knowledge(
         embedding_model=body.embedding_model,
     )
     filters = RF(
-        organization_id=body.organization_id,
-        store_id=body.store_id,
+        organization_id=organization_id or body.organization_id,
+        store_id=store_id,
         language=body.language,
         document_type=body.document_type,
         knowledge_scope=body.knowledge_scope,
@@ -367,6 +393,8 @@ async def search_knowledge(
 )
 async def hybrid_search_knowledge(
     body: RetrievalRequestSchema,
+    store_id: str = Depends(get_current_store_id),
+    organization_id: str = Depends(get_current_organization_id),
     service: RetrieverService = Depends(get_retriever_service),
 ) -> RetrievalResponseSchema:
     from app.application.knowledge.retrieval.config import RetrievalConfig as RC
@@ -383,8 +411,8 @@ async def hybrid_search_knowledge(
         embedding_model=body.embedding_model,
     )
     filters = RF(
-        organization_id=body.organization_id,
-        store_id=body.store_id,
+        organization_id=organization_id or body.organization_id,
+        store_id=store_id,
         language=body.language,
         document_type=body.document_type,
         knowledge_scope=body.knowledge_scope,
@@ -408,7 +436,7 @@ async def hybrid_search_knowledge(
     summary="Generate a business summary for a store",
 )
 async def generate_summary(
-    store_id: str = Query(...),
+    store_id: str = Depends(get_current_store_id),
     body: GenerateBusinessSummaryRequestSchema = Depends(lambda: GenerateBusinessSummaryRequestSchema()),
     handler: GenerateBusinessSummaryHandler = Depends(get_generate_handler),
 ) -> BusinessSummaryGenerationResponseSchema:
@@ -433,7 +461,7 @@ async def generate_summary(
     summary="Regenerate the business summary for a store",
 )
 async def regenerate_summary(
-    store_id: str = Query(...),
+    store_id: str = Depends(get_current_store_id),
     body: GenerateBusinessSummaryRequestSchema = Depends(lambda: GenerateBusinessSummaryRequestSchema()),
     handler: RegenerateBusinessSummaryHandler = Depends(get_regenerate_handler),
 ) -> BusinessSummaryGenerationResponseSchema:
@@ -459,10 +487,11 @@ async def regenerate_summary(
 )
 async def get_job_status(
     job_id: str,
+    store_id: str = Depends(get_current_store_id),
     repo: JobRepository = Depends(_get_job_repository),
 ) -> JobResponseSchema:
     job = await repo.find_by_id(job_id)
-    if not job:
+    if not job or (job.store_id and job.store_id != store_id):
         raise JobNotFoundException(f"Job '{job_id}' not found")
     return JobResponseSchema(
         id=job.id,

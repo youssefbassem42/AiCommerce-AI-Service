@@ -8,6 +8,7 @@ import httpx
 from app.domain.integration.value_objects.auth_config import AuthConfig
 from app.infrastructure.http.auth.auth_handler import AuthHandler
 from app.infrastructure.http.retry import RetryHandler
+from app.infrastructure.http.ssrf import assert_safe_http_url, prevent_ssrf
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class ExternalApiClient:
         self._client = self._build_client()
 
     def _build_client(self) -> httpx.AsyncClient:
+        assert_safe_http_url(self._config.base_url)
         client = httpx.AsyncClient(
             base_url=self._config.base_url,
             timeout=httpx.Timeout(self._config.timeout),
@@ -59,6 +61,7 @@ class ExternalApiClient:
                 max_keepalive_connections=self._config.pool_connections,
             ),
             follow_redirects=True,
+            event_hooks={"request": [prevent_ssrf]},
         )
 
         if self._auth_config and self._encrypted_credentials:

@@ -25,7 +25,7 @@ class TestEnvExample:
             "DEEPSEEK_API_KEY",
             "MISTRAL_API_KEY",
             "OPENROUTER_API_KEY",
-            "JWT_SECRET_KEY",
+            "JWT_SECRET",
             "MONGO_URI",
             "MONGO_DB",
             "REDIS_URL",

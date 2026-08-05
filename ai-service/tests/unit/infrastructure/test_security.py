@@ -1,4 +1,4 @@
-"""Tests for JWT security utilities."""
+"""Tests for JWT validation utilities implementing the .NET JWT Authentication Contract (v1.0)."""
 
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
@@ -7,35 +7,47 @@ import jwt as pyjwt
 import pytest
 
 from app.core.security import (
-    XML_EMAIL_CLAIM,
-    XML_NAMEIDENTIFIER_CLAIM,
-    XML_ROLE_CLAIM,
+    EMAIL_CLAIM,
+    ERR_BAD_AUDIENCE,
+    ERR_BAD_ISSUER,
+    ERR_BAD_SIGNATURE,
+    ERR_EXPIRED,
+    ERR_INVALID_FORMAT,
+    ERR_MISSING_CLAIM,
+    ROLE_CLAIM,
+    JWTAuthenticationError,
     decode_jwt,
     get_email_from_token,
+    get_expires_at_from_token,
     get_organization_id_from_token,
+    get_permissions_from_token,
+    get_role_from_token,
     get_roles_from_token,
-    get_scopes_from_token,
     get_store_id_from_token,
-    get_tenant_id_from_token,
     get_user_id_from_token,
+    verify_jwt,
 )
 
 ISSUER = "AI-Sales-Agent"
 AUDIENCE = "AI-Sales-Agent"
 
+USER_GUID = "11111111-1111-1111-1111-111111111111"
+STORE_GUID = "22222222-2222-2222-2222-222222222222"
+ORG_GUID = "33333333-3333-3333-3333-333333333333"
+
 
 class TestJwtSecurity:
-    """Purpose: Validate JWT encode/decode/verify operations."""
+    """Purpose: Validate JWT encode/decode/verify operations against the contract."""
 
     def setup_method(self):
         self.secret = "test-secret-key-for-testing"
         self.valid_payload = {
-            "sub": "user-1",
+            "sub": USER_GUID,
             "email": "user-1@example.com",
-            "store_id": "store-1",
-            "organization_id": "org-1",
-            "roles": ["Seller"],
-            "scopes": ["read", "write"],
+            "store_id": STORE_GUID,
+            "org_id": ORG_GUID,
+            ROLE_CLAIM: "Admin",
+            "permission": ["kb:read", "kb:write"],
             "iss": ISSUER,
             "aud": AUDIENCE,
             "exp": datetime.now(UTC) + timedelta(hours=1),
@@ -44,151 +56,182 @@ class TestJwtSecurity:
         self.token = pyjwt.encode(self.valid_payload, self.secret, algorithm="HS256")
 
     def _patch_settings(self, mock_settings):
-        mock_settings.JWT_SECRET_KEY = self.secret
+        mock_settings.JWT_SECRET = self.secret
         mock_settings.JWT_ALGORITHM = "HS256"
         mock_settings.JWT_ISSUER = ISSUER
         mock_settings.JWT_AUDIENCE = AUDIENCE
 
+    def _sign(self, payload: dict) -> str:
+        return pyjwt.encode({**self.valid_payload, **payload}, self.secret, algorithm="HS256")
+
     @patch("app.core.security.auth_settings")
     def test_decode_valid_token(self, mock_settings):
-        """Preconditions: Valid JWT token. Input: Token string. Execution: decode_jwt(). Expected: Payload dict."""
+        """Preconditions: Contract-compliant JWT. Input: Token. Execution: decode_jwt(). Expected: Payload."""
         self._patch_settings(mock_settings)
 
         payload = decode_jwt(self.token)
-        assert payload["sub"] == "user-1"
-        assert payload["store_id"] == "store-1"
-        assert payload["roles"] == ["Seller"]
+        assert payload["sub"] == USER_GUID
+        assert payload["store_id"] == STORE_GUID
 
     @patch("app.core.security.auth_settings")
-    def test_decode_legacy_issuer_audience(self, mock_settings):
-        """Preconditions: Token with legacy iss/aud but both configured. Input: Token. Execution: decode_jwt(). Expected: Payload dict."""
+    def test_verify_jwt_alias(self, mock_settings):
+        """Preconditions: Valid token. Input: Token. Execution: verify_jwt(). Expected: Payload."""
         self._patch_settings(mock_settings)
-        mock_settings.JWT_ISSUER = f"{ISSUER},ai-commerce"
-        mock_settings.JWT_AUDIENCE = f"{AUDIENCE},ai-service"
+        assert verify_jwt(self.token)["sub"] == USER_GUID
 
-        legacy_payload = self.valid_payload.copy()
-        legacy_payload["iss"] = "ai-commerce"
-        legacy_payload["aud"] = "ai-service"
-        legacy_token = pyjwt.encode(legacy_payload, self.secret, algorithm="HS256")
+    @patch("app.core.security.auth_settings")
+    def test_decode_wrong_issuer(self, mock_settings):
+        """Preconditions: Token signed with a different issuer. Expected: 401 ERR_BAD_ISSUER."""
+        self._patch_settings(mock_settings)
+        with pytest.raises(JWTAuthenticationError) as exc_info:
+            decode_jwt(self._sign({"iss": "ai-commerce"}))
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == ERR_BAD_ISSUER
 
-        payload = decode_jwt(legacy_token)
-        assert payload["sub"] == "user-1"
+    @patch("app.core.security.auth_settings")
+    def test_decode_wrong_audience(self, mock_settings):
+        """Preconditions: Token with a different audience. Expected: 401 ERR_BAD_AUDIENCE."""
+        self._patch_settings(mock_settings)
+        with pytest.raises(JWTAuthenticationError) as exc_info:
+            decode_jwt(self._sign({"aud": "ai-service"}))
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == ERR_BAD_AUDIENCE
+
+    @patch("app.core.security.auth_settings")
+    def test_decode_invalid_signature(self, mock_settings):
+        """Preconditions: Token signed with a different secret. Expected: 401 ERR_BAD_SIGNATURE."""
+        self._patch_settings(mock_settings)
+        with pytest.raises(JWTAuthenticationError) as exc_info:
+            decode_jwt(pyjwt.encode(self.valid_payload, "a-different-secret", algorithm="HS256"))
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == ERR_BAD_SIGNATURE
 
     @patch("app.core.security.auth_settings")
     def test_decode_expired_token(self, mock_settings):
-        """Preconditions: Expired JWT. Input: Expired token. Execution: decode_jwt(). Expected: ExpiredSignatureError."""
+        """Preconditions: Expired JWT. Expected: 401 ERR_EXPIRED (no clock skew leeway)."""
         self._patch_settings(mock_settings)
+        expired = self._sign({"exp": datetime.now(UTC) - timedelta(hours=1)})
+        with pytest.raises(JWTAuthenticationError) as exc_info:
+            decode_jwt(expired)
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == ERR_EXPIRED
 
-        expired_payload = self.valid_payload.copy()
-        expired_payload["exp"] = datetime.now(UTC) - timedelta(hours=1)
-        expired_token = pyjwt.encode(expired_payload, self.secret, algorithm="HS256")
-
-        with pytest.raises(pyjwt.ExpiredSignatureError):
-            decode_jwt(expired_token)
+    @patch("app.core.security.auth_settings")
+    def test_decode_missing_required_claim(self, mock_settings):
+        """Preconditions: Token without `sub`. Expected: 401 ERR_MISSING_CLAIM."""
+        self._patch_settings(mock_settings)
+        payload = self.valid_payload.copy()
+        payload.pop("sub")
+        with pytest.raises(JWTAuthenticationError) as exc_info:
+            decode_jwt(pyjwt.encode(payload, self.secret, algorithm="HS256"))
+        assert exc_info.value.detail == ERR_MISSING_CLAIM
 
     @patch("app.core.security.auth_settings")
     def test_decode_invalid_token(self, mock_settings):
-        """Preconditions: Invalid token string. Input: Garbage. Execution: decode_jwt(). Expected: PyJWTError."""
+        """Preconditions: Garbage token string. Expected: 401 ERR_INVALID_FORMAT."""
         self._patch_settings(mock_settings)
-
-        with pytest.raises(pyjwt.PyJWTError):
+        with pytest.raises(JWTAuthenticationError) as exc_info:
             decode_jwt("invalid.token.string")
-
-    @patch("app.core.security.auth_settings")
-    def test_decode_valid_token_alias_path(self, mock_settings):
-        """Preconditions: Valid token. Input: Token. Execution: decode_jwt(). Expected: Payload."""
-        self._patch_settings(mock_settings)
-
-        payload = decode_jwt(self.token)
-        assert payload["sub"] == "user-1"
+        assert exc_info.value.detail == ERR_INVALID_FORMAT
 
     def test_get_store_id_from_token(self):
-        """Preconditions: Payload with store_id. Input: Payload. Execution: get_store_id_from_token(). Expected: store_id value."""
-        payload = {"store_id": "store-1"}
-        assert get_store_id_from_token(payload) == "store-1"
+        """Preconditions: Payload with store_id. Expected: normalized GUID."""
+        payload = {"store_id": STORE_GUID}
+        assert get_store_id_from_token(payload) == STORE_GUID
 
-    def test_get_store_id_legacy_fallback(self):
-        """Preconditions: Payload with legacy tenant_id. Input: Payload. Execution: get_store_id_from_token(). Expected: tenant_id value."""
-        payload = {"tenant_id": "store-2"}
-        assert get_store_id_from_token(payload) == "store-2"
-
-    def test_get_store_id_missing(self):
-        """Preconditions: Payload without tenant info. Input: Payload. Execution: get_store_id_from_token(). Expected: None."""
-        payload = {"sub": "user-1"}
+    def test_get_store_id_rejects_legacy_tenant_id(self):
+        """Preconditions: Payload with legacy tenant_id. Expected: None (contract §9 — legacy ignored)."""
+        payload = {"tenant_id": STORE_GUID}
         assert get_store_id_from_token(payload) is None
 
-    def test_get_tenant_id_from_token_legacy_alias(self):
-        """Preconditions: Payload with store_id. Input: Payload. Execution: get_tenant_id_from_token(). Expected: store_id value."""
-        payload = {"store_id": "store-1"}
-        assert get_tenant_id_from_token(payload) == "store-1"
+    def test_get_store_id_missing(self):
+        """Preconditions: Payload without store claim. Expected: None."""
+        payload = {"sub": USER_GUID}
+        assert get_store_id_from_token(payload) is None
 
     def test_get_organization_id_from_token(self):
-        """Preconditions: Payload with organization_id. Input: Payload. Execution: get_organization_id_from_token(). Expected: organization_id value."""
-        payload = {"organization_id": "org-1"}
-        assert get_organization_id_from_token(payload) == "org-1"
+        """Preconditions: Payload with org_id. Expected: normalized GUID."""
+        payload = {"org_id": ORG_GUID}
+        assert get_organization_id_from_token(payload) == ORG_GUID
 
-    def test_get_organization_id_fallback(self):
-        """Preconditions: Payload with legacy org_id. Input: Payload. Execution: get_organization_id_from_token(). Expected: org_id value."""
-        payload = {"org_id": "org-2"}
-        assert get_organization_id_from_token(payload) == "org-2"
+    def test_get_organization_id_rejects_legacy_organization_id(self):
+        """Preconditions: Payload with legacy organization_id key. Expected: None."""
+        payload = {"organization_id": ORG_GUID}
+        assert get_organization_id_from_token(payload) is None
 
     def test_get_user_id_from_token(self):
-        """Preconditions: Payload with sub. Input: Payload. Execution: get_user_id_from_token(). Expected: sub value."""
-        payload = {"sub": "user-1"}
-        assert get_user_id_from_token(payload) == "user-1"
+        """Preconditions: Payload with sub. Expected: sub value."""
+        payload = {"sub": USER_GUID}
+        assert get_user_id_from_token(payload) == USER_GUID
 
-    def test_get_user_id_from_token_fallback(self):
-        """Preconditions: Payload with user_id. Input: Payload. Execution: get_user_id_from_token(). Expected: user_id value."""
-        payload = {"user_id": "user-2"}
-        assert get_user_id_from_token(payload) == "user-2"
+    def test_get_user_id_from_nameid(self):
+        """Preconditions: Payload with nameid. Expected: nameid value."""
+        payload = {"nameid": USER_GUID}
+        assert get_user_id_from_token(payload) == USER_GUID
 
-    def test_get_user_id_from_xml_claim(self):
-        """Preconditions: Payload with XML nameidentifier claim only. Input: Payload. Execution: get_user_id_from_token(). Expected: Claim value."""
-        payload = {XML_NAMEIDENTIFIER_CLAIM: "user-3"}
-        assert get_user_id_from_token(payload) == "user-3"
+    def test_get_user_id_missing(self):
+        """Preconditions: Payload without sub/nameid. Expected: 401 ERR_MISSING_CLAIM."""
+        with pytest.raises(JWTAuthenticationError) as exc_info:
+            get_user_id_from_token({"email": "a@b.com"})
+        assert exc_info.value.detail == ERR_MISSING_CLAIM
+
+    def test_get_user_id_rejects_non_guid(self):
+        """Preconditions: Non-GUID sub. Expected: 401 ERR_INVALID_FORMAT."""
+        with pytest.raises(JWTAuthenticationError) as exc_info:
+            get_user_id_from_token({"sub": "not-a-guid"})
+        assert exc_info.value.detail == ERR_INVALID_FORMAT
 
     def test_get_email_from_token(self):
-        """Preconditions: Payload with email. Input: Payload. Execution: get_email_from_token(). Expected: email value."""
+        """Preconditions: Payload with email. Expected: email value."""
         payload = {"email": "a@b.com"}
         assert get_email_from_token(payload) == "a@b.com"
 
     def test_get_email_from_xml_claim(self):
-        """Preconditions: Payload with XML email claim only. Input: Payload. Execution: get_email_from_token(). Expected: Claim value."""
-        payload = {XML_EMAIL_CLAIM: "c@d.com"}
+        """Preconditions: Payload with ASP.NET email URI. Expected: claim value."""
+        payload = {EMAIL_CLAIM: "c@d.com"}
         assert get_email_from_token(payload) == "c@d.com"
 
-    def test_get_roles_from_token_maps_seller(self):
-        """Preconditions: Payload with Seller role. Input: Payload. Execution: get_roles_from_token(). Expected: Mapped admin role."""
-        payload = {"roles": ["Seller"]}
-        assert get_roles_from_token(payload) == ["admin"]
+    def test_get_role_from_token_maps_admin(self):
+        """Preconditions: URI role claim Admin. Expected: mapped `admin`."""
+        payload = {ROLE_CLAIM: "Admin"}
+        assert get_role_from_token(payload) == "admin"
 
-    def test_get_roles_from_token_maps_super_admin(self):
-        """Preconditions: Payload with SuperAdmin role. Input: Payload. Execution: get_roles_from_token(). Expected: Mapped super_admin role."""
-        payload = {XML_ROLE_CLAIM: "SuperAdmin"}
+    def test_get_role_from_token_maps_super_admin(self):
+        """Preconditions: URI role claim SuperAdmin. Expected: mapped `super_admin`."""
+        payload = {ROLE_CLAIM: "SuperAdmin"}
+        assert get_role_from_token(payload) == "super_admin"
+
+    def test_get_role_from_token_ignores_short_role_claim(self):
+        """Preconditions: Only short `roles` claim present. Expected: None (URI claim is the only source)."""
+        payload = {"roles": ["Admin"]}
+        assert get_role_from_token(payload) is None
+
+    def test_get_roles_from_token_uri_only(self):
+        """Preconditions: URI role claim present. Expected: mapped single-element list."""
+        payload = {ROLE_CLAIM: "SuperAdmin"}
         assert get_roles_from_token(payload) == ["super_admin"]
 
-    def test_get_roles_from_token_passthrough(self):
-        """Preconditions: Payload with unmapped roles. Input: Payload. Execution: get_roles_from_token(). Expected: Unchanged roles."""
-        payload = {"roles": ["admin", "editor"]}
-        assert get_roles_from_token(payload) == ["admin", "editor"]
+    def test_get_roles_from_token_empty_when_absent(self):
+        """Preconditions: No role claims. Expected: empty list."""
+        assert get_roles_from_token({"sub": USER_GUID}) == []
 
-    def test_get_roles_from_token_single(self):
-        """Preconditions: Payload with role string. Input: Payload. Execution: get_roles_from_token(). Expected: Role in list."""
-        payload = {"role": ["viewer"]}
-        assert get_roles_from_token(payload) == ["viewer"]
+    def test_get_permissions_from_token_single(self):
+        """Preconditions: Permission claim as a string. Expected: single-element list."""
+        payload = {"permission": "kb:read"}
+        assert get_permissions_from_token(payload) == ["kb:read"]
 
-    def test_get_scopes_from_token(self):
-        """Preconditions: Payload with scopes. Input: Payload. Execution: get_scopes_from_token(). Expected: List of scopes."""
-        payload = {"scopes": ["read", "write"]}
-        assert get_scopes_from_token(payload) == ["read", "write"]
+    def test_get_permissions_from_token_list(self):
+        """Preconditions: Repeatable permission claim as a list. Expected: all values."""
+        payload = {"permission": ["kb:read", "kb:write"]}
+        assert get_permissions_from_token(payload) == ["kb:read", "kb:write"]
 
-    @patch("app.core.security.auth_settings")
-    def test_decode_token_wrong_secret(self, mock_settings):
-        """Preconditions: Token signed with different secret. Input: Token. Execution: decode_jwt(). Expected: PyJWTError."""
-        mock_settings.JWT_SECRET_KEY = "different-secret"
-        mock_settings.JWT_ALGORITHM = "HS256"
-        mock_settings.JWT_ISSUER = ISSUER
-        mock_settings.JWT_AUDIENCE = AUDIENCE
+    def test_get_permissions_from_token_missing(self):
+        """Preconditions: No permission claims. Expected: empty list."""
+        assert get_permissions_from_token({"sub": USER_GUID}) == []
 
-        with pytest.raises(pyjwt.PyJWTError):
-            decode_jwt(self.token)
+    def test_get_expires_at_from_token(self):
+        """Preconditions: Numeric exp claim. Expected: timezone-aware UTC datetime."""
+        exp = int(datetime.now(UTC).timestamp()) + 60
+        expires_at = get_expires_at_from_token({"exp": exp})
+        assert expires_at is not None
+        assert expires_at.tzinfo == UTC

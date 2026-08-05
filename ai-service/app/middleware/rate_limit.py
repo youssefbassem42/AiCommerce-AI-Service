@@ -28,8 +28,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.limit_per_minute = limit_per_minute
         self.whitelist_paths = whitelist_paths
 
-        # Local in-memory fallback store: {ip_address: [(timestamp)]}
-        self.local_store: dict[str, list] = {}
+        # Local in-memory fallback store: {rate_limit_key: [timestamps]}
+        # Bounded to prevent memory exhaustion when keys are attacker-controlled.
+        self.local_store: dict[str, list[float]] = {}
+        self.max_local_keys = 10_000
 
         # Redis client initialization (lazy connection)
         self.redis: Redis | None = None
@@ -75,6 +77,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         Returns (is_limited, remaining, reset_time_seconds).
         """
         current_time = time.time()
+
+        # Evict stale keys to keep the store bounded under high churn.
+        if len(self.local_store) >= self.max_local_keys:
+            stale = [k for k, times in self.local_store.items() if not times or current_time - times[-1] >= 60]
+            for key in stale:
+                del self.local_store[key]
 
         # Initialize or cleanup old requests
         if client_ip not in self.local_store:

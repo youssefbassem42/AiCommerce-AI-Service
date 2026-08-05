@@ -38,9 +38,11 @@ def mock_job_repo():
 def override_deps(mock_job_repo):
     from app.api.knowledge.job_router import get_job_repository
     from app.main import app
+    from tests.conftest import override_auth_dependencies
 
     app.dependency_overrides.clear()
     app.dependency_overrides[get_job_repository] = lambda: mock_job_repo
+    override_auth_dependencies(app)
 
     if not any(getattr(r, "path", None) and "/knowledge/jobs" in str(r.path) for r in app.routes):
         from app.api.knowledge.job_router import router as job_router

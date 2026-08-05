@@ -13,14 +13,15 @@ from app.middleware.audit import AuditMiddleware
 
 def _admin_headers() -> dict[str, str]:
     payload = {
-        "sub": "admin-user",
-        "store_id": "store_1",
-        "roles": ["admin"],
+        "sub": "11111111-1111-1111-1111-111111111111",
+        "store_id": "22222222-2222-2222-2222-222222222222",
+        "org_id": "33333333-3333-3333-3333-333333333333",
+        "http://schemas.microsoft.com/ws/2008/06/identity/claims/role": "Admin",
         "iss": auth_settings.JWT_ISSUER,
         "aud": auth_settings.JWT_AUDIENCE,
         "exp": datetime.now(UTC) + timedelta(hours=1),
     }
-    token = pyjwt.encode(payload, auth_settings.JWT_SECRET_KEY, algorithm=auth_settings.JWT_ALGORITHM)
+    token = pyjwt.encode(payload, auth_settings.JWT_SECRET, algorithm=auth_settings.JWT_ALGORITHM)
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -192,9 +193,11 @@ class TestAdminBundleAPI:
 
         app.dependency_overrides[get_bundle_tracking_service] = lambda: mock_tracking_service
         try:
-            response = client.get("/api/v1/admin/bundles/tracking?store_id=store_1&top_only=true")
+            response = client.get("/api/v1/admin/bundles/tracking?top_only=true")
             assert response.status_code == 200
-            mock_tracking_service.get_tracked_bundles.assert_called_once_with("store_1", is_top_only=True)
+            mock_tracking_service.get_tracked_bundles.assert_called_once_with(
+                "22222222-2222-2222-2222-222222222222", is_top_only=True
+            )
         finally:
             _clear_overrides()
 

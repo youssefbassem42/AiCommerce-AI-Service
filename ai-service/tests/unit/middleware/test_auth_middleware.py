@@ -7,8 +7,14 @@ import jwt as pyjwt
 import pytest
 from fastapi import Request, Response
 
+from app.core.security import ROLE_CLAIM
+
 ISSUER = "AI-Sales-Agent"
 AUDIENCE = "AI-Sales-Agent"
+
+USER_GUID = "11111111-1111-1111-1111-111111111111"
+STORE_GUID = "22222222-2222-2222-2222-222222222222"
+ORG_GUID = "33333333-3333-3333-3333-333333333333"
 
 
 def create_mock_request(path="/api/v1/chat", auth_header=None, method="GET"):
@@ -21,12 +27,26 @@ def create_mock_request(path="/api/v1/chat", auth_header=None, method="GET"):
     }
     request = Request(scope)
     if auth_header:
-        headers_raw = []
-        if auth_header:
-            headers_raw.append((b"authorization", auth_header.encode()))
-        scope["headers"] = headers_raw
+        scope["headers"] = [(b"authorization", auth_header.encode())]
         request = Request(scope)
     return request
+
+
+def _contract_token(secret: str, **overrides) -> str:
+    payload = {
+        "sub": USER_GUID,
+        "email": "user-1@example.com",
+        "store_id": STORE_GUID,
+        "org_id": ORG_GUID,
+        ROLE_CLAIM: "Admin",
+        "permission": ["kb:read"],
+        "iss": ISSUER,
+        "aud": AUDIENCE,
+        "exp": datetime.now(UTC) + timedelta(hours=1),
+        "iat": datetime.now(UTC),
+    }
+    payload.update(overrides)
+    return pyjwt.encode(payload, secret, algorithm="HS256")
 
 
 class TestAuthMiddleware:
@@ -65,23 +85,12 @@ class TestAuthMiddleware:
 
     @pytest.mark.asyncio
     async def test_valid_jwt_sets_state(self):
-        """Preconditions: Valid JWT in header. Input: Request with Bearer token. Execution: Dispatch. Expected: State set correctly."""
-        secret = "test-secret"
-        payload = {
-            "sub": "user-1",
-            "email": "user-1@example.com",
-            "store_id": "store-1",
-            "organization_id": "org-1",
-            "roles": ["Seller"],
-            "scopes": ["read"],
-            "iss": ISSUER,
-            "aud": AUDIENCE,
-            "exp": datetime.now(UTC) + timedelta(hours=1),
-        }
-        token = pyjwt.encode(payload, secret, algorithm="HS256")
+        """Preconditions: Valid contract JWT in header. Input: Request with Bearer token. Execution: Dispatch. Expected: State set from claims."""
+        secret = "test-secret-that-is-long-enough"
+        token = _contract_token(secret)
 
         with (
-            patch("app.middleware.auth.auth_settings.JWT_SECRET_KEY", secret),
+            patch("app.middleware.auth.auth_settings.JWT_SECRET", secret),
             patch("app.middleware.auth.auth_settings.JWT_ALGORITHM", "HS256"),
             patch("app.middleware.auth.auth_settings.JWT_ISSUER", ISSUER),
             patch("app.middleware.auth.auth_settings.JWT_AUDIENCE", AUDIENCE),
@@ -92,27 +101,22 @@ class TestAuthMiddleware:
 
             call_next = AsyncMock(return_value=Response("OK", status_code=200))
             await middleware.dispatch(request, call_next)
-            assert request.state.user_id == "user-1"
-            assert request.state.store_id == "store-1"
-            assert request.state.organization_id == "org-1"
+            assert request.state.user_id == USER_GUID
+            assert request.state.store_id == STORE_GUID
+            assert request.state.organization_id == ORG_GUID
             assert request.state.email == "user-1@example.com"
             assert request.state.roles == ["admin"]
-            assert request.state.scopes == ["read"]
+            assert request.state.permissions == ["kb:read"]
+            assert request.state.user is not None
 
     @pytest.mark.asyncio
     async def test_expired_jwt_returns_401(self):
         """Preconditions: Expired JWT. Input: Request with expired token. Execution: Dispatch. Expected: 401."""
-        secret = "test-secret"
-        payload = {
-            "sub": "user-1",
-            "iss": ISSUER,
-            "aud": AUDIENCE,
-            "exp": datetime.now(UTC) - timedelta(hours=1),
-        }
-        token = pyjwt.encode(payload, secret, algorithm="HS256")
+        secret = "test-secret-that-is-long-enough"
+        token = _contract_token(secret, exp=datetime.now(UTC) - timedelta(hours=1))
 
         with (
-            patch("app.middleware.auth.auth_settings.JWT_SECRET_KEY", secret),
+            patch("app.middleware.auth.auth_settings.JWT_SECRET", secret),
             patch("app.middleware.auth.auth_settings.JWT_ALGORITHM", "HS256"),
             patch("app.middleware.auth.auth_settings.JWT_ISSUER", ISSUER),
             patch("app.middleware.auth.auth_settings.JWT_AUDIENCE", AUDIENCE),
@@ -145,6 +149,16 @@ class TestAuthMiddleware:
             call_next = AsyncMock(return_value=Response("OK", status_code=200))
             response = await middleware.dispatch(request, call_next)
             assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_non_bearer_format_rejected_even_when_not_required(self):
+        """Pass a malformed header with JWT_REQUIRED off. A present token is still rejected (401)."""
+        request = create_mock_request(path="/api/v1/chat", auth_header="ApiKey abc")
+        middleware = AuthMiddleware(lambda app: None)
+
+        call_next = AsyncMock(return_value=Response("OK", status_code=200))
+        response = await middleware.dispatch(request, call_next)
+        assert response.status_code == 401
 
 
 from app.middleware.auth import AuthMiddleware

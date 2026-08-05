@@ -87,7 +87,7 @@ class TestDockerCompose:
         with open(COMPOSE_PATH) as f:
             config = yaml.safe_load(f)
         x_shared = config.get("x-shared-env", {})
-        critical = ["MONGO_URI", "REDIS_URL", "QDRANT_URL", "JWT_SECRET_KEY", "OPENAI_API_KEY"]
+        critical = ["MONGO_URI", "REDIS_URL", "QDRANT_URL", "JWT_SECRET", "OPENAI_API_KEY"]
         for var in critical:
             assert var in x_shared, f"Missing shared env var: {var}"
 

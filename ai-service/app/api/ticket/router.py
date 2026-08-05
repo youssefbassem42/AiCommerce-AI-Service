@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Query, status
 
+from app.api.auth.dependencies import get_current_store_id, require_admin_role
 from app.api.ticket.dependencies import get_notification_service, get_ticket_service
 from app.api.ticket.schemas import (
     AddMessageSchema,
@@ -10,6 +11,7 @@ from app.api.ticket.schemas import (
     TicketCreateSchema,
     TicketListResponseSchema,
     TicketNotificationListSchema,
+    TicketNotificationSchema,
     TicketResponseSchema,
     TicketStatusUpdateSchema,
 )
@@ -18,7 +20,11 @@ from app.application.ticket.services.notification_service import TicketNotificat
 from app.application.ticket.services.ticket_service import TicketService
 from app.domain.ticket.exceptions import TicketNotFoundException
 
-router = APIRouter(prefix="/api/v1/tickets", tags=["Tickets"])
+router = APIRouter(
+    prefix="/api/v1/tickets",
+    tags=["Tickets"],
+    dependencies=[Depends(require_admin_role)],
+)
 
 
 @router.post("", response_model=TicketResponseSchema, status_code=status.HTTP_201_CREATED)
@@ -43,12 +49,12 @@ async def get_ticket(
 
 @router.get("", response_model=TicketListResponseSchema)
 async def list_tickets(
-    store_id: str = Query(...),
     status: str | None = Query(default=None),
     priority: str | None = Query(default=None),
     sentiment: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    store_id: str = Depends(get_current_store_id),
     service: TicketService = Depends(get_ticket_service),
 ) -> TicketListResponseSchema:
     items, total = await service.list_tickets(
@@ -69,7 +75,7 @@ async def list_tickets(
 
 @router.get("/metrics/resolution", response_model=ResolutionMetricsResponseSchema)
 async def get_resolution_metrics(
-    store_id: str = Query(...),
+    store_id: str = Depends(get_current_store_id),
     service: TicketService = Depends(get_ticket_service),
 ) -> ResolutionMetricsResponseSchema:
     result = await service.get_resolution_metrics(store_id)

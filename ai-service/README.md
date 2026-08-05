@@ -45,7 +45,8 @@ make docker-build
 make docker-up
 ```
 
-Service available at `http://localhost:8000`. Health check: `GET /health/`.
+Service available at `https://aicommerce-ai-service-production.up.railway.app` (Railway).
+Locally at `http://localhost:8000`. Health check: `GET /health/`.
 
 ## Project Structure
 

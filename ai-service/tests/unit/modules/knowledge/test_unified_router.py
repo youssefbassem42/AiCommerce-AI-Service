@@ -85,6 +85,7 @@ def override_deps(
     )
     from app.api.knowledge.retrieval_dependencies import get_retriever_service
     from app.main import app
+    from tests.conftest import override_auth_dependencies
 
     overrides = {
         get_knowledge_document_service: lambda: mock_doc_service,
@@ -95,6 +96,7 @@ def override_deps(
     }
     app.dependency_overrides.clear()
     app.dependency_overrides.update(overrides)
+    override_auth_dependencies(app)
 
     if not any(getattr(r, "path", None) and "/api/v1/knowledge-base" in str(r.path) for r in app.routes):
         from app.api.knowledge.unified_router import router as unified_router

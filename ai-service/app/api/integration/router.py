@@ -1,9 +1,13 @@
 import logging
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.agents.integration.agent import IntegrationMappingAgent
-from app.api.auth.dependencies import require_admin_role
+from app.api.auth.dependencies import (
+    get_current_store_id,
+    get_optional_organization_id,
+    require_admin_role,
+)
 from app.api.integration.dependencies import (
     get_integration_agent,
     get_integration_service,
@@ -31,6 +35,7 @@ from app.api.integration.schemas import (
 from app.application.integration.mapping.dto import (
     AuthConfigDTO,
     ConnectionCreateDTO,
+    ConnectionResponseDTO,
     EntityMappingDTO,
     FieldMappingDTO,
     PaginationConfigDTO,
@@ -38,17 +43,25 @@ from app.application.integration.mapping.dto import (
 )
 from app.application.integration.mapping.services import IntegrationApplicationService
 from app.application.integration.sync.orchestrator import SyncOrchestrator
+from app.domain.integration.exceptions import IntegrationConnectionNotFoundException
 from app.workflows.integration.graph import IntegrationWorkflow
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/integration", tags=["Integration"])
+router = APIRouter(
+    prefix="/api/v1/integration",
+    tags=["Integration"],
+    dependencies=[Depends(require_admin_role)],
+)
+
+
+def _connection_is_owned(connection: ConnectionResponseDTO, store_id: str) -> bool:
+    return bool(connection) and connection.store_id == store_id
 
 
 @router.post("/schemas/parse", response_model=ParseSpecResponseSchema, status_code=status.HTTP_200_OK)
 async def parse_spec(
     payload: ParseSpecRequestSchema,
-    request: Request,
     service: IntegrationApplicationService = Depends(get_integration_service),
 ) -> ParseSpecResponseSchema:
     dto = ParseSpecRequestDTO(
@@ -62,17 +75,16 @@ async def parse_spec(
 @router.post("/schemas/agent-parse", response_model=AgentParseResponseSchema, status_code=status.HTTP_200_OK)
 async def agent_parse_spec(
     payload: AgentParseRequestSchema,
-    request: Request,
     agent: IntegrationMappingAgent = Depends(get_integration_agent),
+    store_id: str = Depends(get_current_store_id),
+    organization_id: str | None = Depends(get_optional_organization_id),
 ) -> AgentParseResponseSchema:
-    store_id = getattr(request.state, "store_id", None)
-    org_id = getattr(request.state, "organization_id", None)
 
     report, error, capabilities = await agent.analyze(
         raw_spec=payload.raw_spec,
         platform_name=payload.platform_name,
         store_id=store_id,
-        organization_id=org_id,
+        organization_id=organization_id,
     )
 
     if error or report is None:
@@ -113,15 +125,14 @@ async def agent_parse_spec(
 @router.post("/agent-sync", response_model=AgentSyncResponseSchema, status_code=status.HTTP_200_OK)
 async def agent_sync(
     payload: AgentSyncRequestSchema,
-    request: Request,
     workflow: IntegrationWorkflow = Depends(get_integration_workflow),
+    store_id: str = Depends(get_current_store_id),
+    organization_id: str | None = Depends(get_optional_organization_id),
 ) -> AgentSyncResponseSchema:
-    organization_id = getattr(request.state, "organization_id", None) or payload.store_id
-
     result = await workflow.run(
         raw_spec=payload.raw_spec,
         platform_name=payload.platform_name,
-        store_id=payload.store_id,
+        store_id=store_id,
         organization_id=organization_id,
         credentials=payload.credentials,
         connection_name=payload.name,
@@ -161,12 +172,12 @@ async def agent_sync(
 @router.post("/connections", response_model=ConnectionResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_connection(
     payload: CreateConnectionSchema,
-    request: Request,
     service: IntegrationApplicationService = Depends(get_integration_service),
+    store_id: str = Depends(get_current_store_id),
+    organization_id: str | None = Depends(get_optional_organization_id),
 ) -> ConnectionResponseSchema:
-    organization_id = getattr(request.state, "organization_id", None) or payload.store_id
     dto = ConnectionCreateDTO(
-        store_id=payload.store_id,
+        store_id=store_id,
         organization_id=organization_id,
         name=payload.name,
         platform_name=payload.platform_name,
@@ -193,10 +204,9 @@ async def create_connection(
 
 @router.get("/connections", response_model=PaginatedConnectionResponseSchema)
 async def list_connections(
-    request: Request,
-    store_id: str = Query(...),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    store_id: str = Depends(get_current_store_id),
     service: IntegrationApplicationService = Depends(get_integration_service),
 ) -> PaginatedConnectionResponseSchema:
     items, total = await service.list_connections(store_id=store_id, page=page, page_size=page_size)
@@ -211,9 +221,12 @@ async def list_connections(
 @router.get("/connections/{connection_id}", response_model=ConnectionResponseSchema)
 async def get_connection(
     connection_id: str,
+    store_id: str = Depends(get_current_store_id),
     service: IntegrationApplicationService = Depends(get_integration_service),
 ) -> ConnectionResponseSchema:
     result = await service.get_connection(connection_id)
+    if not _connection_is_owned(result, store_id):
+        raise IntegrationConnectionNotFoundException(connection_id)
     return ConnectionResponseSchema(**result.model_dump())
 
 
@@ -221,8 +234,12 @@ async def get_connection(
 async def update_connection_mappings(
     connection_id: str,
     payload: UpdateMappingsSchema,
+    store_id: str = Depends(get_current_store_id),
     service: IntegrationApplicationService = Depends(get_integration_service),
 ) -> ConnectionResponseSchema:
+    existing = await service.get_connection(connection_id)
+    if not _connection_is_owned(existing, store_id):
+        raise IntegrationConnectionNotFoundException(connection_id)
     result = await service.update_mappings(
         connection_id=connection_id,
         entity_mappings=[
@@ -246,8 +263,12 @@ async def update_connection_mappings(
 async def update_connection_credentials(
     connection_id: str,
     payload: UpdateCredentialsSchema,
+    store_id: str = Depends(get_current_store_id),
     service: IntegrationApplicationService = Depends(get_integration_service),
 ) -> ConnectionResponseSchema:
+    existing = await service.get_connection(connection_id)
+    if not _connection_is_owned(existing, store_id):
+        raise IntegrationConnectionNotFoundException(connection_id)
     result = await service.update_credentials(
         connection_id=connection_id,
         auth_config_dto=AuthConfigDTO(**payload.auth_config.model_dump()),
@@ -265,8 +286,13 @@ async def update_connection_credentials(
 async def sync_connection(
     connection_id: str,
     payload: SyncRequestSchema,
+    store_id: str = Depends(get_current_store_id),
     orchestrator: SyncOrchestrator = Depends(get_sync_orchestrator),
+    service: IntegrationApplicationService = Depends(get_integration_service),
 ) -> SyncResponseSchema:
+    existing = await service.get_connection(connection_id)
+    if not _connection_is_owned(existing, store_id):
+        raise IntegrationConnectionNotFoundException(connection_id)
     result = await orchestrator.sync_connection(connection_id)
     return SyncResponseSchema(**result.to_dict())
 
@@ -274,7 +300,11 @@ async def sync_connection(
 @router.delete("/connections/{connection_id}", response_model=DeleteResponseSchema)
 async def delete_connection(
     connection_id: str,
+    store_id: str = Depends(get_current_store_id),
     service: IntegrationApplicationService = Depends(get_integration_service),
 ) -> DeleteResponseSchema:
+    existing = await service.get_connection(connection_id)
+    if not _connection_is_owned(existing, store_id):
+        raise IntegrationConnectionNotFoundException(connection_id)
     success = await service.delete_connection(connection_id)
     return DeleteResponseSchema(success=success)

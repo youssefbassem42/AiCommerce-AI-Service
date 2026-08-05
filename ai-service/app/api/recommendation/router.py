@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends
 
+from app.api.rag.dependencies import get_tenant_context
 from app.api.recommendation.dependencies import (
     get_bundle_service,
     get_recommendation_service,
@@ -16,6 +17,7 @@ from app.application.recommendation.services import (
     BundleSuggestionService,
     RecommendationService,
 )
+from app.domain.knowledge.value_objects.tenant_context import TenantContext
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +32,12 @@ router = APIRouter(prefix="/api/v1/recommendations", tags=["Recommendations"])
 async def recommend_products(
     payload: RecommendationRequestSchema,
     service: RecommendationService = Depends(get_recommendation_service),
+    tenant_context: TenantContext | None = Depends(get_tenant_context),
 ) -> RecommendationResponseSchema:
+    store_id = tenant_context.store_id if tenant_context else payload.store_id
     result = await service.recommend(
         query=payload.message,
-        store_id=payload.store_id,
+        store_id=store_id,
         customer_id=payload.customer_id,
     )
 
@@ -68,10 +72,12 @@ async def recommend_products(
 async def suggest_bundle(
     payload: BundleRequestSchema,
     service: BundleSuggestionService = Depends(get_bundle_service),
+    tenant_context: TenantContext | None = Depends(get_tenant_context),
 ) -> BundleResponseSchema:
+    store_id = tenant_context.store_id if tenant_context else payload.store_id
     result = await service.suggest(
         query=payload.message,
-        store_id=payload.store_id,
+        store_id=store_id,
         customer_id=payload.customer_id,
     )
 

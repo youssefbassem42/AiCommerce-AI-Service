@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Query, status
 
+from app.api.auth.dependencies import get_current_store_id, require_admin_role
 from app.api.knowledge.generation_dependencies import (
     get_generate_handler,
     get_list_history_handler,
@@ -24,7 +25,11 @@ from app.core.knowledge_settings import knowledge_settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix=knowledge_settings.route_prefix, tags=["Knowledge Base"])
+router = APIRouter(
+    prefix=knowledge_settings.route_prefix,
+    tags=["Knowledge Base"],
+    dependencies=[Depends(require_admin_role)],
+)
 
 
 def _to_response(entity) -> BusinessSummaryGenerationResponseSchema:
@@ -51,8 +56,8 @@ def _to_response(entity) -> BusinessSummaryGenerationResponseSchema:
     status_code=status.HTTP_201_CREATED,
 )
 async def generate_business_summary(
-    store_id: str = Query(..., description="Store identifier"),
     payload: GenerateBusinessSummaryRequestSchema = Depends(lambda: GenerateBusinessSummaryRequestSchema()),
+    store_id: str = Depends(get_current_store_id),
     handler: "GenerateBusinessSummaryHandler" = Depends(get_generate_handler),
 ):
     cfg = None
@@ -73,8 +78,8 @@ async def generate_business_summary(
     status_code=status.HTTP_201_CREATED,
 )
 async def regenerate_business_summary(
-    store_id: str = Query(..., description="Store identifier"),
     payload: GenerateBusinessSummaryRequestSchema = Depends(lambda: GenerateBusinessSummaryRequestSchema()),
+    store_id: str = Depends(get_current_store_id),
     handler: "RegenerateBusinessSummaryHandler" = Depends(get_regenerate_handler),
 ):
     cfg = None
@@ -94,9 +99,9 @@ async def regenerate_business_summary(
     response_model=PaginatedBusinessSummaryHistoryResponseSchema,
 )
 async def list_business_summary_history(
-    store_id: str = Query(..., description="Store identifier"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=knowledge_settings.default_page_size, ge=1, le=knowledge_settings.max_page_size),
+    store_id: str = Depends(get_current_store_id),
     handler: "ListBusinessSummaryHistoryHandler" = Depends(get_list_history_handler),
 ):
     query = ListBusinessSummaryHistoryQuery(store_id=store_id, page=page, page_size=page_size)

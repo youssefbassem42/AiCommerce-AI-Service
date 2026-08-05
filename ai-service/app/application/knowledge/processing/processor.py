@@ -5,6 +5,7 @@ import tiktoken
 from langdetect import DetectorFactory, LangDetectException, detect_langs
 
 from app.application.knowledge.processing.pipeline import ProcessingPipeline
+from app.core.path_validation import is_safe_document_path
 from app.domain.knowledge.entities.knowledge_document import KnowledgeDocument
 from app.domain.knowledge.repositories.knowledge_repository import KnowledgeRepository
 from app.domain.knowledge.value_objects import ProcessingStats
@@ -33,6 +34,9 @@ class DocumentProcessor:
         file_path: str,
         mime_type: str | None = None,
     ) -> KnowledgeDocument:
+        if not is_safe_document_path(file_path):
+            raise ValueError(f"Unsafe document file path rejected: {file_path!r}")
+
         document.status = "processing"
         document.updated_at = datetime.now(UTC)
         await self.repository.update(document)
