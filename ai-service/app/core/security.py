@@ -138,11 +138,7 @@ def get_user_id_from_token(payload: dict) -> str:
     (ClaimTypes.NameIdentifier) with the same GUID. The short `nameid` form is kept only
     for backward compatibility with early contract tokens.
     """
-    value = (
-        payload.get("sub")
-        or payload.get(NAME_IDENTIFIER_CLAIM)
-        or payload.get("nameid")
-    )
+    value = payload.get("sub") or payload.get(NAME_IDENTIFIER_CLAIM) or payload.get("nameid")
     if value is None:
         raise _auth_error(401, ERR_MISSING_CLAIM)
     return _parse_guid(value)

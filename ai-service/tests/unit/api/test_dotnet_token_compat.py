@@ -142,9 +142,7 @@ def test_invalid_audience_rejected(client):
 def test_expired_token_rejected(client):
     resp = client.get(
         "/api/v1/ai/models",
-        headers={
-            "Authorization": f"Bearer {dotnet_token(exp=datetime.now(UTC) - timedelta(hours=1))}"
-        },
+        headers={"Authorization": f"Bearer {dotnet_token(exp=datetime.now(UTC) - timedelta(hours=1))}"},
     )
     assert resp.status_code == 401
 
@@ -163,7 +161,9 @@ def test_missing_security_stamp_rejected(client):
 
 
 def test_missing_required_claim_rejected(client):
-    payload = pyjwt.decode(dotnet_token(), SECRET, algorithms=["HS256"], options={"verify_aud": False, "verify_iss": False})
+    payload = pyjwt.decode(
+        dotnet_token(), SECRET, algorithms=["HS256"], options={"verify_aud": False, "verify_iss": False}
+    )
     payload.pop("sub")
     raw = pyjwt.encode(payload, SECRET, algorithm="HS256")
     resp = client.get(
