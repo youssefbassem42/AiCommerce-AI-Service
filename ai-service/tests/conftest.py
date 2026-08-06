@@ -67,6 +67,7 @@ def override_auth_dependencies(app) -> None:
             auth_deps.get_current_store_id: lambda: store_id,
             auth_deps.get_current_organization_id: lambda: org_id,
             auth_deps.get_optional_organization_id: lambda: org_id,
+            auth_deps.get_optional_store_id: lambda: store_id,
         }
     )
 

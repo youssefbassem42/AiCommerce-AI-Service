@@ -11,7 +11,7 @@ class UploadDocumentCommand:
     mime_type: str
     file_size: int
     uploaded_by: str
-    organization_id: str
-    store_id: str
+    organization_id: str | None = None
+    store_id: str | None = None
     knowledge_scope: str = "general"
     document_metadata: dict[str, Any] | None = None

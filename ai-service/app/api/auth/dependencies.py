@@ -32,6 +32,14 @@ def get_current_store_id(request: Request) -> str:
     return str(user.store_id)
 
 
+def get_optional_store_id(request: Request) -> str | None:
+    """Store ID from the JWT `store_id` claim when present, else None."""
+    user = getattr(request.state, "user", None)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERR_MISSING_HEADER)
+    return str(user.store_id) if user.has_store else None
+
+
 def get_current_organization_id(request: Request) -> str:
     """Organization ID from the validated JWT `org_id` claim only (contract §9)."""
     user = getattr(request.state, "user", None)

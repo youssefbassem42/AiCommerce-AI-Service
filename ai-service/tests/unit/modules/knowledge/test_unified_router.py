@@ -178,6 +178,100 @@ class TestUnifiedDocumentEndpoints:
         assert resp.status_code == 404
 
 
+class TestUploadScoping:
+    """Upload must work when the JWT has no org/store claims (.NET never issues org).
+
+    Contract: org/store are optional claims; missing claims fall back to the
+    "default" tenant partition instead of 403.
+    """
+
+    @pytest.fixture
+    def missing_tenant_claims(self, client):
+        from app.api.auth import dependencies as auth_deps
+        from app.main import app
+
+        app.dependency_overrides[auth_deps.get_optional_organization_id] = lambda: None
+        app.dependency_overrides[auth_deps.get_optional_store_id] = lambda: None
+        yield
+        app.dependency_overrides.clear()
+
+    def _upload(self, client):
+        return client.post(
+            "/api/v1/knowledge-base/upload",
+            files={"file": ("sample.txt", b"hello", "text/plain")},
+        )
+
+    def test_upload_ok_without_org_or_store_claims(self, client, mock_upload_service, missing_tenant_claims):
+        from app.application.knowledge.dto import UploadDTO
+
+        mock_upload_service.upload.return_value = UploadDTO(
+            id="up-1",
+            original_filename="sample.txt",
+            stored_filename="up-1.txt",
+            file_path="/tmp/up-1.txt",
+            file_size=5,
+            mime_type="text/plain",
+            extension=".txt",
+            checksum="abc",
+            content_type="text/plain",
+            uploaded_by="11111111-1111-1111-1111-111111111111",
+            organization_id="default",
+            store_id="default",
+            knowledge_scope="general",
+            status="uploaded",
+            document_metadata=__import__(
+                "app.application.knowledge.dto", fromlist=["DocumentMetadataDTO"]
+            ).DocumentMetadataDTO(),
+            virus_scan_status="pending",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+
+        resp = self._upload(client)
+        assert resp.status_code == 201
+
+        command = mock_upload_service.upload.await_args.args[0]
+        assert command.organization_id == "default"
+        assert command.store_id == "default"
+        assert command.uploaded_by == "11111111-1111-1111-1111-111111111111"
+
+    def test_upload_keeps_claims_when_present(self, client, mock_upload_service):
+        from app.application.knowledge.dto import UploadDTO
+
+        mock_upload_service.upload.return_value = UploadDTO(
+            id="up-2",
+            original_filename="sample.txt",
+            stored_filename="up-2.txt",
+            file_path="/tmp/up-2.txt",
+            file_size=5,
+            mime_type="text/plain",
+            extension=".txt",
+            checksum="def",
+            content_type="text/plain",
+            uploaded_by="11111111-1111-1111-1111-111111111111",
+            organization_id="org-1",
+            store_id="store-1",
+            knowledge_scope="general",
+            status="uploaded",
+            document_metadata=__import__(
+                "app.application.knowledge.dto", fromlist=["DocumentMetadataDTO"]
+            ).DocumentMetadataDTO(),
+            virus_scan_status="pending",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+
+        resp = client.post(
+            "/api/v1/knowledge-base/upload",
+            files={"file": ("sample.txt", b"hello", "text/plain")},
+        )
+        assert resp.status_code == 201
+
+        command = mock_upload_service.upload.await_args.args[0]
+        assert command.organization_id == "org-1"
+        assert command.store_id == "store-1"
+
+
 class TestUnifiedAsyncEndpoints:
     @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
     @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)

@@ -9,6 +9,7 @@ from app.api.auth.dependencies import (
     get_current_store_id,
     get_current_user,
     get_optional_organization_id,
+    get_optional_store_id,
     require_admin_role,
 )
 from app.api.knowledge.dependencies import (
@@ -95,8 +96,8 @@ def get_job_dispatcher() -> JobDispatcher:
 async def upload_document(
     file: UploadFile,
     user: AuthenticatedUser = Depends(get_current_user),
-    organization_id: str = Depends(get_current_organization_id),
-    store_id: str = Depends(get_current_store_id),
+    organization_id: str | None = Depends(get_optional_organization_id),
+    store_id: str | None = Depends(get_optional_store_id),
     knowledge_scope: str = Query(default="general"),
     service: DocumentUploadService = Depends(get_document_upload_service),
 ) -> UploadResponseSchema:
@@ -112,8 +113,8 @@ async def upload_document(
         mime_type=mime_type,
         file_size=file_size,
         uploaded_by=str(user.user_id),
-        organization_id=organization_id,
-        store_id=store_id,
+        organization_id=organization_id or "default",
+        store_id=store_id or "default",
         knowledge_scope=knowledge_scope,
     )
     result = await service.upload(command)

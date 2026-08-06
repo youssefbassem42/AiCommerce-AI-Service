@@ -14,8 +14,8 @@ class UploadCreateDTO(BaseModel):
     extension: str
     checksum: str
     uploaded_by: str
-    organization_id: str
-    store_id: str
+    organization_id: str | None = None
+    store_id: str | None = None
     knowledge_scope: str = Field(default="general")
     document_metadata: DocumentMetadataDTO = Field(default_factory=DocumentMetadataDTO)
     content_type: str = "document"
@@ -34,8 +34,8 @@ class UploadDTO(BaseModel):
     checksum: str
     content_type: str
     uploaded_by: str
-    organization_id: str
-    store_id: str
+    organization_id: str | None = None
+    store_id: str | None = None
     knowledge_scope: str
     status: str
     document_metadata: DocumentMetadataDTO
