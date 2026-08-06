@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends
 
 from app.api.ai.dependencies import get_ai_service
+from app.api.auth.dependencies import get_current_user
 from app.api.chat.schemas import ChatRequest, ChatResponse
 from app.application.dto.ai_dto import ChatRequest as AIChatRequest
 from app.application.dto.ai_dto import MessageDTO
 from app.application.services.chat_service import ChatService
 from app.core.ai_settings import ai_settings
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 @router.post("/chat", response_model=ChatResponse)

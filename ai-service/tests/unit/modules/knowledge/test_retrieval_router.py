@@ -40,8 +40,9 @@ def client():
     from fastapi.testclient import TestClient
 
     from app.main import app
+    from tests.conftest import admin_headers
 
-    return TestClient(app)
+    return TestClient(app, headers=admin_headers())
 
 
 class TestRetrievalRouterSearch:

@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends
 
+from app.api.auth.dependencies import get_current_user
 from app.api.rag.dependencies import get_tenant_context
 from app.api.recommendation.dependencies import (
     get_bundle_service,
@@ -21,7 +22,11 @@ from app.domain.knowledge.value_objects.tenant_context import TenantContext
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/recommendations", tags=["Recommendations"])
+router = APIRouter(
+    prefix="/api/v1/recommendations",
+    tags=["Recommendations"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.post(

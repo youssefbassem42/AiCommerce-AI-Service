@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.api.ai.dependencies import get_ai_service
 from app.application.dto.ai_dto import ChatResponse, MessageDTO, UsageDTO
 from app.main import app
+from tests.conftest import override_auth_dependencies
 
 
 def test_chat_endpoint():
@@ -20,6 +21,7 @@ def test_chat_endpoint():
     mock_service.chat = AsyncMock(return_value=mock_response)
 
     app.dependency_overrides[get_ai_service] = lambda: mock_service
+    override_auth_dependencies(app)
     client = TestClient(app)
 
     try:

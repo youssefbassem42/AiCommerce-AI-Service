@@ -54,7 +54,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.email = user.email
         request.state.store_id = str(user.store_id) if user.store_id else None
         request.state.organization_id = str(user.organization_id) if user.organization_id else None
-        request.state.roles = [user.role] if user.role else []
+        request.state.roles = user.roles or ([user.role] if user.role else [])
         request.state.permissions = user.permissions
         request.state.security_stamp = user.security_stamp
         request.state.jti = user.jti

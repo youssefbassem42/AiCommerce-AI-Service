@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 
+from app.api.auth.dependencies import get_current_user
 from app.api.knowledge.retrieval_dependencies import get_retriever_service
 from app.api.knowledge.retrieval_schemas import RetrievalRequestSchema, RetrievalResponseSchema, RetrievedChunkSchema
 from app.application.knowledge.retrieval import RetrieverService
@@ -9,7 +10,11 @@ from app.application.knowledge.retrieval.config import RetrievalConfig, Retrieva
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/knowledge/retrieval", tags=["Knowledge Retrieval"])
+router = APIRouter(
+    prefix="/knowledge/retrieval",
+    tags=["Knowledge Retrieval"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 def _resolve_filters(payload: RetrievalRequestSchema, request: Request) -> RetrievalFilters:

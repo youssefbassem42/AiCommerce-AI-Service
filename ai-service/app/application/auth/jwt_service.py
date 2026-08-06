@@ -15,6 +15,7 @@ from app.core.security import (
     get_organization_id_from_token,
     get_permissions_from_token,
     get_role_from_token,
+    get_roles_from_token,
     get_security_stamp_from_token,
     get_store_id_from_token,
     get_user_id_from_token,
@@ -33,10 +34,12 @@ class JWTValidationService:
 
     def validate(self, token: str) -> AuthenticatedUser:
         payload = decode_jwt(token)
+        roles = get_roles_from_token(payload)
         return AuthenticatedUser(
             user_id=get_user_id_from_token(payload),
             email=get_email_from_token(payload),
-            role=get_role_from_token(payload) or "",
+            role=roles[0] if roles else (get_role_from_token(payload) or ""),
+            roles=roles,
             security_stamp=get_security_stamp_from_token(payload),
             jti=get_jti_from_token(payload),
             store_id=get_store_id_from_token(payload),

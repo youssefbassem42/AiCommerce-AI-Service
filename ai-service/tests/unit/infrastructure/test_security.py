@@ -14,6 +14,7 @@ from app.core.security import (
     ERR_EXPIRED,
     ERR_INVALID_FORMAT,
     ERR_MISSING_CLAIM,
+    NAME_IDENTIFIER_CLAIM,
     ROLE_CLAIM,
     JWTAuthenticationError,
     decode_jwt,
@@ -43,7 +44,9 @@ class TestJwtSecurity:
         self.secret = "test-secret-key-for-testing"
         self.valid_payload = {
             "sub": USER_GUID,
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier": USER_GUID,
             "email": "user-1@example.com",
+            "security_stamp": "test-security-stamp",
             "store_id": STORE_GUID,
             "org_id": ORG_GUID,
             ROLE_CLAIM: "Admin",
@@ -127,6 +130,29 @@ class TestJwtSecurity:
         assert exc_info.value.detail == ERR_MISSING_CLAIM
 
     @patch("app.core.security.auth_settings")
+    def test_decode_missing_security_stamp(self, mock_settings):
+        """Preconditions: Token without `security_stamp` (as .NET would reject in OnTokenValidated).
+        Expected: 401 ERR_MISSING_CLAIM."""
+        self._patch_settings(mock_settings)
+        payload = self.valid_payload.copy()
+        payload.pop("security_stamp")
+        with pytest.raises(JWTAuthenticationError) as exc_info:
+            decode_jwt(pyjwt.encode(payload, self.secret, algorithm="HS256"))
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == ERR_MISSING_CLAIM
+
+    @patch("app.core.security.auth_settings")
+    def test_decode_empty_security_stamp_rejected(self, mock_settings):
+        """Preconditions: Token with blank security_stamp. Expected: 401 ERR_MISSING_CLAIM
+        (mirrors .NET string.IsNullOrWhiteSpace check)."""
+        self._patch_settings(mock_settings)
+        payload = self.valid_payload.copy()
+        payload["security_stamp"] = "   "
+        with pytest.raises(JWTAuthenticationError) as exc_info:
+            decode_jwt(pyjwt.encode(payload, self.secret, algorithm="HS256"))
+        assert exc_info.value.detail == ERR_MISSING_CLAIM
+
+    @patch("app.core.security.auth_settings")
     def test_decode_invalid_token(self, mock_settings):
         """Preconditions: Garbage token string. Expected: 401 ERR_INVALID_FORMAT."""
         self._patch_settings(mock_settings)
@@ -167,6 +193,17 @@ class TestJwtSecurity:
     def test_get_user_id_from_nameid(self):
         """Preconditions: Payload with nameid. Expected: nameid value."""
         payload = {"nameid": USER_GUID}
+        assert get_user_id_from_token(payload) == USER_GUID
+
+    def test_get_user_id_from_nameidentifier_uri(self):
+        """Preconditions: Payload with the ASP.NET ClaimTypes.NameIdentifier URI (what .NET actually emits).
+        Expected: URI value."""
+        payload = {NAME_IDENTIFIER_CLAIM: USER_GUID}
+        assert get_user_id_from_token(payload) == USER_GUID
+
+    def test_get_user_id_prefers_sub(self):
+        """Preconditions: Payload with both sub and NameIdentifier URI. Expected: sub wins."""
+        payload = {"sub": USER_GUID, NAME_IDENTIFIER_CLAIM: ORG_GUID}
         assert get_user_id_from_token(payload) == USER_GUID
 
     def test_get_user_id_missing(self):
@@ -214,6 +251,17 @@ class TestJwtSecurity:
     def test_get_roles_from_token_empty_when_absent(self):
         """Preconditions: No role claims. Expected: empty list."""
         assert get_roles_from_token({"sub": USER_GUID}) == []
+
+    def test_get_roles_from_token_multiple(self):
+        """Preconditions: Multiple role claims (JSON array) as .NET emits them.
+        Expected: ALL roles mapped — .NET User.IsInRole matches any of them."""
+        payload = {ROLE_CLAIM: ["Seller", "Admin"]}
+        assert get_roles_from_token(payload) == ["Seller", "admin"]
+
+    def test_get_role_from_token_primary_from_list(self):
+        """Preconditions: Multiple role claims. Expected: first entry is the primary role."""
+        payload = {ROLE_CLAIM: ["SuperAdmin", "Admin"]}
+        assert get_role_from_token(payload) == "super_admin"
 
     def test_get_permissions_from_token_single(self):
         """Preconditions: Permission claim as a string. Expected: single-element list."""

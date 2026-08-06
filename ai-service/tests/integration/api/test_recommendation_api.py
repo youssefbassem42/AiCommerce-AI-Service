@@ -11,12 +11,13 @@ from app.application.recommendation.dto.recommendation_dto import (
 )
 from app.main import app
 from app.middleware.audit import AuditMiddleware
+from tests.conftest import admin_headers
 
 
 @pytest.fixture
 def client():
     with patch.object(AuditMiddleware, "_log_audit_entry", AsyncMock()):
-        yield TestClient(app, raise_server_exceptions=False)
+        yield TestClient(app, raise_server_exceptions=False, headers=admin_headers())
 
 
 @pytest.fixture

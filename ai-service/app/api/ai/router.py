@@ -15,13 +15,14 @@ from app.api.ai.schemas import (
     StreamingSchema,
     StructuredOutputSchema,
 )
+from app.api.auth.dependencies import get_current_user
 from app.application.dto.ai_dto import ChatRequest, EmbeddingRequest
 from app.application.services.chat_service import ChatService
 from app.core.ai_settings import ai_settings
 from app.core.model_registry import ModelRegistry
 from app.infrastructure.providers.factory import LLMProviderFactory
 
-router = APIRouter(prefix="/api/v1/ai", tags=["AI"])
+router = APIRouter(prefix="/api/v1/ai", tags=["AI"], dependencies=[Depends(get_current_user)])
 
 ECOMMERCE_SYSTEM_PROMPT = (
     "You are an AI assistant for an e-commerce SaaS platform called DigitalHippo. "

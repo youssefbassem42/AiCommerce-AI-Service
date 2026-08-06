@@ -72,15 +72,25 @@ def override_auth_dependencies(app) -> None:
 
 
 def admin_headers(role: str = "Admin", store_id: str = "22222222-2222-2222-2222-222222222222") -> dict[str, str]:
-    """Bearer headers using a contract-compliant token for integration tests."""
+    """Bearer headers using a contract-compliant token for integration tests.
+
+    Mirrors the exact claim set the .NET backend emits (sub + ASP.NET NameIdentifier URI,
+    email + emailaddress URI, security_stamp, role URI, store_id, org_id optional).
+    """
     from datetime import UTC, datetime, timedelta
 
     import jwt as pyjwt
 
     from app.core.auth_settings import auth_settings
+    from app.core.security import EMAIL_CLAIM, NAME_IDENTIFIER_CLAIM
 
+    user_guid = "11111111-1111-1111-1111-111111111111"
     payload = {
-        "sub": "11111111-1111-1111-1111-111111111111",
+        "sub": user_guid,
+        NAME_IDENTIFIER_CLAIM: user_guid,
+        "email": "admin@example.com",
+        EMAIL_CLAIM: "admin@example.com",
+        "security_stamp": "test-security-stamp",
         "store_id": store_id,
         "org_id": "33333333-3333-3333-3333-333333333333",
         "http://schemas.microsoft.com/ws/2008/06/identity/claims/role": role,

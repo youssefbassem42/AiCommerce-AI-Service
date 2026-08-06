@@ -14,6 +14,7 @@ from app.middleware.audit import AuditMiddleware
 def _admin_headers() -> dict[str, str]:
     payload = {
         "sub": "11111111-1111-1111-1111-111111111111",
+        "security_stamp": "test-security-stamp",
         "store_id": "22222222-2222-2222-2222-222222222222",
         "org_id": "33333333-3333-3333-3333-333333333333",
         "http://schemas.microsoft.com/ws/2008/06/identity/claims/role": "Admin",

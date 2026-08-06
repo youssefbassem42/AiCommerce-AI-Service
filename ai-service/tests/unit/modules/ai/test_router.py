@@ -6,6 +6,14 @@ from fastapi.testclient import TestClient
 from app.api.ai.dependencies import get_ai_service
 from app.application.dto.ai_dto import ChatResponse, EmbeddingResponse, MessageDTO, UsageDTO
 from app.main import app
+from tests.conftest import override_auth_dependencies
+
+
+@pytest.fixture(autouse=True)
+def auth_bypassed():
+    override_auth_dependencies(app)
+    yield
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture

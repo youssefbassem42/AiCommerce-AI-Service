@@ -21,6 +21,7 @@ class AuthenticatedUser(BaseModel):
     user_id: uuid.UUID
     email: str | None = Field(default=None)
     role: str = Field(default="")
+    roles: list[str] = Field(default_factory=list)
     security_stamp: str | None = Field(default=None)
     jti: str | None = Field(default=None)
     store_id: uuid.UUID | None = Field(default=None)
@@ -31,7 +32,7 @@ class AuthenticatedUser(BaseModel):
 
     @property
     def is_super_admin(self) -> bool:
-        return self.role == "super_admin"
+        return self.role == "super_admin" or "super_admin" in self.roles
 
     @property
     def has_store(self) -> bool:

@@ -35,7 +35,9 @@ def create_mock_request(path="/api/v1/chat", auth_header=None, method="GET"):
 def _contract_token(secret: str, **overrides) -> str:
     payload = {
         "sub": USER_GUID,
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier": USER_GUID,
         "email": "user-1@example.com",
+        "security_stamp": "test-security-stamp",
         "store_id": STORE_GUID,
         "org_id": ORG_GUID,
         ROLE_CLAIM: "Admin",

@@ -19,7 +19,9 @@ ROLE_CLAIM = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
 def _token(role: str | None, *, store_id: str | None = STORE_GUID) -> str:
     payload = {
         "sub": USER_GUID,
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier": USER_GUID,
         "email": "admin@example.com",
+        "security_stamp": "test-security-stamp",
         "store_id": store_id,
         "org_id": ORG_GUID,
         "iss": ISSUER,

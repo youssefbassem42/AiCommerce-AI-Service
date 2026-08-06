@@ -13,15 +13,39 @@ import jwt as pyjwt
 
 from app.core.auth_settings import auth_settings
 
-# ASP.NET claim URIs (contract section 4)
+# ASP.NET claim URIs (contract section 4).
+# .NET's JwtTokenService writes ClaimTypes.* as long-form URIs (no outbound claim
+# mapping is applied when a JwtSecurityToken is constructed from Claim objects), so
+# FastAPI must read the exact URIs the .NET backend emits.
 ROLE_CLAIM = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
 EMAIL_CLAIM = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+NAME_IDENTIFIER_CLAIM = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
+
+# The .NET backend adds the ASP.NET security stamp as the `security_stamp` claim and
+# rejects (OnTokenValidated -> context.Fail) any token that lacks it. FastAPI mirrors the
+# presence requirement; value comparison is out of scope (requires the .NET user DB).
+SECURITY_STAMP_CLAIM = "security_stamp"
 
 # Contract section 6: exact role values, normalized to internal lowercase names.
 ROLE_MAPPING = {
     "Admin": "admin",
     "SuperAdmin": "super_admin",
 }
+
+# Contract section 6 / .NET Permissions.All: the exact permission values the .NET
+# PermissionAuthorizationHandler checks against the repeatable `permission` claim.
+PERMISSION_USERS_MANAGE = "Users.Manage"
+PERMISSION_STORES_READ = "Stores.Read"
+PERMISSION_STORES_MANAGE = "Stores.Manage"
+PERMISSION_SUBSCRIPTIONS_MANAGE = "Subscriptions.Manage"
+PERMISSION_ORGANIZATIONS_MANAGE = "Organizations.Manage"
+PERMISSIONS_ALL = (
+    PERMISSION_USERS_MANAGE,
+    PERMISSION_STORES_READ,
+    PERMISSION_STORES_MANAGE,
+    PERMISSION_SUBSCRIPTIONS_MANAGE,
+    PERMISSION_ORGANIZATIONS_MANAGE,
+)
 
 # Contract section 11: exact error responses.
 ERR_MISSING_HEADER = "Authorization header is missing"
@@ -54,9 +78,12 @@ def decode_jwt(token: str) -> dict:
 
     Enforces signature, issuer, audience and expiration exactly as configured on the
     .NET backend (ValidateIssuer/Audience/Lifetime/IssuerSigningKey, ClockSkew zero).
+    Additionally requires the `security_stamp` claim, mirroring the .NET
+    OnTokenValidated presence check (the stamp VALUE is only compared against the
+    .NET user store, which a resource server cannot do).
     """
     try:
-        return pyjwt.decode(
+        payload = pyjwt.decode(
             token,
             auth_settings.JWT_SECRET,
             algorithms=[auth_settings.JWT_ALGORITHM],
@@ -68,7 +95,7 @@ def decode_jwt(token: str) -> dict:
                 "verify_exp": True,
                 "verify_iss": True,
                 "verify_aud": True,
-                "require": ["sub", "exp", "iss", "aud"],
+                "require": ["sub", "exp", "iss", "aud", SECURITY_STAMP_CLAIM],
             },
         )
     except pyjwt.ExpiredSignatureError as exc:
@@ -83,6 +110,10 @@ def decode_jwt(token: str) -> dict:
         raise _auth_error(401, ERR_MISSING_CLAIM) from exc
     except pyjwt.InvalidTokenError as exc:
         raise _auth_error(401, ERR_INVALID_FORMAT) from exc
+
+    if not isinstance(payload.get(SECURITY_STAMP_CLAIM), str) or not payload[SECURITY_STAMP_CLAIM].strip():
+        raise _auth_error(401, ERR_MISSING_CLAIM)
+    return payload
 
 
 def verify_jwt(token: str) -> dict:
@@ -100,8 +131,18 @@ def _parse_guid(value: object) -> str | None:
 
 
 def get_user_id_from_token(payload: dict) -> str:
-    """User ID from `sub` (primary) or `nameid` — both carry the same GUID (contract §3/§8)."""
-    value = payload.get("sub") or payload.get("nameid")
+    """User ID from `sub` (primary) or the ASP.NET NameIdentifier claim (contract §3/§8).
+
+    .NET writes BOTH `sub` (JwtRegisteredClaimNames.Sub) and
+    `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier`
+    (ClaimTypes.NameIdentifier) with the same GUID. The short `nameid` form is kept only
+    for backward compatibility with early contract tokens.
+    """
+    value = (
+        payload.get("sub")
+        or payload.get(NAME_IDENTIFIER_CLAIM)
+        or payload.get("nameid")
+    )
     if value is None:
         raise _auth_error(401, ERR_MISSING_CLAIM)
     return _parse_guid(value)
@@ -113,17 +154,39 @@ def get_email_from_token(payload: dict) -> str | None:
 
 
 def get_role_from_token(payload: dict) -> str | None:
-    """Role from the ASP.NET long-form URI claim ONLY (contract §4 — never `role`/`roles`)."""
+    """Primary role from the ASP.NET long-form URI claim ONLY (contract §4 — never `role`/`roles`).
+
+    When .NET emits several role claims they serialize as a JSON array; the first entry is
+    the primary role. Each value is normalized (Admin -> admin, SuperAdmin -> super_admin).
+    """
     value = payload.get(ROLE_CLAIM)
-    if isinstance(value, str) and value:
-        return ROLE_MAPPING.get(value, value)
-    return None
+    roles = _as_string_list(value)
+    if not roles:
+        return None
+    return ROLE_MAPPING.get(roles[0], roles[0])
 
 
 def get_roles_from_token(payload: dict) -> list:
-    """Role list for request.state compatibility; empty when the contract role claim is absent."""
-    role = get_role_from_token(payload)
-    return [role] if role else []
+    """ALL roles from the ASP.NET long-form role claim(s) (contract §6).
+
+    Mirrors .NET `claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)))`
+    — a user can hold several roles, and .NET's `User.IsInRole(role)` matches any of them.
+    Empty when no role claim is present.
+    """
+    value = payload.get(ROLE_CLAIM)
+    roles = _as_string_list(value)
+    return [ROLE_MAPPING.get(r, r) for r in roles]
+
+
+def _as_string_list(value: object) -> list[str]:
+    """Normalize a single claim value or a repeated-claim JSON array to a string list."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [v for v in value if isinstance(v, str) and v]
+    if isinstance(value, str) and value:
+        return [value]
+    return []
 
 
 def get_store_id_from_token(payload: dict) -> str | None:
