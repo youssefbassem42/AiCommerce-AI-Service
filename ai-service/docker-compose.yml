@@ -17,7 +17,9 @@ x-shared-env: &shared-env
 
 services:
   ai-service:
-    build: .
+    build:
+      context: ..
+      dockerfile: ai-service/Dockerfile
     ports:
       - "${PORT:-8000}:8000"
     environment: *shared-env
@@ -37,7 +39,9 @@ services:
       start_period: 15s
 
   celery-worker:
-    build: .
+    build:
+      context: ..
+      dockerfile: ai-service/Dockerfile
     command: celery -A app.core.celery_app worker --loglevel=info
     environment: *shared-env
     depends_on:
@@ -46,7 +50,9 @@ services:
     restart: unless-stopped
 
   celery-beat:
-    build: .
+    build:
+      context: ..
+      dockerfile: ai-service/Dockerfile
     command: celery -A app.core.celery_app beat --loglevel=info
     environment: *shared-env
     depends_on:

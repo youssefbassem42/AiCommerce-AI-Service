@@ -2,8 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY pyproject.toml .
-COPY app/ ./app/
+COPY ai-service/pyproject.toml .
+COPY ai-service/app/ ./app/
 
 RUN pip install --no-cache-dir .
 
