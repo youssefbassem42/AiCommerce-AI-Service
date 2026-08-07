@@ -62,7 +62,7 @@ class TestKnowledgeDocument:
             title="Test Doc",
         )
         assert doc.id == "doc-1"
-        assert doc.status == "draft"
+        assert doc.status == "processing"
         assert doc.language == "en"
         assert doc.current_version == 1
         assert doc.chunking_strategy == "manual"

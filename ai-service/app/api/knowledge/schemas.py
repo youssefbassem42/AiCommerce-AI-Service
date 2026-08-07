@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+DOCUMENT_STATUS = Literal["processing", "active", "error"]
 
 
 class DocumentMetadataSchema(BaseModel):
@@ -60,7 +62,7 @@ class KnowledgeDocumentCreateSchema(BaseModel):
     title: str
     description: str | None = None
     source_url: str | None = None
-    status: str = Field(default="draft")
+    status: DOCUMENT_STATUS = "processing"
     language: str = Field(default="en")
     metadata: DocumentMetadataSchema = Field(default_factory=DocumentMetadataSchema)
     versions: list[DocumentVersionSchema] = Field(default_factory=list)
@@ -73,7 +75,7 @@ class KnowledgeDocumentUpdateSchema(BaseModel):
     title: str | None = None
     description: str | None = None
     source_url: str | None = None
-    status: str | None = None
+    status: DOCUMENT_STATUS | None = None
     language: str | None = None
     metadata: DocumentMetadataSchema | None = None
     versions: list[DocumentVersionSchema] | None = None

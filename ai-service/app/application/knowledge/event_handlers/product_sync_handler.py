@@ -26,7 +26,7 @@ class ProductSyncHandler(IEventHandler[ProductSynced]):
         )
         docs = await self._knowledge_repository.find_many({"store_id": event.store_id, "status": "active"})
         for doc in docs:
-            doc.status = "pending_reprocess"
+            doc.status = "processing"
             await self._knowledge_repository.update(doc)
 
 

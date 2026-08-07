@@ -420,7 +420,7 @@ class DocumentUploadService:
             title=upload.original_filename,
             description=f"Uploaded {upload.knowledge_scope} knowledge document (source: {upload.original_filename}).",
             source_url=upload.file_path,
-            status="draft",
+            status="processing",
             language=stored_metadata.language,
             metadata=document_metadata,
             versions=[
@@ -482,7 +482,7 @@ class DocumentUploadService:
         )
         existing.current_version = next_version
         existing.source_url = upload.file_path
-        existing.status = "draft"
+        existing.status = "processing"
         existing.processed_text = None
         existing.page_count = None
         existing.word_count = None

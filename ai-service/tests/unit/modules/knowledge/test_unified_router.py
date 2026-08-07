@@ -123,7 +123,7 @@ def make_doc_dto(**overrides):
         "id": "doc-1",
         "store_id": "store-1",
         "title": "Test Doc",
-        "status": "draft",
+        "status": "processing",
         "language": "en",
         "metadata": DocumentMetadataDTO(),
         "versions": [],

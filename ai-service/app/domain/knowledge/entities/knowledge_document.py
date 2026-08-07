@@ -21,7 +21,7 @@ class KnowledgeDocument(AggregateRoot[str]):
         default=None,
         description="URL source of the document if applicable",
     )
-    status: str = Field(default="draft", description="Status of the document")
+    status: str = Field(default="processing", description="Status of the document")
     language: str = Field(default="en", description="Document language")
     metadata: DocumentMetadata = Field(default_factory=DocumentMetadata)
     versions: list[DocumentVersion] = Field(default_factory=list)

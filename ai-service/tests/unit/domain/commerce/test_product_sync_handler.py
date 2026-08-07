@@ -39,7 +39,7 @@ class TestProductSyncHandler:
 
         await handler.handle(event)
 
-        assert existing_doc.status == "pending_reprocess"
+        assert existing_doc.status == "processing"
         knowledge_repo.update.assert_called_once_with(existing_doc)
 
     async def test_product_synced_no_documents_to_invalidate(self):

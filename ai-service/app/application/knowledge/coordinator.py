@@ -211,7 +211,7 @@ class KnowledgeSyncCoordinator:
     async def _invalidate_document_data(self, doc: KnowledgeDocument) -> None:
         existing = await self.knowledge_repository.find_by_id(doc.id)
         if existing:
-            existing.status = "invalidated"
+            existing.status = "processing"
             existing.updated_at = datetime.now(UTC)
             await self.knowledge_repository.update(existing)
 

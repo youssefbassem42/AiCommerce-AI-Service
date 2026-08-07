@@ -91,7 +91,7 @@ class TestKnowledgeDocumentEndpoints:
             "id": "doc-1",
             "store_id": "store-1",
             "title": "Test Doc",
-            "status": "draft",
+            "status": "processing",
             "language": "en",
             "metadata": DocumentMetadataDTO(),
             "versions": [],
@@ -107,7 +107,7 @@ class TestKnowledgeDocumentEndpoints:
     def test_create_document(self, client, mock_doc_service):
         mock_doc_service.create.return_value = self._make_doc_dto()
 
-        payload = {"store_id": "store-1", "title": "Test Doc", "status": "draft"}
+        payload = {"store_id": "store-1", "title": "Test Doc", "status": "processing"}
         resp = client.post("/api/v1/knowledge-base/documents", json=payload)
         assert resp.status_code == 201
 

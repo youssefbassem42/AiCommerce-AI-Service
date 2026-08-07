@@ -45,7 +45,7 @@ def _document_entity(
         store_id=store_id,
         title="faq.txt",
         source_url=source_url,
-        status="draft",
+        status="processing",
         versions=[DocumentVersion(version_number=1, is_current=True, checksum="a" * 64)],
     )
 
@@ -195,7 +195,7 @@ class TestDocumentUploadBridge:
         assert existing.versions[0].is_current is False
         assert existing.versions[1].checksum == "b" * 64
         assert existing.versions[1].is_current is True
-        assert existing.status == "draft"
+        assert existing.status == "processing"
         assert existing.processed_text is None
         assert existing.source_url == "./uploads/new.txt"
         assert existing.metadata.category == "general"

@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel, Field
+
+DOCUMENT_STATUS = Literal["processing", "active", "error"]
 
 
 class DocumentMetadataDTO(BaseModel):
@@ -60,7 +62,7 @@ class KnowledgeDocumentCreateDTO(BaseModel):
     title: str
     description: str | None = None
     source_url: str | None = None
-    status: str = Field(default="draft")
+    status: DOCUMENT_STATUS = "processing"
     language: str = Field(default="en")
     metadata: DocumentMetadataDTO = Field(default_factory=DocumentMetadataDTO)
     versions: list[DocumentVersionDTO] = Field(default_factory=list)

@@ -47,7 +47,7 @@ class KnowledgeDocumentModel(BaseMongoDocument):
     title: str = Field(...)
     description: str | None = None
     source_url: str | None = Field(None)
-    status: str = Field(default="draft", index=True)
+    status: str = Field(default="processing", index=True)
     language: str = Field(default="en")
     metadata: DocumentMetadataModel = Field(default_factory=DocumentMetadataModel)
     versions: list[DocumentVersionModel] = Field(default_factory=list)
