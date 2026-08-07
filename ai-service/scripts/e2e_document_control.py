@@ -106,12 +106,8 @@ def main() -> int:
 
         db_name = "ai_commerce_e2e_test"
         with SyncMongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=3000) as sdb:
-            upload_still_exists = sdb[db_name]["knowledge_uploads"].find_one(
-                {"_id": ObjectId(upload_id)}
-            )
-            doc_still_exists = sdb[db_name]["knowledge_documents"].find_one(
-                {"_id": ObjectId(document_id)}
-            )
+            upload_still_exists = sdb[db_name]["knowledge_uploads"].find_one({"_id": ObjectId(upload_id)})
+            doc_still_exists = sdb[db_name]["knowledge_documents"].find_one({"_id": ObjectId(document_id)})
         check("linked upload row removed", upload_still_exists is None)
         check("document row removed", doc_still_exists is None)
 
@@ -132,9 +128,7 @@ if __name__ == "__main__":
         try:
             from pymongo import MongoClient as SyncMongoClient
 
-            with SyncMongoClient(
-                "mongodb://localhost:27017/", serverSelectionTimeoutMS=3000
-            ) as sdb:
+            with SyncMongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=3000) as sdb:
                 sdb.drop_database("ai_commerce_e2e_test")
         except Exception:
             pass
