@@ -381,12 +381,32 @@ class DocumentUploadService:
             return result
 
         if self.knowledge_repository is not None:
-            document_id, changed = await self._create_or_update_knowledge_document(result)
+            try:
+                document_id, changed = await self._create_or_update_knowledge_document(result)
+            except Exception:
+                logger.exception(
+                    "Knowledge document creation failed; rolling back upload",
+                    extra={"upload_id": result.id, "store_id": result.store_id},
+                )
+                await self._rollback_upload(result)
+                raise
             result = result.model_copy(update={"document_id": document_id, "content_changed": changed})
             if changed:
                 self._enqueue_reprocess(result)
 
         return result
+
+    async def _rollback_upload(self, upload: "UploadDTO") -> None:
+        """Best-effort removal of the upload row and stored file after a failed document step."""
+        try:
+            await self.repository.delete(upload.id)
+        except Exception:
+            logger.exception("Failed to delete upload row during rollback", extra={"upload_id": upload.id})
+        if upload.file_path:
+            try:
+                self.storage.delete(upload.file_path)
+            except Exception:
+                logger.exception("Failed to delete stored file during rollback", extra={"file_path": upload.file_path})
 
     async def _create_or_update_knowledge_document(self, upload: "UploadDTO") -> tuple[str, bool]:
         """Create a knowledge document for the upload, or bump the store's existing one.

@@ -2,12 +2,14 @@ import hashlib
 import logging
 import os
 import uuid
+from contextlib import suppress
 from datetime import UTC, datetime
 
 from bson import ObjectId
 
 from app.application.knowledge.commands.upload_command import UploadDocumentCommand
 from app.application.knowledge.dto.upload_dto import UploadDTO
+from app.core.exceptions import ConcurrencyException
 from app.domain.knowledge.entities.document_upload import DocumentUpload
 from app.domain.knowledge.exceptions import (
     FileValidationException,
@@ -76,7 +78,8 @@ class UploadDocumentHandler:
 
         existing = await self.repository.find_by_checksum(checksum, store_id=command.store_id)
         if existing is not None:
-            os.remove(command.file_path)
+            with suppress(FileNotFoundError):
+                os.remove(command.file_path)
             logger.info(
                 "Duplicate upload within store; returning existing upload",
                 extra={
@@ -89,9 +92,16 @@ class UploadDocumentHandler:
 
         ext = os.path.splitext(command.original_filename)[1]
         stored_filename = f"{uuid.uuid4().hex}{ext}"
-        stored_path = self.storage.save(command.file_path, stored_filename)
 
-        os.remove(command.file_path)
+        try:
+            stored_path = self.storage.save(command.file_path, stored_filename)
+        except Exception:
+            with suppress(FileNotFoundError):
+                os.remove(command.file_path)
+            raise
+
+        with suppress(FileNotFoundError):
+            os.remove(command.file_path)
 
         metadata_dict = command.document_metadata or {}
         document_metadata = DocumentMetadata(**metadata_dict)
@@ -117,7 +127,28 @@ class UploadDocumentHandler:
             updated_at=datetime.now(UTC),
         )
 
-        created = await self.repository.create(entity)
+        try:
+            created = await self.repository.create(entity)
+        except ConcurrencyException:
+            # A concurrent request inserted the same (checksum, store_id) first.
+            # Drop the file we just stored and return the winning upload idempotently.
+            self._cleanup_stored_file(stored_path)
+            winner = await self.repository.find_by_checksum(checksum, store_id=command.store_id)
+            if winner is not None:
+                logger.info(
+                    "Concurrent duplicate upload; returning winner",
+                    extra={
+                        "upload_id": winner.id,
+                        "store_id": command.store_id,
+                        "checksum": checksum[:16],
+                    },
+                )
+                return self._to_dto(winner).model_copy(update={"already_uploaded": True})
+            raise
+        except Exception:
+            self._cleanup_stored_file(stored_path)
+            raise
+
         logger.info(
             "File uploaded",
             extra={
@@ -128,6 +159,12 @@ class UploadDocumentHandler:
             },
         )
         return self._to_dto(created)
+
+    def _cleanup_stored_file(self, stored_path: str) -> None:
+        try:
+            self.storage.delete(stored_path)
+        except Exception:
+            logger.debug("Stored file cleanup failed (already gone?): %s", stored_path)
 
     @staticmethod
     def _to_dto(entity: DocumentUpload) -> UploadDTO:

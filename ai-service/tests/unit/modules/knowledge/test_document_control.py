@@ -4,8 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.application.knowledge.commands.upload_command import UploadDocumentCommand
+from app.application.knowledge.commands.upload_handler import UploadDocumentHandler
 from app.application.knowledge.dto import KnowledgeDocumentUpdateDTO, UploadDTO
 from app.application.knowledge.services import DocumentUploadService, KnowledgeDocumentService
+from app.core.exceptions import ConcurrencyException
 from app.domain.knowledge.entities import DocumentUpload, KnowledgeDocument
 from app.domain.knowledge.exceptions import KnowledgeDocumentNotFoundException
 from app.domain.knowledge.value_objects import DocumentVersion
@@ -277,3 +280,92 @@ class TestKnowledgeDocumentUpdate:
         )
         assert result.title == "faq.txt"
         repo.update.assert_awaited_once()
+
+
+class TestUploadDocumentHandler:
+    @staticmethod
+    def _command(tmp_path, filename: str = "faq.txt") -> UploadDocumentCommand:
+        src = tmp_path / f"src-{filename}"
+        src.write_text("hello knowledge base")
+        return UploadDocumentCommand(
+            file_path=str(src),
+            original_filename=filename,
+            mime_type="text/plain",
+            file_size=src.stat().st_size,
+            uploaded_by="user-1",
+            organization_id="org-1",
+            store_id="store-1",
+            knowledge_scope="general",
+        )
+
+    async def test_concurrent_duplicate_create_returns_existing(self, tmp_path) -> None:
+        repo = MagicMock()
+        repo.create = AsyncMock(side_effect=ConcurrencyException("duplicate key"))
+        winner = _upload_entity(upload_id="upload-9")
+        repo.find_by_checksum = AsyncMock(side_effect=[None, winner])
+        storage = MagicMock()
+        storage.save = MagicMock(return_value="./uploads/stored-1.txt")
+
+        handler = UploadDocumentHandler(repository=repo, storage=storage)
+        result = await handler.handle(self._command(tmp_path))
+
+        assert result.already_uploaded is True
+        assert result.id == "upload-9"
+        storage.delete.assert_called_once_with("./uploads/stored-1.txt")
+        assert not (tmp_path / "src-faq.txt").exists()
+
+    async def test_create_failure_cleans_stored_file_and_reraises(self, tmp_path) -> None:
+        repo = MagicMock()
+        repo.create = AsyncMock(side_effect=RuntimeError("db down"))
+        repo.find_by_checksum = AsyncMock(return_value=None)
+        storage = MagicMock()
+        storage.save = MagicMock(return_value="./uploads/stored-1.txt")
+
+        handler = UploadDocumentHandler(repository=repo, storage=storage)
+        with pytest.raises(RuntimeError, match="db down"):
+            await handler.handle(self._command(tmp_path))
+
+        storage.delete.assert_called_once_with("./uploads/stored-1.txt")
+        assert not (tmp_path / "src-faq.txt").exists()
+
+    async def test_storage_save_failure_removes_temp_file(self, tmp_path) -> None:
+        repo = MagicMock()
+        repo.find_by_checksum = AsyncMock(return_value=None)
+        storage = MagicMock()
+        storage.save = MagicMock(side_effect=OSError("disk full"))
+
+        handler = UploadDocumentHandler(repository=repo, storage=storage)
+        with pytest.raises(OSError, match="disk full"):
+            await handler.handle(self._command(tmp_path))
+
+        assert not (tmp_path / "src-faq.txt").exists()
+
+
+class TestUploadRollback:
+    async def test_upload_rolls_back_row_and_file_when_document_creation_fails(self) -> None:
+        upload_repo = MagicMock()
+        upload_repo.delete = AsyncMock(return_value=True)
+        storage = MagicMock()
+        storage.delete = MagicMock(return_value=True)
+        knowledge_repo = MagicMock()
+        knowledge_repo.find_by_store_and_category = AsyncMock(return_value=[])
+        knowledge_repo.create = AsyncMock(side_effect=RuntimeError("validation failed"))
+        service = DocumentUploadService(
+            repository=upload_repo,
+            storage=storage,
+            knowledge_repository=knowledge_repo,
+        )
+
+        payload = UploadDTO(**_upload_entity().model_dump())
+        with patch(
+            "app.application.knowledge.commands.upload_handler.UploadDocumentHandler",
+            autospec=True,
+        ) as mock_handler_cls:
+            handler = mock_handler_cls.return_value
+            handler.handle = AsyncMock(return_value=payload)
+
+            with pytest.raises(RuntimeError, match="validation failed"):
+                await service.upload(MagicMock())
+
+        upload_repo.delete.assert_awaited_once_with("upload-1")
+        storage.delete.assert_called_once_with("./uploads/abc123.txt")

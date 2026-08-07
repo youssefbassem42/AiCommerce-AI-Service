@@ -42,6 +42,16 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     try:
+        from app.infrastructure.mongodb import ensure_knowledge_upload_indexes
+        from app.infrastructure.mongodb.client import MongoClientManager
+
+        db = MongoClientManager.get_database()
+        if db is not None:
+            await ensure_knowledge_upload_indexes(db)
+    except Exception:
+        logger.warning("Could not reconcile knowledge_uploads indexes at startup", exc_info=True)
+
+    try:
         service = PromptService()
         count = await service.seed_defaults()
         if count:

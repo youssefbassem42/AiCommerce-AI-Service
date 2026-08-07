@@ -6,6 +6,26 @@ from pymongo import ASCENDING, DESCENDING, TEXT, IndexModel
 logger = logging.getLogger(__name__)
 
 
+async def ensure_knowledge_upload_indexes(db) -> None:
+    """Reconcile knowledge_uploads indexes to the scoped (checksum, store_id) uniqueness.
+
+    Idempotent and safe to run at startup: keeps the per-tenant dedup index in place and
+    drops the legacy global `checksum_1` index that could reject legitimate cross-store
+    uploads of identical content.
+    """
+    try:
+        await db["knowledge_uploads"].create_indexes(
+            [
+                IndexModel([("checksum", ASCENDING), ("store_id", ASCENDING)], unique=True),
+            ]
+        )
+        with contextlib.suppress(Exception):
+            await db["knowledge_uploads"].drop_index("checksum_1")
+        logger.info("knowledge_uploads indexes reconciled (checksum+store_id unique).")
+    except Exception:
+        logger.exception("Failed to reconcile knowledge_uploads indexes")
+
+
 async def setup_database_indexes(db) -> None:
     """Create all indexes on collections for fast lookup and query optimization."""
     logger.info("Initializing database indexes...")
