@@ -47,3 +47,16 @@ class ConcurrencyException(InfrastructureException):
 
     def __init__(self, message: str):
         super().__init__(message)
+
+
+class TaskQueueUnavailableException(InfrastructureException):
+    """Raised when an async job cannot be enqueued (e.g. broker is down).
+
+    Keeps request handlers from leaking opaque 500s: callers can surface a
+    clear, actionable message instead of an internal server error.
+    """
+
+    status_code = 503
+
+    def __init__(self, message: str):
+        super().__init__(message)

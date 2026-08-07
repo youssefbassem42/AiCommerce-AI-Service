@@ -297,6 +297,38 @@ class TestUnifiedAsyncEndpoints:
 
     @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
     @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.get_knowledge_jobs_collection")
+    @patch("app.workers.ingestion.tasks.process_document_task")
+    def test_process_document_broker_unavailable(
+        self, mock_task, mock_get_collection, mock_create_job, mock_set_task, client
+    ):
+        """A down/misconfigured broker must not leak an opaque 500 -> clear 503 + failed job."""
+        mock_job = MagicMock()
+        mock_job.id = "507f1f77bcf86cd799439011"
+        mock_create_job.return_value = mock_job
+        mock_task.delay.side_effect = RuntimeError("Retry limit exceeded while reconnecting")
+        mock_collection = MagicMock()
+        mock_collection.update_one = AsyncMock()
+        mock_get_collection.return_value = mock_collection
+
+        resp = client.post(
+            "/api/v1/knowledge-base/process",
+            json={
+                "document_id": "doc-1",
+                "file_path": "/tmp/test.pdf",
+                "also_chunk": False,
+            },
+        )
+        assert resp.status_code == 503
+        data = resp.json()
+        assert data["code"] == "TaskQueueUnavailableException"
+        assert "async task queue" in data["message"]
+        mock_collection.update_one.assert_awaited_once()
+        assert mock_collection.update_one.await_args.args[1]["$set"]["status"] == "failed"
+        mock_set_task.assert_not_awaited()
+
+    @patch("app.application.jobs.job_dispatcher.set_celery_task_id", new_callable=AsyncMock)
+    @patch("app.application.jobs.job_dispatcher.create_job", new_callable=AsyncMock)
     @patch("app.workers.ingestion.tasks.generate_chunks_task")
     def test_chunk_document(self, mock_task, mock_create_job, mock_set_task, client):
         mock_job = MagicMock()
