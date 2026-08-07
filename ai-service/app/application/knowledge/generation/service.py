@@ -88,7 +88,11 @@ class BusinessSummaryGenerationService:
         docs = await self.knowledge_repository.find_by_store_id(store_id, limit=500)
         approved = [d for d in docs if d.status == "active" and d.processed_text]
         if not approved:
-            raise ChunkingException(f"No approved documents with processed text found for store '{store_id}'")
+            raise ChunkingException(
+                "Cannot generate summary: no approved knowledge documents with processed text were found for "
+                f"store '{store_id}'. Upload and process at least one document first "
+                "(POST /api/v1/knowledge-base/upload then POST /api/v1/knowledge-base/process)."
+            )
         return approved
 
     def _merge_documents(self, documents: list[KnowledgeDocument], max_chars: int = 100_000) -> str:

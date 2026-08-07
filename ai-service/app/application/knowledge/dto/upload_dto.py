@@ -43,3 +43,4 @@ class UploadDTO(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None = None
+    document_id: str | None = Field(default=None, description="Knowledge document created for this upload")

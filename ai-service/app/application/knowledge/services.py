@@ -1,3 +1,5 @@
+import logging
+import os
 from datetime import UTC, datetime
 
 from bson import ObjectId
@@ -26,6 +28,7 @@ from app.domain.knowledge.repositories import (
     BusinessSummaryRepository,
     ChunkRepository,
     KnowledgeRepository,
+    UploadRepository,
 )
 from app.domain.knowledge.value_objects import DocumentMetadata, DocumentVersion
 
@@ -34,11 +37,23 @@ def _new_id() -> str:
     return str(ObjectId())
 
 
+logger = logging.getLogger(__name__)
+
+
 class KnowledgeDocumentService:
     """CRUD application service for knowledge documents."""
 
-    def __init__(self, repository: KnowledgeRepository):
+    def __init__(
+        self,
+        repository: KnowledgeRepository,
+        storage: "StorageProvider | None" = None,
+        upload_repository: "UploadRepository | None" = None,
+        chunk_repository: "ChunkRepository | None" = None,
+    ):
         self.repository = repository
+        self.storage = storage
+        self.upload_repository = upload_repository
+        self.chunk_repository = chunk_repository
 
     async def create(self, data: KnowledgeDocumentCreateDTO) -> KnowledgeDocumentDTO:
         entity = KnowledgeDocument(
@@ -87,9 +102,12 @@ class KnowledgeDocumentService:
         self,
         document_id: str,
         data: KnowledgeDocumentUpdateDTO,
+        owner_store_id: str | None = None,
     ) -> KnowledgeDocumentDTO:
         entity = await self.repository.find_by_id(document_id)
         if entity is None:
+            raise KnowledgeDocumentNotFoundException(f"Knowledge document '{document_id}' was not found.")
+        if owner_store_id is not None and entity.store_id != owner_store_id:
             raise KnowledgeDocumentNotFoundException(f"Knowledge document '{document_id}' was not found.")
 
         updates = data.model_dump(exclude_unset=True)
@@ -118,10 +136,26 @@ class KnowledgeDocumentService:
         updated = await self.repository.update(entity)
         return self._to_dto(updated)
 
-    async def delete(self, document_id: str) -> bool:
-        deleted = await self.repository.delete(document_id)
-        if not deleted:
+    async def delete(self, document_id: str, owner_store_id: str | None = None) -> bool:
+        entity = await self.repository.find_by_id(document_id)
+        if entity is None:
             raise KnowledgeDocumentNotFoundException(f"Knowledge document '{document_id}' was not found.")
+        if owner_store_id is not None and entity.store_id != owner_store_id:
+            raise KnowledgeDocumentNotFoundException(f"Knowledge document '{document_id}' was not found.")
+
+        if self.storage is not None and entity.source_url:
+            self.storage.delete(entity.source_url)
+
+        if self.upload_repository is not None and entity.source_url:
+            stored_filename = os.path.basename(entity.source_url)
+            upload = await self.upload_repository.find_by_stored_filename(stored_filename)
+            if upload is not None:
+                await self.upload_repository.delete(upload.id)
+
+        if self.chunk_repository is not None:
+            await self.chunk_repository.delete_by_document_id(document_id)
+
+        deleted = await self.repository.delete(document_id)
         return deleted
 
     @staticmethod
@@ -317,15 +351,66 @@ class DocumentUploadService:
         self,
         repository: "UploadRepository",
         storage: "StorageProvider",
+        knowledge_repository: "KnowledgeRepository | None" = None,
     ):
         self.repository = repository
         self.storage = storage
+        self.knowledge_repository = knowledge_repository
 
     async def upload(self, command: "UploadDocumentCommand") -> "UploadDTO":
         from app.application.knowledge.commands.upload_handler import UploadDocumentHandler
 
         handler = UploadDocumentHandler(repository=self.repository, storage=self.storage)
-        return await handler.handle(command)
+        result = await handler.handle(command)
+
+        if self.knowledge_repository is not None:
+            document_id = await self._create_knowledge_document(result)
+            return result.model_copy(update={"document_id": document_id})
+
+        return result
+
+    async def _create_knowledge_document(self, upload: "UploadDTO") -> str:
+        from app.application.knowledge.dto.knowledge_dto import DocumentMetadataDTO
+        from app.domain.knowledge.entities import KnowledgeDocument
+
+        stored_metadata = upload.document_metadata or DocumentMetadataDTO()
+        document_metadata = DocumentMetadata(
+            source_type="upload",
+            source_uri=upload.id,
+            mime_type=upload.mime_type,
+            language=stored_metadata.language,
+            category=upload.knowledge_scope,
+            tags=stored_metadata.tags or [upload.knowledge_scope],
+            attributes={"checksum": upload.checksum, "upload_id": upload.id},
+        )
+
+        document = KnowledgeDocument(
+            id=_new_id(),
+            store_id=upload.store_id,
+            title=upload.original_filename,
+            description=f"Uploaded {upload.knowledge_scope} knowledge document (source: {upload.original_filename}).",
+            source_url=upload.file_path,
+            status="draft",
+            language=stored_metadata.language,
+            metadata=document_metadata,
+            versions=[
+                DocumentVersion(
+                    version_number=1,
+                    checksum=upload.checksum,
+                    created_by=upload.uploaded_by,
+                    is_current=True,
+                )
+            ],
+            current_version=1,
+            chunking_strategy="manual",
+            updated_at=datetime.now(UTC),
+        )
+        created = await self.knowledge_repository.create(document)
+        logger.info(
+            "Knowledge document created for upload",
+            extra={"upload_id": upload.id, "document_id": created.id, "store_id": upload.store_id},
+        )
+        return created.id
 
     async def get_by_id(self, upload_id: str) -> "UploadDTO":
         from app.application.knowledge.dto.upload_dto import UploadDTO

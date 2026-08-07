@@ -49,8 +49,16 @@ def get_storage_provider() -> StorageProvider:
 
 def get_knowledge_document_service(
     repository: KnowledgeRepository = Depends(get_knowledge_repository),
+    storage: StorageProvider = Depends(get_storage_provider),
+    upload_repository: UploadRepository = Depends(get_upload_repository),
+    chunk_repository: ChunkRepository = Depends(get_chunk_repository),
 ) -> KnowledgeDocumentService:
-    return KnowledgeDocumentService(repository=repository)
+    return KnowledgeDocumentService(
+        repository=repository,
+        storage=storage,
+        upload_repository=upload_repository,
+        chunk_repository=chunk_repository,
+    )
 
 
 def get_knowledge_chunk_service(
@@ -68,8 +76,13 @@ def get_business_summary_service(
 def get_document_upload_service(
     repository: UploadRepository = Depends(get_upload_repository),
     storage: StorageProvider = Depends(get_storage_provider),
+    knowledge_repository: KnowledgeRepository = Depends(get_knowledge_repository),
 ) -> DocumentUploadService:
-    return DocumentUploadService(repository=repository, storage=storage)
+    return DocumentUploadService(
+        repository=repository,
+        storage=storage,
+        knowledge_repository=knowledge_repository,
+    )
 
 
 async def write_upload_temp(file: UploadFile) -> str:

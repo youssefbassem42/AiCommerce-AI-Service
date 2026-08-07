@@ -28,3 +28,7 @@ class UploadRepository(AsyncRepository[DocumentUpload, str], ABC):
         skip: int = 0,
     ) -> list[DocumentUpload]:
         """Find uploads by status."""
+
+    @abstractmethod
+    async def find_by_stored_filename(self, stored_filename: str) -> DocumentUpload | None:
+        """Find an upload by its stored (unique) filename."""

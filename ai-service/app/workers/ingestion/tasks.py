@@ -37,17 +37,21 @@ def process_document_task(
             pipeline = ProcessingPipeline()
             processor = DocumentProcessor(repo, extractor_factory, pipeline)
 
-            if not is_safe_document_path(file_path):
+            if file_path and not is_safe_document_path(file_path):
                 raise ValueError(f"Unsafe document file path rejected: {file_path!r}")
 
             doc = await repo.find_by_id(document_id)
             if not doc:
                 raise ValueError(f"Document '{document_id}' not found")
 
+            resolved_path = file_path or (doc.source_url or "")
+            if not is_safe_document_path(resolved_path):
+                raise ValueError(f"Unsafe document file path rejected: {resolved_path!r}")
+
             if job_id:
                 await update_job_progress(job_id, 0.3)
 
-            updated = await processor.process(doc, file_path, mime_type)
+            updated = await processor.process(doc, resolved_path, mime_type)
 
             if job_id:
                 await update_job_progress(job_id, 1.0)

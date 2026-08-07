@@ -78,7 +78,8 @@ async def test_update_document_not_found(mock_knowledge_repo):
 
 
 @pytest.mark.asyncio
-async def test_delete_document(mock_knowledge_repo):
+async def test_delete_document(mock_knowledge_repo, sample_document_entity):
+    mock_knowledge_repo.find_by_id = AsyncMock(return_value=sample_document_entity)
     mock_knowledge_repo.delete = AsyncMock(return_value=True)
     service = KnowledgeDocumentService(repository=mock_knowledge_repo)
 
@@ -89,7 +90,7 @@ async def test_delete_document(mock_knowledge_repo):
 
 @pytest.mark.asyncio
 async def test_delete_document_not_found(mock_knowledge_repo):
-    mock_knowledge_repo.delete = AsyncMock(return_value=False)
+    mock_knowledge_repo.find_by_id = AsyncMock(return_value=None)
     service = KnowledgeDocumentService(repository=mock_knowledge_repo)
 
     with pytest.raises(KnowledgeDocumentNotFoundException):

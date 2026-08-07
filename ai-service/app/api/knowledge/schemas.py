@@ -175,6 +175,7 @@ class UploadResponseSchema(BaseModel):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None = None
+    document_id: str | None = None
 
 
 class PaginatedUploadResponseSchema(BaseModel):

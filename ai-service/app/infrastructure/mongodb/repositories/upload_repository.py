@@ -35,3 +35,10 @@ class UploadRepository(BaseMongoRepository[UploadMetadataModel, DocumentUpload],
         skip: int = 0,
     ) -> list[DocumentUpload]:
         return await self.find_many({"status": status}, limit=limit, skip=skip)
+
+    async def find_by_stored_filename(self, stored_filename: str) -> DocumentUpload | None:
+        data = await self.collection.find_one({"stored_filename": stored_filename})
+        if data is None:
+            return None
+        doc = self.doc_class.from_mongo_dict(data)
+        return doc.to_entity()

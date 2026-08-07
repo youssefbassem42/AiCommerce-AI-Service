@@ -3,7 +3,10 @@ from pydantic import BaseModel, Field
 
 class ProcessDocumentRequestSchema(BaseModel):
     document_id: str = Field(..., description="ID of the uploaded document to process")
-    file_path: str = Field(..., description="Path to the document file")
+    file_path: str | None = Field(
+        default=None,
+        description="Path to the document file (defaults to the document's stored source_url)",
+    )
     mime_type: str | None = Field(default=None)
     also_chunk: bool = Field(default=True, description="Automatically chunk after processing")
     strategy: str = Field(default="recursive_character")

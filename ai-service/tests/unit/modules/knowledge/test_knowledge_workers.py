@@ -80,6 +80,45 @@ class TestProcessDocumentTask:
         mock_processor.process.assert_not_awaited()
 
     @patch("app.workers.ingestion.tasks.KnowledgeRepository")
+    @patch("app.workers.ingestion.tasks.ExtractorFactory")
+    @patch("app.workers.ingestion.tasks.ProcessingPipeline")
+    @patch("app.workers.ingestion.tasks.DocumentProcessor")
+    @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)
+    @patch("app.workers.ingestion.tasks.complete_job", new_callable=AsyncMock)
+    def test_falls_back_to_document_source_url(
+        self,
+        mock_complete,
+        mock_progress,
+        mock_processor_cls,
+        mock_pipeline,
+        mock_extractor,
+        mock_repo_cls,
+    ):
+        from app.workers.ingestion.tasks import process_document_task
+
+        mock_doc = MagicMock()
+        mock_doc.id = "doc-1"
+        mock_doc.status = "processed"
+        mock_doc.word_count = 0
+        mock_doc.char_count = 0
+        mock_doc.estimated_tokens = 0
+        mock_doc.language = "en"
+        mock_doc.source_url = "/tmp/stored-faq.txt"
+
+        mock_repo = MagicMock()
+        mock_repo.find_by_id = AsyncMock(return_value=mock_doc)
+        mock_repo_cls.return_value = mock_repo
+
+        mock_processor = MagicMock()
+        mock_processor.process = AsyncMock(return_value=mock_doc)
+        mock_processor_cls.return_value = mock_processor
+
+        result = process_document_task.run("doc-1", "")
+
+        assert result["document_id"] == "doc-1"
+        mock_processor.process.assert_awaited_once_with(mock_doc, "/tmp/stored-faq.txt", None)
+
+    @patch("app.workers.ingestion.tasks.KnowledgeRepository")
     @patch("app.workers.ingestion.tasks.DocumentProcessor")
     @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)
     @patch("app.workers.ingestion.tasks.complete_job", new_callable=AsyncMock)

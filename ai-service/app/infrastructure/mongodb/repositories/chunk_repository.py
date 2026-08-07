@@ -23,3 +23,7 @@ class ChunkRepository(BaseMongoRepository[KnowledgeChunkDocument, KnowledgeChunk
         if version_number is not None:
             filters["version_number"] = version_number
         return await self.find_many(filters=filters, limit=limit, skip=skip, session=session)
+
+    async def delete_by_document_id(self, document_id: str) -> int:
+        result = await self.collection.delete_many({"document_id": document_id})
+        return result.deleted_count

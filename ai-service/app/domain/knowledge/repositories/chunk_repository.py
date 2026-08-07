@@ -16,3 +16,7 @@ class ChunkRepository(AsyncRepository[KnowledgeChunk, str], ABC):
         skip: int = 0,
     ) -> list[KnowledgeChunk]:
         """Find chunks belonging to a document."""
+
+    @abstractmethod
+    async def delete_by_document_id(self, document_id: str) -> int:
+        """Delete all chunks belonging to a document. Returns the number removed."""

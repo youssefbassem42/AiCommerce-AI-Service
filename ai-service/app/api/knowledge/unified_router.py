@@ -35,6 +35,7 @@ from app.api.knowledge.retrieval_schemas import (
 from app.api.knowledge.schemas import (
     DeleteResponseSchema,
     KnowledgeDocumentResponseSchema,
+    KnowledgeDocumentUpdateSchema,
     PaginatedKnowledgeDocumentResponseSchema,
     UploadResponseSchema,
 )
@@ -154,16 +155,38 @@ async def get_document(
     return KnowledgeDocumentResponseSchema(**result.model_dump())
 
 
+@router.put(
+    "/documents/{document_id}",
+    response_model=KnowledgeDocumentResponseSchema,
+    summary="Update a knowledge document",
+)
+async def update_document(
+    document_id: str,
+    body: KnowledgeDocumentUpdateSchema,
+    service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
+    store_id: str = Depends(get_current_store_id),
+) -> KnowledgeDocumentResponseSchema:
+    from app.application.knowledge.dto import KnowledgeDocumentUpdateDTO
+
+    result = await service.update(
+        document_id,
+        KnowledgeDocumentUpdateDTO(**body.model_dump(exclude_unset=True)),
+        owner_store_id=store_id,
+    )
+    return KnowledgeDocumentResponseSchema(**result.model_dump())
+
+
 @router.delete(
     "/documents/{document_id}",
     response_model=DeleteResponseSchema,
-    summary="Delete a knowledge document",
+    summary="Delete a knowledge document (file, chunks, and linked upload)",
 )
 async def delete_document(
     document_id: str,
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
+    store_id: str = Depends(get_current_store_id),
 ) -> DeleteResponseSchema:
-    return DeleteResponseSchema(success=await service.delete(document_id))
+    return DeleteResponseSchema(success=await service.delete(document_id, owner_store_id=store_id))
 
 
 @router.post(
@@ -188,7 +211,7 @@ async def process_document(
         payload=body.model_dump(),
         enqueue=lambda job_id: process_document_task.delay(
             document_id=body.document_id,
-            file_path=body.file_path,
+            file_path=body.file_path or "",
             mime_type=body.mime_type,
             job_id=job_id,
         ),
