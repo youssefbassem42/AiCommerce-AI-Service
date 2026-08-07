@@ -69,7 +69,13 @@ class TestDockerCompose:
             config = yaml.safe_load(f)
         ai = config["services"]["ai-service"]
         assert "build" in ai, "ai-service must have build config"
-        assert ai["build"] == ".", "build context should be current dir"
+        if isinstance(ai["build"], dict):
+            assert ai["build"].get("context") == "..", "build context should be repo root"
+            assert (
+                ai["build"].get("dockerfile") == "ai-service/Dockerfile"
+            ), "Dockerfile must be resolved from the repo root"
+        else:
+            assert ai["build"] == ".", "build context should be current dir"
 
     def test_ai_service_exposes_port(self):
         import yaml
