@@ -77,11 +77,13 @@ def get_document_upload_service(
     repository: UploadRepository = Depends(get_upload_repository),
     storage: StorageProvider = Depends(get_storage_provider),
     knowledge_repository: KnowledgeRepository = Depends(get_knowledge_repository),
+    chunk_repository: ChunkRepository = Depends(get_chunk_repository),
 ) -> DocumentUploadService:
     return DocumentUploadService(
         repository=repository,
         storage=storage,
         knowledge_repository=knowledge_repository,
+        chunk_repository=chunk_repository,
     )
 
 

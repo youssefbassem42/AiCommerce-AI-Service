@@ -1,3 +1,4 @@
+import contextlib
 import logging
 
 from pymongo import ASCENDING, DESCENDING, TEXT, IndexModel
@@ -54,13 +55,15 @@ async def setup_database_indexes(db) -> None:
     await db["knowledge_uploads"].create_indexes(
         [
             IndexModel([("store_id", ASCENDING)]),
-            IndexModel([("checksum", ASCENDING)], unique=True),
+            IndexModel([("checksum", ASCENDING), ("store_id", ASCENDING)], unique=True),
             IndexModel([("status", ASCENDING)]),
             IndexModel([("uploaded_by", ASCENDING)]),
             IndexModel([("created_at", DESCENDING)]),
             IndexModel([("store_id", ASCENDING), ("status", ASCENDING)]),
         ]
     )
+    with contextlib.suppress(Exception):
+        await db["knowledge_uploads"].drop_index("checksum_1")
 
     await db["runtime_logs"].create_indexes(
         [

@@ -352,10 +352,12 @@ class DocumentUploadService:
         repository: "UploadRepository",
         storage: "StorageProvider",
         knowledge_repository: "KnowledgeRepository | None" = None,
+        chunk_repository: "ChunkRepository | None" = None,
     ):
         self.repository = repository
         self.storage = storage
         self.knowledge_repository = knowledge_repository
+        self.chunk_repository = chunk_repository
 
     async def upload(self, command: "UploadDocumentCommand") -> "UploadDTO":
         from app.application.knowledge.commands.upload_handler import UploadDocumentHandler
@@ -363,17 +365,45 @@ class DocumentUploadService:
         handler = UploadDocumentHandler(repository=self.repository, storage=self.storage)
         result = await handler.handle(command)
 
+        if result.already_uploaded:
+            # Idempotent re-upload: same store + same content -> no new version.
+            if self.knowledge_repository is not None:
+                doc = await self.knowledge_repository.find_by_source_uri(result.id)
+                if doc is None and result.store_id:
+                    docs = await self.knowledge_repository.find_by_store_and_category(
+                        store_id=result.store_id,
+                        category=result.knowledge_scope,
+                        limit=1,
+                    )
+                    doc = docs[0] if docs else None
+                if doc is not None:
+                    result = result.model_copy(update={"document_id": doc.id})
+            return result
+
         if self.knowledge_repository is not None:
-            document_id = await self._create_knowledge_document(result)
-            return result.model_copy(update={"document_id": document_id})
+            document_id, changed = await self._create_or_update_knowledge_document(result)
+            result = result.model_copy(update={"document_id": document_id, "content_changed": changed})
+            if changed:
+                self._enqueue_reprocess(result)
 
         return result
 
-    async def _create_knowledge_document(self, upload: "UploadDTO") -> str:
+    async def _create_or_update_knowledge_document(self, upload: "UploadDTO") -> tuple[str, bool]:
+        """Create a knowledge document for the upload, or bump the store's existing one.
+
+        Versioning is scoped per store + knowledge category (e.g. FAQ): a store that
+        uploads a new file for the same category replaces the previous file, increments
+        the document version so RAG context stays current. Returns (document_id, changed).
+        """
         from app.application.knowledge.dto.knowledge_dto import DocumentMetadataDTO
         from app.domain.knowledge.entities import KnowledgeDocument
 
+        existing = await self._find_document_for_scope(upload)
+
         stored_metadata = upload.document_metadata or DocumentMetadataDTO()
+        if existing is not None:
+            return await self._bump_document_version(existing, upload)
+
         document_metadata = DocumentMetadata(
             source_type="upload",
             source_uri=upload.id,
@@ -410,7 +440,99 @@ class DocumentUploadService:
             "Knowledge document created for upload",
             extra={"upload_id": upload.id, "document_id": created.id, "store_id": upload.store_id},
         )
-        return created.id
+        return created.id, True
+
+    async def _find_document_for_scope(self, upload: "UploadDTO") -> KnowledgeDocument | None:
+        if not upload.store_id:
+            return None
+        docs = await self.knowledge_repository.find_by_store_and_category(
+            store_id=upload.store_id,
+            category=upload.knowledge_scope,
+            limit=50,
+        )
+        return docs[0] if docs else None
+
+    async def _bump_document_version(
+        self,
+        existing: KnowledgeDocument,
+        upload: "UploadDTO",
+    ) -> tuple[str, bool]:
+        """Replace content of the store's existing document and create the next version."""
+        if self.storage is not None and existing.source_url:
+            self.storage.delete(existing.source_url)
+
+        if self.chunk_repository is not None:
+            await self.chunk_repository.delete_by_document_id(existing.id)
+
+        next_version = max((v.version_number for v in existing.versions), default=0) + 1
+        stored_metadata = upload.document_metadata
+        old_metadata = existing.metadata
+
+        for version in existing.versions:
+            version.is_current = False
+
+        existing.versions.append(
+            DocumentVersion(
+                version_number=next_version,
+                checksum=upload.checksum,
+                created_by=upload.uploaded_by,
+                notes=f"Re-upload replaced previous version (source: {upload.original_filename})",
+                is_current=True,
+            )
+        )
+        existing.current_version = next_version
+        existing.source_url = upload.file_path
+        existing.status = "draft"
+        existing.processed_text = None
+        existing.page_count = None
+        existing.word_count = None
+        existing.char_count = None
+        existing.estimated_tokens = None
+        existing.metadata = DocumentMetadata(
+            source_type="upload",
+            source_uri=upload.id,
+            mime_type=upload.mime_type,
+            language=stored_metadata.language if stored_metadata else old_metadata.language,
+            category=upload.knowledge_scope,
+            tags=stored_metadata.tags if stored_metadata else old_metadata.tags,
+            attributes={"checksum": upload.checksum, "upload_id": upload.id},
+        )
+        existing.updated_at = datetime.now(UTC)
+
+        updated = await self.knowledge_repository.update(existing)
+        logger.info(
+            "Bumped version of knowledge document for re-upload",
+            extra={
+                "document_id": updated.id,
+                "store_id": updated.store_id,
+                "version": next_version,
+                "upload_id": upload.id,
+            },
+        )
+        return updated.id, True
+
+    def _enqueue_reprocess(self, upload: "UploadDTO") -> None:
+        """Background refresh so the store's RAG policies/context reflect the new content."""
+        if not upload.document_id:
+            return
+        try:
+            from app.workers.ingestion.tasks import generate_chunks_task, process_document_task
+
+            process_document_task.delay(
+                document_id=upload.document_id,
+                file_path=upload.file_path or "",
+                mime_type=upload.mime_type,
+                job_id=None,
+            )
+            generate_chunks_task.delay(
+                document_id=upload.document_id,
+                strategy="recursive_character",
+                chunk_size=1000,
+                overlap=200,
+                job_id=None,
+            )
+        except Exception:
+            logger.exception("Failed to enqueue auto re-process for document %s", upload.document_id)
 
     async def get_by_id(self, upload_id: str) -> "UploadDTO":
         from app.application.knowledge.dto.upload_dto import UploadDTO

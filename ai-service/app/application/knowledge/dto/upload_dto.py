@@ -44,3 +44,11 @@ class UploadDTO(BaseModel):
     updated_at: datetime
     deleted_at: datetime | None = None
     document_id: str | None = Field(default=None, description="Knowledge document created for this upload")
+    already_uploaded: bool = Field(
+        default=False,
+        description="True when this store already uploaded an identical file (no new version created)",
+    )
+    content_changed: bool = Field(
+        default=False,
+        description="True when new/changed content was stored for the store and should be re-processed",
+    )

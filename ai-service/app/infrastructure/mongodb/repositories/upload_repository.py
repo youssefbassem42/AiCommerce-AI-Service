@@ -13,8 +13,11 @@ class UploadRepository(BaseMongoRepository[UploadMetadataModel, DocumentUpload],
     def __init__(self):
         super().__init__(get_knowledge_uploads_collection(), UploadMetadataModel)
 
-    async def find_by_checksum(self, checksum: str) -> DocumentUpload | None:
-        data = await self.collection.find_one({"checksum": checksum})
+    async def find_by_checksum(self, checksum: str, store_id: str | None = None) -> DocumentUpload | None:
+        filters: dict[str, str] = {"checksum": checksum}
+        if store_id is not None:
+            filters["store_id"] = store_id
+        data = await self.collection.find_one(filters)
         if data is None:
             return None
         doc = self.doc_class.from_mongo_dict(data)

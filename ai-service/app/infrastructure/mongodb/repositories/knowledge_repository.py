@@ -40,6 +40,31 @@ class KnowledgeRepository(BaseMongoRepository[KnowledgeDocumentModel, KnowledgeD
     ) -> list[KnowledgeDocument]:
         return await self.find_many({"store_id": store_id}, limit=limit, skip=skip, session=session)
 
+    async def find_by_store_and_category(
+        self,
+        store_id: str,
+        category: str,
+        limit: int = 20,
+        skip: int = 0,
+        session: Any = None,
+    ) -> list[KnowledgeDocument]:
+        return await self.find_many(
+            {"store_id": store_id, "metadata.category": category},
+            limit=limit,
+            skip=skip,
+            session=session,
+        )
+
+    async def find_by_source_uri(
+        self,
+        source_uri: str,
+        session: Any = None,
+    ) -> KnowledgeDocument | None:
+        data = await self.collection.find_one({"metadata.source_uri": source_uri}, session=session)
+        if data is None:
+            return None
+        return self.doc_class.from_mongo_dict(data).to_entity()
+
     async def find_by_status(
         self,
         status: str,

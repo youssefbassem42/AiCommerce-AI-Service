@@ -8,8 +8,12 @@ class UploadRepository(AsyncRepository[DocumentUpload, str], ABC):
     """Domain repository interface for document uploads."""
 
     @abstractmethod
-    async def find_by_checksum(self, checksum: str) -> DocumentUpload | None:
-        """Find an upload by its SHA-256 checksum to detect duplicates."""
+    async def find_by_checksum(self, checksum: str, store_id: str | None = None) -> DocumentUpload | None:
+        """Find an upload by its SHA-256 checksum.
+
+        When ``store_id`` is provided the lookup is scoped to that store so duplicate
+        detection is tenant-isolated (each store may upload its own copy of a file).
+        """
 
     @abstractmethod
     async def find_by_store_id(

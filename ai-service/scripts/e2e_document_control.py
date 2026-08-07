@@ -17,6 +17,7 @@ import os
 import shutil
 import sys
 
+os.environ["MONGO_URI"] = "mongodb://localhost:27017/"
 os.environ["MONGO_DB"] = "ai_commerce_e2e_test"
 os.environ["JWT_SECRET"] = "test-jwt-secret-shared-0123456789abcdef"
 os.environ["JWT_SECRET_KEY"] = "test-jwt-secret-shared-0123456789abcdef"
@@ -49,6 +50,14 @@ def main() -> int:
 
     knowledge_settings.upload_local_path = UPLOADS_DIR
 
+    # Fresh baseline: clear any leftover data/files from interrupted runs.
+    from pymongo import MongoClient as SyncMongoClient
+
+    with SyncMongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=3000) as reset:
+        reset.drop_database("ai_commerce_e2e_test")
+    for leftover in os.listdir(UPLOADS_DIR):
+        os.remove(os.path.join(UPLOADS_DIR, leftover))
+
     head = admin_headers(store_id="22222222-2222-2222-2222-222222222222")
     with TestClient(app) as client:
         src = os.path.join(UPLOADS_DIR, "faq-source.txt")
@@ -65,7 +74,6 @@ def main() -> int:
         if r.status_code != 201:
             return 1
         body = r.json()
-        upload_id = body["id"]
         document_id = body.get("document_id")
         check("upload returns document_id", bool(document_id), body)
 
@@ -93,7 +101,68 @@ def main() -> int:
         updated = r.json() if r.status_code == 200 else {}
         check("updated title persisted", updated.get("title") == "FAQ - Updated", str(updated))
 
-        stored_file = os.path.join(UPLOADS_DIR, body["stored_filename"])
+        # --- Per-store dedup: re-upload of the exact same file is idempotent.
+        r2 = client.post(
+            "/api/v1/knowledge-base/upload",
+            params={"knowledge_scope": "general"},
+            headers=head,
+            files={"file": ("faq.txt", src, "text/plain")},
+        )
+        check("same-file re-upload -> 200", r2.status_code == 200, f"got {r2.status_code}: {r2.text}")
+        b2 = r2.json() if r2.status_code == 200 else {}
+        check("same-file re-upload already_uploaded=true", b2.get("already_uploaded") is True, str(b2))
+        check(
+            "same-file re-upload returns same document id",
+            b2.get("document_id") == document_id,
+            str(b2),
+        )
+
+        # --- Different content -> version bump on the SAME document.
+        src2 = os.path.join(UPLOADS_DIR, "faq-v2-source.txt")
+        with open(src2, "w", encoding="utf-8") as fh:
+            fh.write("Returns accepted within 30 days with original receipt.\nNo restocking fee.\n")
+
+        r3 = client.post(
+            "/api/v1/knowledge-base/upload",
+            params={"knowledge_scope": "general"},
+            headers=head,
+            files={"file": ("faq.txt", src2, "text/plain")},
+        )
+        check("different-file upload -> 201", r3.status_code == 201, f"got {r3.status_code}: {r3.text}")
+        b3 = r3.json() if r3.status_code == 201 else {}
+        check("different-file already_uploaded=false", b3.get("already_uploaded") is False, str(b3))
+        check(
+            "different-file bumps same document",
+            b3.get("document_id") == document_id,
+            str(b3),
+        )
+        old_file = os.path.join(UPLOADS_DIR, body["stored_filename"])
+        new_file = os.path.join(UPLOADS_DIR, b3.get("stored_filename", ""))
+        check("previous file replaced on disk", not os.path.isfile(old_file), old_file)
+        check("new file exists on disk", os.path.isfile(new_file), new_file)
+
+        r = client.get(f"/api/v1/knowledge-base/documents/{document_id}", headers=head)
+        ver = r.json().get("current_version") if r.status_code == 200 else 0
+        check("document version bumped to 2", ver == 2, f"got current_version={ver}")
+
+        # --- Tenant isolation: another store uploading the same file gets its OWN copy.
+        head_b = admin_headers(store_id="99999999-9999-9999-9999-999999999999")
+        rb = client.post(
+            "/api/v1/knowledge-base/upload",
+            params={"knowledge_scope": "general"},
+            headers=head_b,
+            files={"file": ("faq.txt", src, "text/plain")},
+        )
+        check("other-store same-file upload -> 201", rb.status_code == 201, f"got {rb.status_code}: {rb.text}")
+        bb = rb.json() if rb.status_code == 201 else {}
+        check("other-store not marked duplicate", bb.get("already_uploaded") is False, str(bb))
+        check(
+            "other-store gets isolated document",
+            bb.get("document_id") is not None and bb.get("document_id") != document_id,
+            str(bb),
+        )
+
+        stored_file = os.path.join(UPLOADS_DIR, b3["stored_filename"])
         check("stored file exists before delete", os.path.isfile(stored_file), stored_file)
 
         r = client.delete(f"/api/v1/knowledge-base/documents/{document_id}", headers=head)
@@ -106,9 +175,9 @@ def main() -> int:
 
         db_name = "ai_commerce_e2e_test"
         with SyncMongoClient("mongodb://localhost:27017/", serverSelectionTimeoutMS=3000) as sdb:
-            upload_still_exists = sdb[db_name]["knowledge_uploads"].find_one({"_id": ObjectId(upload_id)})
+            latest_upload_still_exists = sdb[db_name]["knowledge_uploads"].find_one({"_id": ObjectId(b3["id"])})
             doc_still_exists = sdb[db_name]["knowledge_documents"].find_one({"_id": ObjectId(document_id)})
-        check("linked upload row removed", upload_still_exists is None)
+        check("latest upload row removed", latest_upload_still_exists is None)
         check("document row removed", doc_still_exists is None)
 
         r = client.get(f"/api/v1/knowledge-base/documents/{document_id}", headers=head)

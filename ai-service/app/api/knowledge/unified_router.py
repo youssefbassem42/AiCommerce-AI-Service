@@ -2,7 +2,7 @@ import contextlib
 import logging
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 
 from app.api.auth.dependencies import (
     get_current_organization_id,
@@ -96,6 +96,7 @@ def get_job_dispatcher() -> JobDispatcher:
 )
 async def upload_document(
     file: UploadFile,
+    response: Response,
     user: AuthenticatedUser = Depends(get_current_user),
     organization_id: str | None = Depends(get_optional_organization_id),
     store_id: str | None = Depends(get_optional_store_id),
@@ -119,6 +120,8 @@ async def upload_document(
         knowledge_scope=knowledge_scope,
     )
     result = await service.upload(command)
+    if result.already_uploaded:
+        response.status_code = status.HTTP_200_OK
     return UploadResponseSchema(**result.model_dump())
 
 

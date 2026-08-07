@@ -10,7 +10,6 @@ from app.application.knowledge.commands.upload_command import UploadDocumentComm
 from app.application.knowledge.dto.upload_dto import UploadDTO
 from app.domain.knowledge.entities.document_upload import DocumentUpload
 from app.domain.knowledge.exceptions import (
-    DuplicateUploadException,
     FileValidationException,
 )
 from app.domain.knowledge.repositories.upload_repository import UploadRepository
@@ -75,10 +74,18 @@ class UploadDocumentHandler:
 
         checksum = _compute_checksum(command.file_path)
 
-        existing = await self.repository.find_by_checksum(checksum)
+        existing = await self.repository.find_by_checksum(checksum, store_id=command.store_id)
         if existing is not None:
             os.remove(command.file_path)
-            raise DuplicateUploadException(f"Duplicate upload detected (checksum: {checksum[:16]}...)")
+            logger.info(
+                "Duplicate upload within store; returning existing upload",
+                extra={
+                    "upload_id": existing.id,
+                    "store_id": command.store_id,
+                    "checksum": checksum[:16],
+                },
+            )
+            return self._to_dto(existing).model_copy(update={"already_uploaded": True})
 
         ext = os.path.splitext(command.original_filename)[1]
         stored_filename = f"{uuid.uuid4().hex}{ext}"

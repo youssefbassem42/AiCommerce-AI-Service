@@ -17,6 +17,23 @@ class KnowledgeRepository(AsyncRepository[KnowledgeDocument, str], ABC):
         """Find knowledge documents belonging to a store."""
 
     @abstractmethod
+    async def find_by_store_and_category(
+        self,
+        store_id: str,
+        category: str,
+        limit: int = 20,
+        skip: int = 0,
+    ) -> list[KnowledgeDocument]:
+        """Find knowledge documents of a store scoped to a knowledge category (e.g. FAQ)."""
+
+    @abstractmethod
+    async def find_by_source_uri(
+        self,
+        source_uri: str,
+    ) -> KnowledgeDocument | None:
+        """Find the knowledge document linked to a source resource (e.g. an upload ID)."""
+
+    @abstractmethod
     async def find_by_status(
         self,
         status: str,
