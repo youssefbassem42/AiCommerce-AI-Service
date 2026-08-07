@@ -71,9 +71,9 @@ class TestDockerCompose:
         assert "build" in ai, "ai-service must have build config"
         if isinstance(ai["build"], dict):
             assert ai["build"].get("context") == "..", "build context should be repo root"
-            assert (
-                ai["build"].get("dockerfile") == "ai-service/Dockerfile"
-            ), "Dockerfile must be resolved from the repo root"
+            assert ai["build"].get("dockerfile") == "ai-service/Dockerfile", (
+                "Dockerfile must be resolved from the repo root"
+            )
         else:
             assert ai["build"] == ".", "build context should be current dir"
 
