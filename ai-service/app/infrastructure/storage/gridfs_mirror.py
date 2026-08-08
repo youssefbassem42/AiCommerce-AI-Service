@@ -8,7 +8,7 @@ GridFS lets the worker materialize the file locally before extraction.
 import logging
 import os
 
-from motor.motor_gridfs import AgnosticGridFSBucket
+from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 
 from app.infrastructure.mongodb.client import get_mongodb
 
@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 GRIDFS_BUCKET_NAME: str = "knowledge_uploads_files"
 
 
-def _bucket() -> AgnosticGridFSBucket:
-    return AgnosticGridFSBucket(get_mongodb(), bucket_name=GRIDFS_BUCKET_NAME)
+def _bucket() -> AsyncIOMotorGridFSBucket:
+    return AsyncIOMotorGridFSBucket(get_mongodb(), bucket_name=GRIDFS_BUCKET_NAME)
 
 
 async def mirror_to_gridfs(stored_filename: str, local_path: str) -> None:
