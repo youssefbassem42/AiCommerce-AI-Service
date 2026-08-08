@@ -155,3 +155,22 @@ class TestPaginationIterator:
         with pytest.raises(IntegrationApiException, match="HTTP 404"):
             async for _ in PaginationIterator(client, "GET", "/api/Products", config):
                 pass
+
+    async def test_wrapped_list_response_is_unwrapped(self) -> None:
+        client = _mock_client(
+            [
+                {
+                    "isSuccess": True,
+                    "data": {
+                        "totalCount": 29,
+                        "data": [{"id": 23, "name": "Sunglasses Retro"}, {"id": 24, "name": "Watch"}],
+                    },
+                }
+            ]
+        )
+        config = PaginationConfig(style=PaginationStyle.NONE)
+        pages = []
+        async for page in PaginationIterator(client, "GET", "/api/Products", config):
+            pages.append(page)
+        assert len(pages) == 1
+        assert pages[0].data == [{"id": 23, "name": "Sunglasses Retro"}, {"id": 24, "name": "Watch"}]

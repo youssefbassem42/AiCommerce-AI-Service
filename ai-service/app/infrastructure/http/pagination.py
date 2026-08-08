@@ -170,6 +170,11 @@ class PaginationIterator:
         for key in ("data", "results", "items", "records", "rows", "response", "content"):
             if key in data and isinstance(data[key], list):
                 return data[key]
+        nested = data.get("data")
+        if isinstance(nested, dict):
+            for key in ("data", "results", "items", "records", "rows"):
+                if isinstance(nested.get(key), list):
+                    return nested[key]
         if isinstance(data, dict):
             for val in data.values():
                 if isinstance(val, list):
