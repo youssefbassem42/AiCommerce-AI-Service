@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import uuid
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from datetime import UTC, datetime
 
@@ -19,6 +20,8 @@ from app.domain.knowledge.value_objects.document_metadata import DocumentMetadat
 from app.infrastructure.storage.provider import StorageProvider
 
 logger = logging.getLogger(__name__)
+
+FileMirrorFn = Callable[[str, str], Awaitable[None]]
 
 ALLOWED_EXTENSIONS: set[str] = {".pdf", ".docx", ".txt", ".csv"}
 ALLOWED_MIME_TYPES: set[str] = {
@@ -65,9 +68,11 @@ class UploadDocumentHandler:
         self,
         repository: UploadRepository,
         storage: StorageProvider,
+        file_mirror: FileMirrorFn | None = None,
     ):
         self.repository = repository
         self.storage = storage
+        self.file_mirror = file_mirror
 
     async def handle(self, command: UploadDocumentCommand) -> UploadDTO:
         _validate_extension(os.path.splitext(command.original_filename)[1])
@@ -99,6 +104,15 @@ class UploadDocumentHandler:
             with suppress(FileNotFoundError):
                 os.remove(command.file_path)
             raise
+
+        if self.file_mirror is not None:
+            try:
+                await self.file_mirror(stored_filename, stored_path)
+            except Exception:
+                self._cleanup_stored_file(stored_path)
+                with suppress(FileNotFoundError):
+                    os.remove(command.file_path)
+                raise
 
         with suppress(FileNotFoundError):
             os.remove(command.file_path)

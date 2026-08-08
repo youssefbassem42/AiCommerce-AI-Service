@@ -1,10 +1,12 @@
 import logging
+import os
 import time
 
 from app.application.knowledge.chunking.chunking_service import ChunkingConfig, ChunkingService
 from app.application.knowledge.processing.pipeline import ProcessingPipeline
 from app.application.knowledge.processing.processor import DocumentProcessor
 from app.core.celery_app import celery_app
+from app.core.knowledge_settings import knowledge_settings
 from app.core.path_validation import is_safe_document_path
 from app.domain.job.value_objects import JobStatus
 from app.domain.knowledge.value_objects.tenant_context import TenantContext
@@ -12,9 +14,24 @@ from app.infrastructure.knowledge.extractors import ExtractorFactory
 from app.infrastructure.mongodb.collections import get_knowledge_versions_collection
 from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
 from app.infrastructure.mongodb.repositories.knowledge_repository import KnowledgeRepository
+from app.infrastructure.storage.gridfs_mirror import fetch_from_gridfs
 from app.infrastructure.tasks.helpers import _run_async, complete_job, fail_job, update_job_progress
 
 logger = logging.getLogger(__name__)
+
+
+async def _resolve_local_file(file_path: str) -> str:
+    """Return ``file_path`` when present locally, or materialize it from GridFS."""
+    if os.path.isfile(file_path):
+        return file_path
+    stored_filename = os.path.basename(file_path)
+    materialized = await fetch_from_gridfs(
+        stored_filename,
+        dest_dir=knowledge_settings.upload_local_path,
+    )
+    if materialized is None:
+        raise FileNotFoundError(f"File '{file_path}' is not available on this worker nor in GridFS")
+    return materialized
 
 
 @celery_app.task(
@@ -47,6 +64,8 @@ def process_document_task(
             resolved_path = file_path or (doc.source_url or "")
             if not is_safe_document_path(resolved_path):
                 raise ValueError(f"Unsafe document file path rejected: {resolved_path!r}")
+
+            resolved_path = await _resolve_local_file(resolved_path)
 
             if job_id:
                 await update_job_progress(job_id, 0.3)
@@ -94,8 +113,9 @@ def extract_document_task(self, doc_id: str, file_path: str, org_id: str, store_
         if not doc:
             logger.warning("extract_document_task: document '%s' not found", doc_id)
             return False
+        resolved_path = await _resolve_local_file(file_path)
         processor = _build_processor(repo)
-        await processor.process(doc, file_path)
+        await processor.process(doc, resolved_path)
         return True
 
     try:

@@ -340,6 +340,38 @@ class TestUploadDocumentHandler:
 
         assert not (tmp_path / "src-faq.txt").exists()
 
+    async def test_mirror_failure_cleans_stored_file_and_reraises(self, tmp_path) -> None:
+        repo = MagicMock()
+        repo.find_by_checksum = AsyncMock(return_value=None)
+        storage = MagicMock()
+        storage.save = MagicMock(return_value="./uploads/stored-1.txt")
+        mirror = AsyncMock(side_effect=RuntimeError("gridfs down"))
+
+        handler = UploadDocumentHandler(repository=repo, storage=storage, file_mirror=mirror)
+        with pytest.raises(RuntimeError, match="gridfs down"):
+            await handler.handle(self._command(tmp_path))
+
+        mirror.assert_awaited_once()
+        mirror_args = mirror.await_args.args
+        assert mirror_args[0].endswith(".txt")
+        assert mirror_args[1] == "./uploads/stored-1.txt"
+        storage.delete.assert_called_once_with("./uploads/stored-1.txt")
+        repo.create.assert_not_called()
+        assert not (tmp_path / "src-faq.txt").exists()
+
+    async def test_mirror_none_skips_remote_store(self, tmp_path) -> None:
+        repo = MagicMock()
+        repo.find_by_checksum = AsyncMock(return_value=None)
+        repo.create = AsyncMock(return_value=_upload_entity())
+        storage = MagicMock()
+        storage.save = MagicMock(return_value="./uploads/stored-1.txt")
+
+        handler = UploadDocumentHandler(repository=repo, storage=storage)
+        result = await handler.handle(self._command(tmp_path))
+
+        assert result.id == "upload-1"
+        storage.delete.assert_not_called()
+
 
 class TestUploadRollback:
     async def test_upload_rolls_back_row_and_file_when_document_creation_fails(self) -> None:

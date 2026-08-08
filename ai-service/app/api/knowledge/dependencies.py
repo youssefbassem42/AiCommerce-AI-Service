@@ -17,6 +17,7 @@ from app.infrastructure.mongodb.repositories.business_summary_repository import 
 from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
 from app.infrastructure.mongodb.repositories.knowledge_repository import KnowledgeRepository
 from app.infrastructure.mongodb.repositories.upload_repository import UploadRepository
+from app.infrastructure.storage.gridfs_mirror import mirror_to_gridfs
 from app.infrastructure.storage.local_provider import LocalStorageProvider
 from app.infrastructure.storage.provider import StorageProvider
 
@@ -84,6 +85,7 @@ def get_document_upload_service(
         storage=storage,
         knowledge_repository=knowledge_repository,
         chunk_repository=chunk_repository,
+        file_mirror=mirror_to_gridfs,
     )
 
 

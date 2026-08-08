@@ -17,8 +17,10 @@ class TestProcessDocumentTask:
     @patch("app.workers.ingestion.tasks.DocumentProcessor")
     @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)
     @patch("app.workers.ingestion.tasks.complete_job", new_callable=AsyncMock)
+    @patch("app.workers.ingestion.tasks.fetch_from_gridfs", new_callable=AsyncMock, return_value="/tmp/file.pdf")
     def test_success(
         self,
+        mock_fetch,
         mock_complete,
         mock_progress,
         mock_processor_cls,
@@ -85,8 +87,14 @@ class TestProcessDocumentTask:
     @patch("app.workers.ingestion.tasks.DocumentProcessor")
     @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)
     @patch("app.workers.ingestion.tasks.complete_job", new_callable=AsyncMock)
+    @patch(
+        "app.workers.ingestion.tasks.fetch_from_gridfs",
+        new_callable=AsyncMock,
+        return_value="/tmp/stored-faq.txt",
+    )
     def test_falls_back_to_document_source_url(
         self,
+        mock_fetch,
         mock_complete,
         mock_progress,
         mock_processor_cls,
@@ -122,7 +130,8 @@ class TestProcessDocumentTask:
     @patch("app.workers.ingestion.tasks.DocumentProcessor")
     @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)
     @patch("app.workers.ingestion.tasks.complete_job", new_callable=AsyncMock)
-    def test_success_without_job_id(self, mock_complete, mock_progress, mock_processor_cls, mock_repo_cls):
+    @patch("app.workers.ingestion.tasks.fetch_from_gridfs", new_callable=AsyncMock, return_value="/tmp/file.pdf")
+    def test_success_without_job_id(self, mock_fetch, mock_complete, mock_progress, mock_processor_cls, mock_repo_cls):
         from app.workers.ingestion.tasks import process_document_task
 
         mock_doc = MagicMock()

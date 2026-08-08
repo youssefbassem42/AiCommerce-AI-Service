@@ -353,16 +353,22 @@ class DocumentUploadService:
         storage: "StorageProvider",
         knowledge_repository: "KnowledgeRepository | None" = None,
         chunk_repository: "ChunkRepository | None" = None,
+        file_mirror: "FileMirrorFn | None" = None,
     ):
         self.repository = repository
         self.storage = storage
         self.knowledge_repository = knowledge_repository
         self.chunk_repository = chunk_repository
+        self.file_mirror = file_mirror
 
     async def upload(self, command: "UploadDocumentCommand") -> "UploadDTO":
         from app.application.knowledge.commands.upload_handler import UploadDocumentHandler
 
-        handler = UploadDocumentHandler(repository=self.repository, storage=self.storage)
+        handler = UploadDocumentHandler(
+            repository=self.repository,
+            storage=self.storage,
+            file_mirror=self.file_mirror,
+        )
         result = await handler.handle(command)
 
         if result.already_uploaded:
