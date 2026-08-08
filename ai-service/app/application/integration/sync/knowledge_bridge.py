@@ -58,8 +58,10 @@ class CommerceKnowledgeBridge:
                 self._vector_store = None
                 raise ConnectionError(f"Qdrant not available: {e}")
         if not self._llm_provider:
+            from app.core.ai_settings import ai_settings
+
             factory = LLMProviderFactory()
-            self._llm_provider = factory.get_provider("openai")
+            self._llm_provider = factory.get_provider(ai_settings.DEFAULT_PROVIDER)
 
     async def sync_entity(
         self,

@@ -35,7 +35,9 @@ def generate_summary_task(
             knowledge_repo = KnowledgeRepository()
             summary_repo = BusinessSummaryRepository()
             factory = LLMProviderFactory()
-            provider = factory.get_provider("openai")
+            from app.core.ai_settings import ai_settings
+
+            provider = factory.get_provider(ai_settings.DEFAULT_PROVIDER)
 
             service = BusinessSummaryGenerationService(
                 knowledge_repository=knowledge_repo,

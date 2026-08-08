@@ -25,8 +25,10 @@ def get_business_summary_repository() -> BusinessSummaryRepository:
 
 
 def get_provider() -> BaseLLMProvider:
+    from app.core.ai_settings import ai_settings
+
     factory = LLMProviderFactory()
-    return factory.get_provider("openai")
+    return factory.get_provider(ai_settings.DEFAULT_PROVIDER)
 
 
 def get_generation_service(
