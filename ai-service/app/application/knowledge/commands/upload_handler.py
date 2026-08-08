@@ -83,6 +83,13 @@ class UploadDocumentHandler:
 
         existing = await self.repository.find_by_checksum(checksum, store_id=command.store_id)
         if existing is not None:
+            if self.file_mirror is not None:
+                try:
+                    await self.file_mirror(existing.stored_filename, command.file_path)
+                except Exception:
+                    with suppress(FileNotFoundError):
+                        os.remove(command.file_path)
+                    raise
             with suppress(FileNotFoundError):
                 os.remove(command.file_path)
             logger.info(

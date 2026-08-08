@@ -298,6 +298,35 @@ class TestUploadDocumentHandler:
             knowledge_scope="general",
         )
 
+    async def test_duplicate_checksum_mirrors_file_under_existing_filename(self, tmp_path) -> None:
+        repo = MagicMock()
+        existing = _upload_entity(upload_id="upload-1")
+        repo.find_by_checksum = AsyncMock(return_value=existing)
+        storage = MagicMock()
+        mirror = AsyncMock()
+
+        handler = UploadDocumentHandler(repository=repo, storage=storage, file_mirror=mirror)
+        result = await handler.handle(self._command(tmp_path))
+
+        assert result.already_uploaded is True
+        assert result.id == "upload-1"
+        mirror.assert_awaited_once_with(existing.stored_filename, str(tmp_path / "src-faq.txt"))
+        storage.save.assert_not_called()
+        repo.create.assert_not_called()
+        assert not (tmp_path / "src-faq.txt").exists()
+
+    async def test_duplicate_upload_mirror_failure_reraises(self, tmp_path) -> None:
+        repo = MagicMock()
+        repo.find_by_checksum = AsyncMock(return_value=_upload_entity())
+        storage = MagicMock()
+        mirror = AsyncMock(side_effect=RuntimeError("gridfs down"))
+
+        handler = UploadDocumentHandler(repository=repo, storage=storage, file_mirror=mirror)
+        with pytest.raises(RuntimeError, match="gridfs down"):
+            await handler.handle(self._command(tmp_path))
+
+        assert not (tmp_path / "src-faq.txt").exists()
+
     async def test_concurrent_duplicate_create_returns_existing(self, tmp_path) -> None:
         repo = MagicMock()
         repo.create = AsyncMock(side_effect=ConcurrencyException("duplicate key"))
