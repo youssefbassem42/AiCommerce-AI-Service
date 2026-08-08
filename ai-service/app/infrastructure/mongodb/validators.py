@@ -425,7 +425,7 @@ INTEGRATION_CONNECTIONS_SCHEMA: dict[str, Any] = {
             "organization_id": {"bsonType": "string"},
             "name": {"bsonType": "string"},
             "platform_name": {"bsonType": "string"},
-            "status": {"enum": ["inactive", "connected", "error", "syncing"]},
+            "status": {"enum": ["inactive", "connected", "active", "error", "syncing"]},
             "spec_version": {"bsonType": "string"},
             "raw_spec": {"bsonType": "object"},
             "auth_config": {"bsonType": "object"},

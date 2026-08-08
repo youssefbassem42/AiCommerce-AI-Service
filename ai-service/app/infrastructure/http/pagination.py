@@ -4,6 +4,7 @@ from typing import Any
 
 import httpx
 
+from app.domain.integration.exceptions import IntegrationApiException
 from app.domain.integration.value_objects.pagination_config import (
     PaginationConfig,
     PaginationStyle,
@@ -138,15 +139,27 @@ class PaginationIterator:
                 headers=self._headers,
             )
             if response.status_code >= 400:
-                logger.warning("Pagination HTTP error %s for %s", response.status_code, self._path)
-                return None
+                raise IntegrationApiException(
+                    f"HTTP {response.status_code} from {self._path} — expected a JSON API."
+                )
             data = response.json()
+        except IntegrationApiException:
+            logger.warning("Integration API error for %s", self._path)
+            raise
         except httpx.HTTPStatusError as e:
             logger.warning("Pagination HTTP error %s for %s: %s", e.response.status_code, self._path, e)
-            return None
+            raise IntegrationApiException(
+                f"HTTP {e.response.status_code} from {self._path} — expected a JSON API."
+            ) from e
+        except (ValueError, TypeError) as e:
+            content_type = response.headers.get("content-type", "unknown")
+            raise IntegrationApiException(
+                f"Non-JSON response ({content_type}) from {self._path} — "
+                "the endpoint did not return JSON (e.g. a web page instead of an API)."
+            ) from e
         except Exception as e:
             logger.error("Pagination request failed for %s: %s", self._path, e)
-            return None
+            raise IntegrationApiException(f"Pagination request failed for {self._path}: {e}") from e
 
         page_data = self._extractor(data)
         page_number = self._infer_page_number(params)

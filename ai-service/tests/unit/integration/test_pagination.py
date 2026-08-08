@@ -1,7 +1,9 @@
 from unittest.mock import AsyncMock
 
 import httpx
+import pytest
 
+from app.domain.integration.exceptions import IntegrationApiException
 from app.domain.integration.value_objects.pagination_config import PaginationConfig, PaginationStyle
 from app.infrastructure.http.pagination import PaginationIterator
 
@@ -16,6 +18,18 @@ def _mock_client(pages: list[dict]) -> httpx.AsyncClient:
             return httpx.Response(200, json=data)
         except StopIteration:
             return httpx.Response(200, json={"data": []})
+
+    client.request = mock_request
+    return client
+
+
+def _mock_http_response(status: int, body: str, content_type: str) -> httpx.AsyncClient:
+    client = AsyncMock(spec=httpx.AsyncClient)
+
+    async def mock_request(*, method, url, params, headers, **kwargs):
+        response = httpx.Response(status, content=body.encode())
+        response.headers["content-type"] = content_type
+        return response
 
     client.request = mock_request
     return client
@@ -127,3 +141,17 @@ class TestPaginationIterator:
             pages.append(page)
         assert len(pages) == 1
         assert pages[0].data == [{"id": 1}]
+
+    async def test_non_json_response_raises_integration_api_exception(self) -> None:
+        client = _mock_http_response(200, "<html><body>SPA</body></html>", "text/html; charset=utf-8")
+        config = PaginationConfig(style=PaginationStyle.NONE)
+        with pytest.raises(IntegrationApiException, match="Non-JSON response \\(text/html"):
+            async for _ in PaginationIterator(client, "GET", "/api/Products", config):
+                pass
+
+    async def test_http_error_response_raises_integration_api_exception(self) -> None:
+        client = _mock_http_response(404, '{"error": "not found"}', "application/json")
+        config = PaginationConfig(style=PaginationStyle.NONE)
+        with pytest.raises(IntegrationApiException, match="HTTP 404"):
+            async for _ in PaginationIterator(client, "GET", "/api/Products", config):
+                pass

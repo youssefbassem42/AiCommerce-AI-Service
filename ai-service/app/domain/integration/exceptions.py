@@ -22,6 +22,10 @@ class InvalidSpecException(IntegrationValidationException):
     """Raised when a spec is missing required structure or cannot be parsed."""
 
 
+class IntegrationApiException(IntegrationDomainException):
+    """Raised when an external API returns an unusable response (HTTP error or non-JSON body)."""
+
+
 class InvalidMappingException(IntegrationValidationException):
     """Raised when a field/entity mapping is invalid."""
 
