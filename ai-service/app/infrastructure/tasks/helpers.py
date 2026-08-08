@@ -13,8 +13,23 @@ from app.infrastructure.mongodb.collections import get_knowledge_jobs_collection
 logger = logging.getLogger(__name__)
 
 
+_persistent_loop: asyncio.AbstractEventLoop | None = None
+
+
 def _run_async(coro: Coroutine[Any, Any, Any]) -> Any:
-    return asyncio.run(coro)
+    """Run a coroutine on a worker-persistent event loop.
+
+    asyncio.run() creates a NEW event loop per call and closes it when done,
+    which breaks Motor's AsyncIOMotorClient: it binds to the event loop from
+    its first use, so subsequent tasks in the same worker process fail with
+    "RuntimeError: Event loop is closed". A persistent loop keeps the
+    connection alive across tasks.
+    """
+    global _persistent_loop
+    if _persistent_loop is None or _persistent_loop.is_closed():
+        _persistent_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_persistent_loop)
+    return _persistent_loop.run_until_complete(coro)
 
 
 async def create_job(
