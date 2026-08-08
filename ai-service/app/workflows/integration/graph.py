@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.agents.integration.agent import IntegrationMappingAgent
-from app.agents.integration.schemas import IntegrationMappingReport
+from app.agents.integration.schemas import AuthInfo, IntegrationMappingReport
 from app.application.integration.mapping.dto import (
     AuthConfigDTO,
     ConnectionCreateDTO,
@@ -25,6 +25,50 @@ from app.domain.integration.value_objects.pagination_config import PaginationCon
 from app.infrastructure.providers.base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
+
+
+def _infer_auth_from_spec(spec: dict) -> AuthConfigDTO | None:
+    """Derive the auth config from the OpenAPI contract's security schemes.
+
+    The API specification is the authoritative source for authentication:
+    prefer it over the mapping agent's guess.
+    """
+    schemes = ((spec.get("components") or {}).get("securitySchemes") or {}).items()
+    for _name, scheme in schemes:
+        if not isinstance(scheme, dict):
+            continue
+        scheme_type = scheme.get("type")
+        if scheme_type == "http":
+            http_scheme = str(scheme.get("scheme", "")).lower()
+            if http_scheme == "bearer":
+                return AuthConfigDTO(type="bearer", credentials_location="header", scheme="bearer")
+            if http_scheme == "basic":
+                return AuthConfigDTO(type="basic", credentials_location="header", scheme="basic")
+        elif scheme_type == "apiKey":
+            return AuthConfigDTO(
+                type="apiKey",
+                credentials_location=str(scheme.get("in", "header")),
+                name=str(scheme.get("name") or ""),
+            )
+        elif scheme_type == "oauth2":
+            flows = scheme.get("flows") or {}
+            flow = next(iter(flows), None) or "clientCredentials"
+            token_url = str((flows.get(flow) or {}).get("tokenUrl") or "")
+            return AuthConfigDTO(type="oauth2", token_url=token_url, flow=str(flow))
+    return None
+
+
+def _to_auth_config_dto(info: AuthInfo | None) -> AuthConfigDTO:
+    if info is None:
+        return AuthConfigDTO()
+    return AuthConfigDTO(
+        type=info.type or "apiKey",
+        credentials_location=info.credentials_location or "header",
+        scheme=info.scheme,
+        name=info.name,
+        token_url=info.token_url,
+        flow=info.flow,
+    )
 
 
 class IntegrationSyncResult:
@@ -132,7 +176,7 @@ class IntegrationWorkflow:
         capabilities: dict[str, bool] | None,
     ) -> IntegrationConnection:
         spec_dict = raw_spec if isinstance(raw_spec, dict) else {}
-        auth_config = report.auth or AuthConfigDTO()
+        auth_config = _infer_auth_from_spec(spec_dict) or _to_auth_config_dto(report.auth)
         creds = credentials or {}
 
         entity_mappings = []

@@ -4,3 +4,5 @@ run_full_test.sh
 salla_file.pdf
 scenario-results.md
 test_api.sh
+TODO.txt
+openapi-1.yaml
