@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import logging
 import os
 from typing import Optional
@@ -26,9 +28,18 @@ class KeyManager:
         if self._encryption_service is None:
             key = os.getenv("ENCRYPTION_KEY", "")
             if not key:
-                logger.warning("ENCRYPTION_KEY not set. Generating temporary key.")
-                key = generate_encryption_key()
-                os.environ["ENCRYPTION_KEY"] = key
+                secret = os.getenv("JWT_SECRET", "")
+                if secret:
+                    digest = hashlib.sha256(secret.encode("utf-8")).digest()
+                    key = base64.b64encode(digest).decode("utf-8")
+                    logger.warning(
+                        "ENCRYPTION_KEY not set; deriving a stable key from JWT_SECRET so "
+                        "encrypted credentials survive restarts."
+                    )
+                else:
+                    logger.warning("ENCRYPTION_KEY not set. Generating temporary key.")
+                    key = generate_encryption_key()
+                    os.environ["ENCRYPTION_KEY"] = key
             self._encryption_service = EncryptionService(key=key)
         return self._encryption_service
 
