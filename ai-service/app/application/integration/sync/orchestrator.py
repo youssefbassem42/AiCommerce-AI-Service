@@ -10,6 +10,7 @@ from app.domain.integration.value_objects.pagination_config import PaginationCon
 from app.infrastructure.http.auth.auth_handler import AuthHandler
 from app.infrastructure.http.clients.base_client import ConnectionConfig, ExternalApiClient
 from app.infrastructure.http.pagination import PagePayload, PaginationIterator
+from app.infrastructure.http.ssrf import assert_safe_http_url
 from app.infrastructure.mongodb.repositories.integration_connection_repository import (
     IntegrationConnectionMongoRepository,
 )
@@ -290,13 +291,23 @@ class SyncOrchestrator:
     def _resolve_base_url(self, connection: IntegrationConnection) -> str:
         raw_spec = connection.raw_spec or {}
         servers = raw_spec.get("servers", []) if isinstance(raw_spec, dict) else []
+        candidates: list[str] = []
         if servers and isinstance(servers[0], dict):
-            url = servers[0].get("url", "")
-            if url:
-                return url.rstrip("/")
+            for entry in servers:
+                if isinstance(entry, dict) and entry.get("url"):
+                    candidates.append(entry["url"].rstrip("/"))
         for ep in connection.discovered_endpoints:
             if isinstance(ep, dict):
                 server = ep.get("server") or ep.get("base_url") or ep.get("url")
                 if server:
-                    return server.rstrip("/")
+                    candidates.append(server.rstrip("/"))
+        for url in candidates:
+            if not url:
+                continue
+            try:
+                assert_safe_http_url(url)
+            except Exception:
+                logger.warning("Skipping unsafe base URL candidate '%s'", url)
+                continue
+            return url
         return ""

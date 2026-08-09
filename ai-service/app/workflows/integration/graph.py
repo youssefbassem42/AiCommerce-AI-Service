@@ -71,6 +71,23 @@ def _to_auth_config_dto(info: AuthInfo | None) -> AuthConfigDTO:
     )
 
 
+PAGINATION_STYLES = {"none", "offset", "page", "cursor"}
+
+
+def _normalize_pagination_style(style: str | None, page_param: str | None = None) -> str:
+    """Map loose pagination style labels from the mapping agent onto the canonical enum."""
+    candidate = (style or "none").strip().lower()
+    if candidate in PAGINATION_STYLES:
+        return candidate
+    if candidate in {"pagination", "page-number", "per-page", "page_based"}:
+        return "page"
+    if candidate in {"offset-based", "limit-offset", "offset_based"}:
+        return "offset"
+    if page_param:
+        return "page"
+    return "none"
+
+
 class IntegrationSyncResult:
     def __init__(self):
         self.connection_id: str | None = None
@@ -183,7 +200,6 @@ class IntegrationWorkflow:
         for entity in report.entities:
             if not entity.list_path and not entity.detail_path:
                 continue
-            pagination_style = entity.pagination.style or "none"
             entity_mappings.append(
                 EntityMappingDTO(
                     entity_type=entity.entity_type,
@@ -193,7 +209,7 @@ class IntegrationWorkflow:
                     detail_method=entity.detail_method,
                     id_field=entity.id_field,
                     pagination=PaginationConfigDTO(
-                        style=pagination_style,
+                        style=_normalize_pagination_style(entity.pagination.style, entity.pagination.page_param),
                         page_param=entity.pagination.page_param,
                         limit_param=entity.pagination.limit_param,
                         default_limit=entity.pagination.default_limit or 20,
