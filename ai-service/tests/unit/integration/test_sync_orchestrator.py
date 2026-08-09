@@ -164,6 +164,15 @@ class TestSyncOrchestrator:
         assert "not active" in (result.error or "")
 
     @pytest.mark.asyncio
+    async def test_sync_inactive_without_credentials_is_allowed(self, orchestrator, connection):
+        connection.status = ConnectionStatus.INACTIVE
+        connection.encrypted_credentials = None
+        connection.entity_mappings[0].list_path = None
+        result = await orchestrator.sync_connection("conn1")
+        assert result.status == "completed"
+        assert "not active" not in (result.error or "")
+
+    @pytest.mark.asyncio
     async def test_sync_no_mappings(self, orchestrator, connection):
         connection.entity_mappings = []
         mock_repo = AsyncMock()

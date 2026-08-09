@@ -132,13 +132,26 @@ class TestIntegrationConnectionMethods:
 
     def test_mark_synced_on_inactive_raises(self) -> None:
         conn = _make_connection()
+        conn.set_credentials(AuthConfig(type=AuthType.APIKEY, name="X-Key"), "enc")
         with pytest.raises(IntegrationValidationException):
             conn.mark_synced()
 
     def test_mark_error_on_inactive_raises(self) -> None:
         conn = _make_connection()
+        conn.set_credentials(AuthConfig(type=AuthType.APIKEY, name="X-Key"), "enc")
         with pytest.raises(IntegrationValidationException):
             conn.mark_error("fail")
+
+    def test_mark_synced_allowed_on_credential_less_inactive(self) -> None:
+        conn = _make_connection()
+        conn.mark_synced("success")
+        assert conn.last_sync_status == "success"
+        assert conn.last_sync_at is not None
+
+    def test_mark_error_allowed_on_credential_less_inactive(self) -> None:
+        conn = _make_connection()
+        conn.mark_error("Connection refused")
+        assert conn.status == ConnectionStatus.ERROR
 
     def test_activate_without_credentials_raises(self) -> None:
         conn = _make_connection()

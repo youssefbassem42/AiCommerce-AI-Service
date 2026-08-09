@@ -113,7 +113,8 @@ class SyncOrchestrator:
         result: SyncResult,
         entity_types: list[str] | None = None,
     ) -> None:
-        if connection.status.value != "active":
+        is_anonymous = not connection.encrypted_credentials
+        if connection.status.value != "active" and not (connection.status.value == "inactive" and is_anonymous):
             raise ValueError(f"Connection '{connection.id}' is not active (status: {connection.status.value}).")
 
         entity_mappings = connection.entity_mappings

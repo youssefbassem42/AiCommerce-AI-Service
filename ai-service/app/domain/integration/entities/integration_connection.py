@@ -95,7 +95,7 @@ class IntegrationConnection(AggregateRoot[str]):
         self.updated_at = datetime.now(UTC)
 
     def mark_synced(self, status: str | None = None) -> None:
-        if self.status == ConnectionStatus.INACTIVE:
+        if self.status == ConnectionStatus.INACTIVE and self.encrypted_credentials:
             raise IntegrationValidationException("Cannot mark a sync on an inactive connection.")
         self.last_sync_at = datetime.now(UTC)
         self.last_sync_status = status or "success"
@@ -103,7 +103,7 @@ class IntegrationConnection(AggregateRoot[str]):
         self.updated_at = datetime.now(UTC)
 
     def mark_vector_synced(self, status: str | None = None) -> None:
-        if self.status == ConnectionStatus.INACTIVE:
+        if self.status == ConnectionStatus.INACTIVE and self.encrypted_credentials:
             raise IntegrationValidationException("Cannot mark vector sync on an inactive connection.")
         self.last_vector_sync_at = datetime.now(UTC)
         self.last_vector_sync_status = status or "success"
@@ -117,7 +117,7 @@ class IntegrationConnection(AggregateRoot[str]):
         self.updated_at = datetime.now(UTC)
 
     def mark_error(self, message: str) -> None:
-        if self.status == ConnectionStatus.INACTIVE:
+        if self.status == ConnectionStatus.INACTIVE and self.encrypted_credentials:
             raise IntegrationValidationException("Cannot mark error on an inactive connection.")
         self.status = ConnectionStatus.ERROR
         self.error_message = message

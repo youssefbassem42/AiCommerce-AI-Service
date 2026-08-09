@@ -165,7 +165,13 @@ class IntegrationWorkflow:
             )
             result.connection_id = connection.id
 
-            if auto_sync and connection.status == ConnectionStatus.ACTIVE:
+            if auto_sync and (
+                connection.status == ConnectionStatus.ACTIVE
+                or (
+                    connection.status == ConnectionStatus.INACTIVE
+                    and not connection.encrypted_credentials
+                )
+            ):
                 sync = await self._sync_orchestrator.sync_connection(connection.id)
                 result.sync_result = sync.to_dict()
 
