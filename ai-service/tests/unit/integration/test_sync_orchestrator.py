@@ -223,3 +223,38 @@ class TestSyncOrchestrator:
         assert sr.total_duration_seconds is None
         sr.completed_at = sr.started_at
         assert sr.total_duration_seconds == 0.0
+
+    @pytest.mark.asyncio
+    async def test_item_with_missing_optional_required_field_is_still_upserted(self, orchestrator, connection):
+        from app.infrastructure.http.pagination import PagePayload
+
+        field_mappings = [
+            FieldMapping(source="name", target="title"),
+            FieldMapping(source="price", target="price"),
+            FieldMapping(source="categoryId", target="category_id", required=True),
+        ]
+        entity_mapping = EntityMapping(
+            entity_type="product",
+            list_path="/products.json",
+            list_method="GET",
+            id_field="id",
+            pagination=PaginationConfig(style=PaginationStyle.NONE),
+            field_mappings=field_mappings,
+        )
+        writer = AsyncMock(spec=ProductWriter)
+        writer.upsert = AsyncMock(return_value=True)
+        entity_result = EntitySyncResult("product")
+        page = PagePayload(data=[{"id": 23, "name": "Sunglasses Retro", "price": 30.0}], page_number=1, raw_response={})
+        with patch("app.application.integration.sync.orchestrator.get_writer", return_value=writer):
+            await orchestrator._process_page(
+                page=page,
+                connection=connection,
+                entity_mapping=entity_mapping,
+                entity_result=entity_result,
+                writer=writer,
+            )
+        assert entity_result.total_upserted == 1
+        assert entity_result.total_mapped == 1
+        assert any("record kept" in e for e in entity_result.errors)
+        upserted_data = writer.upsert.await_args.kwargs["data"]
+        assert upserted_data["title"] == "Sunglasses Retro"

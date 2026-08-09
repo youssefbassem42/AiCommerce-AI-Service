@@ -229,15 +229,17 @@ class SyncOrchestrator:
             try:
                 mapped: MappedRecord = self._mapping_engine.apply(item, entity_mapping)
                 entity_result.total_mapped += 1
-                if not mapped.report.success:
-                    for err in mapped.report.errors:
-                        entity_result.errors.append(f"Mapping error: {err}")
-                    continue
 
                 external_id = mapped.data.get("external_id") or str(item.get(entity_mapping.id_field or "id", ""))
                 if not external_id:
+                    for err in mapped.report.errors:
+                        entity_result.errors.append(f"Mapping error: {err}")
                     entity_result.errors.append("Skipped item with no external_id.")
                     continue
+
+                if not mapped.report.success:
+                    for err in mapped.report.errors:
+                        entity_result.errors.append(f"Mapping warning (record kept): {err}")
 
                 upserted = await writer.upsert(
                     store_id=connection.store_id,
