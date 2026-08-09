@@ -165,6 +165,16 @@ class TestSyncOrchestrator:
         assert "not active" in (result.error or "")
 
     @pytest.mark.asyncio
+    async def test_sync_error_status_with_credentials_is_self_healing(self, orchestrator, mock_repo, connection):
+        from app.infrastructure.security.key_manager import KeyManager
+
+        connection.status = ConnectionStatus.ERROR
+        connection.encrypted_credentials = KeyManager().encrypt_secret('{"token": "real-value"}')
+        connection.entity_mappings[0].list_path = None
+        await orchestrator.sync_connection("conn1")
+        assert connection.status == ConnectionStatus.ACTIVE
+
+    @pytest.mark.asyncio
     async def test_sync_inactive_without_credentials_is_allowed(self, orchestrator, connection):
         connection.status = ConnectionStatus.INACTIVE
         connection.encrypted_credentials = None

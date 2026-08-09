@@ -4,7 +4,10 @@ from datetime import UTC, datetime
 from app.application.integration.mapping.engine import MappedRecord, MappingEngine
 from app.application.integration.sync.knowledge_bridge import CommerceKnowledgeBridge
 from app.application.integration.sync.writers import EntityWriter, get_writer
-from app.domain.integration.entities.integration_connection import IntegrationConnection
+from app.domain.integration.entities.integration_connection import (
+    ConnectionStatus,
+    IntegrationConnection,
+)
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.pagination_config import PaginationConfig, PaginationStyle
 from app.infrastructure.http.auth.auth_handler import AuthHandler
@@ -131,7 +134,12 @@ class SyncOrchestrator:
         entity_types: list[str] | None = None,
     ) -> None:
         is_anonymous = self._is_anonymous(connection)
-        if connection.status.value != "active" and not (connection.status.value == "inactive" and is_anonymous):
+        syncable = (
+            connection.status.value == "active"
+            or (connection.status.value == "error" and not is_anonymous)
+            or (connection.status.value == "inactive" and is_anonymous)
+        )
+        if not syncable:
             raise ValueError(f"Connection '{connection.id}' is not active (status: {connection.status.value}).")
 
         entity_mappings = connection.entity_mappings
@@ -178,6 +186,8 @@ class SyncOrchestrator:
             connection.mark_synced("partial_error")
         else:
             connection.mark_synced("no_data")
+        if connection.status == ConnectionStatus.ERROR and not is_anonymous:
+            connection.activate()
         await self._repository.update(connection)
         result.status = "completed"
 
