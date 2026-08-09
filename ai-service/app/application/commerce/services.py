@@ -191,7 +191,7 @@ class CategoryService:
         entity = Category(
             id=_new_id(),
             store_id=data.store_id,
-            org_id=data.org_id,
+            organization_id=data.organization_id,
             external_id=data.external_id,
             name=data.name,
             description=data.description,
@@ -255,7 +255,7 @@ class CategoryService:
         return CategoryDTO(
             id=entity.id,
             store_id=entity.store_id,
-            org_id=entity.org_id,
+            organization_id=entity.organization_id,
             external_id=entity.external_id,
             name=entity.name,
             description=entity.description,
@@ -278,7 +278,7 @@ class OrderService:
         entity = Order(
             id=_new_id(),
             store_id=data.store_id,
-            org_id=data.org_id,
+            organization_id=data.organization_id,
             external_id=data.external_id,
             customer_id=data.customer_id,
             customer_email=data.customer_email,
@@ -348,7 +348,7 @@ class OrderService:
         return OrderDTO(
             id=entity.id,
             store_id=entity.store_id,
-            org_id=entity.org_id,
+            organization_id=entity.organization_id,
             external_id=entity.external_id,
             customer_id=entity.customer_id,
             customer_email=entity.customer_email,
@@ -388,7 +388,7 @@ class InventoryService:
             product_id=data.product_id,
             variant_id=data.variant_id,
             store_id=data.store_id,
-            org_id=data.org_id,
+            organization_id=data.organization_id,
             external_id=data.external_id,
             quantity=data.quantity,
             available=data.available,
@@ -460,7 +460,7 @@ class InventoryService:
             product_id=entity.product_id,
             variant_id=entity.variant_id,
             store_id=entity.store_id,
-            org_id=entity.org_id,
+            organization_id=entity.organization_id,
             external_id=entity.external_id,
             quantity=entity.quantity,
             available=entity.available,

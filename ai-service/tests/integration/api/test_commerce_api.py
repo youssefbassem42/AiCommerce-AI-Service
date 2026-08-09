@@ -226,7 +226,7 @@ class TestCategoryAPI:
         mock_category_service.create.return_value = CategoryDTO(
             id="c1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             name="Electronics",
             sort_order=0,
             product_count=0,
@@ -238,7 +238,7 @@ class TestCategoryAPI:
             "/api/v1/commerce/categories",
             json={
                 "store_id": "store1",
-                "org_id": "org1",
+                "organization_id": "org1",
                 "name": "Electronics",
             },
         )
@@ -264,7 +264,7 @@ class TestCategoryAPI:
         mock_category_service.get_by_id.return_value = CategoryDTO(
             id="c1",
             store_id=STORE_ID,
-            org_id="org1",
+            organization_id="org1",
             name="Electronics",
             sort_order=0,
             product_count=0,
@@ -296,7 +296,7 @@ class TestOrderAPI:
         mock_order_service.create.return_value = OrderDTO(
             id="o1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             financial_status="pending",
             fulfillment_status=None,
             currency="USD",
@@ -313,7 +313,7 @@ class TestOrderAPI:
             "/api/v1/commerce/orders",
             json={
                 "store_id": "store1",
-                "org_id": "org1",
+                "organization_id": "org1",
             },
         )
         assert response.status_code == 201
@@ -328,7 +328,7 @@ class TestOrderAPI:
         mock_order_service.get_by_id.return_value = OrderDTO(
             id="o1",
             store_id=STORE_ID,
-            org_id="org1",
+            organization_id="org1",
             financial_status="paid",
             fulfillment_status=None,
             currency="USD",
@@ -353,7 +353,7 @@ class TestOrderAPI:
         mock_order_service.get_by_id.return_value = OrderDTO(
             id="o1",
             store_id=STORE_ID,
-            org_id="org1",
+            organization_id="org1",
             financial_status="pending",
             fulfillment_status=None,
             currency="USD",
@@ -369,7 +369,7 @@ class TestOrderAPI:
         mock_order_service.update_status.return_value = OrderDTO(
             id="o1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             financial_status="paid",
             fulfillment_status="fulfilled",
             currency="USD",
@@ -416,7 +416,7 @@ class TestInventoryAPI:
             product_id="p1",
             variant_id="v1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             quantity=100,
             available=80,
             committed=20,
@@ -434,7 +434,7 @@ class TestInventoryAPI:
                 "product_id": "p1",
                 "variant_id": "v1",
                 "store_id": "store1",
-                "org_id": "org1",
+                "organization_id": "org1",
                 "quantity": 100,
                 "available": 80,
                 "committed": 20,
@@ -454,7 +454,7 @@ class TestInventoryAPI:
             product_id="p1",
             variant_id="v1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             quantity=50,
             available=30,
             committed=20,

@@ -17,11 +17,11 @@ class ProductOption(AggregateRoot[str]):
 
 
 class Variant(AggregateRoot[str]):
-    sku: str = Field(..., min_length=1)
+    sku: str | None = None
     title: str = Field(..., min_length=1)
     price: Money
     compare_at_price: Money | None = None
-    inventory_quantity: int = Field(default=0, ge=0)
+    inventory_quantity: int = Field(default=0)
     weight: Decimal | None = Field(default=None, ge=0)
     dimensions: str | None = None
 

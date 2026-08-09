@@ -44,7 +44,7 @@ _now = datetime.now(UTC)
 _base_doc = {
     "_id": "507f1f77bcf86cd799439011",
     "store_id": "s1",
-    "org_id": "o1",
+    "organization_id": "o1",
     "external_id": None,
     "customer_id": "c1",
     "customer_email": None,
@@ -72,7 +72,7 @@ _base_doc = {
 
 class TestCommerceOrderRepository:
     async def test_create_order(self, repo, mock_collection):
-        order = Order(id="507f1f77bcf86cd799439011", store_id="s1", org_id="o1")
+        order = Order(id="507f1f77bcf86cd799439011", store_id="s1", organization_id="o1")
         result = await repo.create(order)
         assert result.id == order.id
         mock_collection.insert_one.assert_awaited_once()

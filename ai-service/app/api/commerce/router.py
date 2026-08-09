@@ -133,7 +133,7 @@ async def create_category(
 ) -> CategoryResponseSchema:
     data = payload.model_dump()
     data["store_id"] = store_id
-    data["org_id"] = organization_id
+    data["organization_id"] = organization_id
     result = await service.create(CategoryCreateDTO(**data))
     return CategoryResponseSchema(**result.model_dump())
 
@@ -222,7 +222,7 @@ async def create_order(
 ) -> OrderResponseSchema:
     data = payload.model_dump()
     data["store_id"] = store_id
-    data["org_id"] = organization_id
+    data["organization_id"] = organization_id
     result = await service.create(OrderCreateDTO(**data))
     return OrderResponseSchema(**result.model_dump())
 
@@ -272,7 +272,7 @@ async def create_inventory(
 ) -> InventoryResponseSchema:
     data = payload.model_dump()
     data["store_id"] = store_id
-    data["org_id"] = organization_id
+    data["organization_id"] = organization_id
     result = await service.create(InventoryCreateDTO(**data))
     return InventoryResponseSchema(**result.model_dump())
 

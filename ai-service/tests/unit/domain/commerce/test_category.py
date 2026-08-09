@@ -8,7 +8,7 @@ class TestCategory:
         cat = Category(
             id="c1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             name="Electronics",
         )
         assert cat.name == "Electronics"
@@ -19,7 +19,7 @@ class TestCategory:
         cat = Category(
             id="c2",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             name="Laptops",
             parent_id="c1",
             sort_order=1,
@@ -32,7 +32,7 @@ class TestCategory:
             Category(
                 id="c1",
                 store_id="store1",
-                org_id="org1",
+                organization_id="org1",
                 name="",
             )
 
@@ -41,7 +41,7 @@ class TestCategory:
             Category(
                 id="c1",
                 store_id="store1",
-                org_id="org1",
+                organization_id="org1",
                 name="Test",
                 product_count=-1,
             )
@@ -50,7 +50,7 @@ class TestCategory:
         cat = Category(
             id="c1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             external_id="ext-cat-1",
             name="Test",
         )
@@ -60,7 +60,7 @@ class TestCategory:
         cat = Category(
             id="c1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             name="Test",
         )
         assert cat.description is None

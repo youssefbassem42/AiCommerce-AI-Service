@@ -10,7 +10,7 @@ class TestInventory:
             product_id="p1",
             variant_id="v1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
         )
         assert inv.quantity == 0
         assert inv.available == 0
@@ -22,7 +22,7 @@ class TestInventory:
             product_id="p1",
             variant_id="v1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             quantity=100,
             available=80,
             committed=20,
@@ -40,7 +40,7 @@ class TestInventory:
                 product_id="p1",
                 variant_id="v1",
                 store_id="store1",
-                org_id="org1",
+                organization_id="org1",
                 available=-1,
             )
 
@@ -51,7 +51,7 @@ class TestInventory:
                 product_id="p1",
                 variant_id="v1",
                 store_id="store1",
-                org_id="org1",
+                organization_id="org1",
                 committed=-1,
             )
 
@@ -61,7 +61,7 @@ class TestInventory:
             product_id="p1",
             variant_id="v1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             external_id="ext-inv-1",
         )
         assert inv.external_id == "ext-inv-1"
@@ -72,7 +72,7 @@ class TestInventory:
             product_id="p1",
             variant_id="v1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             location_id="loc1",
             location_name="Warehouse A",
         )

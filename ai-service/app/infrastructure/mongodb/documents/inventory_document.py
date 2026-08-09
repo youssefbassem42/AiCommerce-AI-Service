@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from app.domain.commerce.entities.inventory import Inventory
 from app.infrastructure.mongodb.documents.base_document import AuditInfoModel, BaseMongoDocument
@@ -8,7 +8,7 @@ class InventoryDocument(BaseMongoDocument):
     product_id: str = Field(...)
     variant_id: str = Field(...)
     store_id: str = Field(..., index=True)
-    org_id: str = Field(...)
+    organization_id: str = Field(..., validation_alias=AliasChoices("organization_id", "org_id"))
     external_id: str | None = None
     quantity: int = 0
     available: int = 0
@@ -25,7 +25,7 @@ class InventoryDocument(BaseMongoDocument):
             product_id=self.product_id,
             variant_id=self.variant_id,
             store_id=self.store_id,
-            org_id=self.org_id,
+            organization_id=self.organization_id,
             external_id=self.external_id,
             quantity=self.quantity,
             available=self.available,
@@ -47,7 +47,7 @@ class InventoryDocument(BaseMongoDocument):
             product_id=entity.product_id,
             variant_id=entity.variant_id,
             store_id=entity.store_id,
-            org_id=entity.org_id,
+            organization_id=entity.organization_id,
             external_id=entity.external_id,
             quantity=entity.quantity,
             available=entity.available,

@@ -10,7 +10,7 @@ class Inventory(Entity[str]):
     product_id: str = Field(..., min_length=1)
     variant_id: str = Field(..., min_length=1)
     store_id: str = Field(..., min_length=1)
-    org_id: str = Field(..., min_length=1)
+    organization_id: str = Field(..., min_length=1)
     external_id: str | None = None
     quantity: int = Field(default=0)
     available: int = Field(default=0, ge=0)

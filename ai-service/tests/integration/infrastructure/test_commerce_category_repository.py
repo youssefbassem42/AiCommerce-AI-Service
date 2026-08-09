@@ -44,7 +44,7 @@ _now = datetime.now(UTC)
 _base_doc = {
     "_id": "507f1f77bcf86cd799439011",
     "store_id": "s1",
-    "org_id": "o1",
+    "organization_id": "o1",
     "external_id": None,
     "name": "Test Category",
     "description": None,
@@ -62,7 +62,7 @@ _base_doc = {
 
 class TestCommerceCategoryRepository:
     async def test_create_category(self, repo, mock_collection):
-        cat = Category(id="507f1f77bcf86cd799439011", store_id="s1", org_id="o1", name="Test")
+        cat = Category(id="507f1f77bcf86cd799439011", store_id="s1", organization_id="o1", name="Test")
         result = await repo.create(cat)
         assert result.id == cat.id
         mock_collection.insert_one.assert_awaited_once()

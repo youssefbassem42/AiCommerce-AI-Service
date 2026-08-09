@@ -154,7 +154,7 @@ async def setup_database_indexes(db) -> None:
 
     await db["products"].create_indexes(
         [
-            IndexModel([("org_id", ASCENDING), ("store_id", ASCENDING), ("external_id", ASCENDING)], unique=True),
+            IndexModel([("organization_id", ASCENDING), ("store_id", ASCENDING), ("external_id", ASCENDING)], unique=True),
             IndexModel([("store_id", ASCENDING), ("status", ASCENDING)]),
             IndexModel([("title", TEXT)], name="product_title_text"),
             IndexModel([("store_id", ASCENDING), ("updated_at", DESCENDING)]),

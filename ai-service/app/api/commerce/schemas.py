@@ -122,7 +122,7 @@ class ProductResponseSchema(BaseModel):
 
 class CategoryCreateSchema(BaseModel):
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     name: str
     description: str | None = None
@@ -146,7 +146,7 @@ class CategoryUpdateSchema(BaseModel):
 class CategoryResponseSchema(BaseModel):
     id: str
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     name: str
     description: str | None = None
@@ -162,7 +162,7 @@ class CategoryResponseSchema(BaseModel):
 
 class OrderCreateSchema(BaseModel):
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     customer_id: str | None = None
     customer_email: str | None = None
@@ -184,7 +184,7 @@ class OrderUpdateStatusSchema(BaseModel):
 class OrderResponseSchema(BaseModel):
     id: str
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     customer_id: str | None = None
     customer_email: str | None = None
@@ -205,7 +205,7 @@ class InventoryCreateSchema(BaseModel):
     product_id: str
     variant_id: str
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     quantity: int = 0
     available: int = 0
@@ -231,7 +231,7 @@ class InventoryResponseSchema(BaseModel):
     product_id: str
     variant_id: str
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     quantity: int
     available: int

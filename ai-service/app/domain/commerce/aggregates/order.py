@@ -33,7 +33,7 @@ class LineItem(AggregateRoot[str]):
 
 class Order(AggregateRoot[str]):
     store_id: str = Field(..., min_length=1)
-    org_id: str = Field(..., min_length=1)
+    organization_id: str = Field(..., min_length=1)
     external_id: str | None = None
     customer_id: str | None = None
     customer_email: str | None = None

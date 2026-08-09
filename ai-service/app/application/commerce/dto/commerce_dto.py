@@ -116,7 +116,7 @@ class ProductDTO(BaseModel):
 
 class CategoryCreateDTO(BaseModel):
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     name: str
     description: str | None = None
@@ -140,7 +140,7 @@ class CategoryUpdateDTO(BaseModel):
 class CategoryDTO(BaseModel):
     id: str
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     name: str
     description: str | None = None
@@ -156,7 +156,7 @@ class CategoryDTO(BaseModel):
 
 class OrderCreateDTO(BaseModel):
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     customer_id: str | None = None
     customer_email: str | None = None
@@ -198,7 +198,7 @@ class LineItemDTO(BaseModel):
 class OrderDTO(BaseModel):
     id: str
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     customer_id: str | None = None
     customer_email: str | None = None
@@ -219,7 +219,7 @@ class InventoryCreateDTO(BaseModel):
     product_id: str
     variant_id: str
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     quantity: int = 0
     available: int = 0
@@ -245,7 +245,7 @@ class InventoryDTO(BaseModel):
     product_id: str
     variant_id: str
     store_id: str
-    org_id: str
+    organization_id: str
     external_id: str | None = None
     quantity: int
     available: int

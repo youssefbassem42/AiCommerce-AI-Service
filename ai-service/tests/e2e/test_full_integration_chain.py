@@ -129,10 +129,10 @@ class TestPart2_SyncAndWriters:
         ]
 
         for name, writer, data in writers:
-            await writer.upsert(store_id="s1", org_id="o1", external_id=f"ext-{name}", data=data)
+            await writer.upsert(store_id="s1", organization_id="o1", external_id=f"ext-{name}", data=data)
             call_doc = mock_mongo.update_one.call_args[0][1]["$set"]
             assert "organization_id" in call_doc, (
-                f"{name}Writer doc should use 'organization_id', got keys: {list(call_doc.keys())}"
+                f"{name}Writer doc should use 'org_id', got keys: {list(call_doc.keys())}"
             )
             assert "org_id" not in call_doc, (
                 f"{name}Writer doc should not use 'org_id', got keys: {list(call_doc.keys())}"
@@ -141,13 +141,13 @@ class TestPart2_SyncAndWriters:
 
     @pytest.mark.asyncio
     async def test_2b_order_writer_preserves_numeric_prices(self, mock_mongo):
-        """Verify the fix: prices stored as numbers, not strings."""
+        """Verify the fix: prices normalized to {amount, currency} dicts, not raw strings."""
         from app.application.integration.sync.writers import OrderWriter
 
         writer = OrderWriter()
         await writer.upsert(
             store_id="s1",
-            org_id="o1",
+            organization_id="o1",
             external_id="ext1",
             data={
                 "total": 99.99,
@@ -160,16 +160,16 @@ class TestPart2_SyncAndWriters:
         )
 
         call_doc = mock_mongo.update_one.call_args[0][1]["$set"]
-        assert isinstance(call_doc["total_price"], (int, float)), (
-            f"total_price should be numeric, got {type(call_doc['total_price']).__name__}"
+        assert call_doc["total_price"] == {"amount": 99.99, "currency": "USD"}, (
+            f"total_price should be normalized to {{amount, currency}}, got {call_doc['total_price']}"
         )
-        assert isinstance(call_doc["subtotal_price"], (int, float)), (
-            f"subtotal_price should be numeric, got {type(call_doc['subtotal_price']).__name__}"
+        assert call_doc["subtotal_price"] == {"amount": 50.0, "currency": "USD"}, (
+            f"subtotal_price should be normalized to {{amount, currency}}, got {call_doc['subtotal_price']}"
         )
-        assert call_doc["total_price"] == 99.99
-        assert call_doc["subtotal_price"] == 50.00
+        assert call_doc["total_price"] == {"amount": 99.99, "currency": "USD"}
+        assert call_doc["subtotal_price"] == {"amount": 50.0, "currency": "USD"}
         print(
-            f"[2b] OrderWriter preserves numeric prices: total={call_doc['total_price']}, subtotal={call_doc['subtotal_price']}"
+            f"[2b] OrderWriter normalizes prices: total={call_doc['total_price']}, subtotal={call_doc['subtotal_price']}"
         )
 
     @pytest.mark.asyncio
@@ -180,7 +180,7 @@ class TestPart2_SyncAndWriters:
         writer = DynamicEntityWriter("test_entity")
         await writer.upsert(
             store_id="s1",
-            org_id="o1",
+            organization_id="o1",
             external_id="ext1",
             data={"title": "test", "created_at": "2024-01-01", "updated_at": "2024-01-02", "price": 100},
         )
@@ -276,7 +276,7 @@ class TestPart3_CommerceServices:
         entity = Order(
             id="ord-1",
             store_id="s1",
-            org_id="o1",
+            organization_id="o1",
             customer_id="c1",
             customer_email="c@example.com",
             line_items=[
@@ -326,7 +326,7 @@ class TestPart3_CommerceServices:
         entity = Order(
             id="ord-2",
             store_id="s1",
-            org_id="o1",
+            organization_id="o1",
             customer_id="c1",
             customer_email="c@example.com",
             line_items=[],

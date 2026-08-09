@@ -34,7 +34,7 @@ class TestInventoryService:
             product_id="p1",
             variant_id="v1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             quantity=100,
             available=80,
         )
@@ -43,7 +43,7 @@ class TestInventoryService:
             product_id="p1",
             variant_id="v1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             quantity=100,
             available=80,
         )
@@ -53,7 +53,7 @@ class TestInventoryService:
 
     async def test_get_by_variant_found(self, service, mock_repo):
         mock_repo.find_by_variant.return_value = Inventory(
-            id="i1", product_id="p1", variant_id="v1", store_id="s1", org_id="o1"
+            id="i1", product_id="p1", variant_id="v1", store_id="s1", organization_id="o1"
         )
         result = await service.get_by_variant("s1", "v1")
         assert result.variant_id == "v1"
@@ -64,10 +64,10 @@ class TestInventoryService:
             await service.get_by_variant("s1", "v99")
 
     async def test_update_inventory(self, service, mock_repo):
-        existing = Inventory(id="i1", product_id="p1", variant_id="v1", store_id="s1", org_id="o1", quantity=50)
+        existing = Inventory(id="i1", product_id="p1", variant_id="v1", store_id="s1", organization_id="o1", quantity=50)
         mock_repo.find_many.return_value = [existing]
         mock_repo.update.return_value = Inventory(
-            id="i1", product_id="p1", variant_id="v1", store_id="s1", org_id="o1", quantity=100
+            id="i1", product_id="p1", variant_id="v1", store_id="s1", organization_id="o1", quantity=100
         )
         result = await service.update("v1", InventoryUpdateDTO(quantity=100))
         assert result.quantity == 100
@@ -79,7 +79,7 @@ class TestInventoryService:
 
     async def test_get_low_stock(self, service, mock_repo):
         mock_repo.find_low_stock.return_value = [
-            Inventory(id="i1", product_id="p1", variant_id="v1", store_id="s1", org_id="o1", available=5)
+            Inventory(id="i1", product_id="p1", variant_id="v1", store_id="s1", organization_id="o1", available=5)
         ]
         result = await service.get_low_stock("s1", threshold=10)
         assert len(result) == 1
@@ -87,7 +87,7 @@ class TestInventoryService:
 
     async def test_list_inventory(self, service, mock_repo):
         mock_repo.paginate.return_value = (
-            [Inventory(id="i1", product_id="p1", variant_id="v1", store_id="s1", org_id="o1")],
+            [Inventory(id="i1", product_id="p1", variant_id="v1", store_id="s1", organization_id="o1")],
             1,
         )
         result = await service.list(store_id="s1")

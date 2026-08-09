@@ -35,7 +35,7 @@ class TestEntityWriters:
             writer = ProductWriter()
             result = await writer.upsert(
                 store_id="s1",
-                org_id="o1",
+                organization_id="o1",
                 external_id="ext1",
                 data={"title": "Test Product", "price": 19.99, "sku": "SKU001", "status": "active"},
             )
@@ -50,7 +50,7 @@ class TestEntityWriters:
             writer = OrderWriter()
             result = await writer.upsert(
                 store_id="s1",
-                org_id="o1",
+                organization_id="o1",
                 external_id="ext2",
                 data={"email": "test@test.com", "total": 100.0, "currency": "USD"},
             )
@@ -63,7 +63,7 @@ class TestEntityWriters:
             writer = CustomerWriter()
             result = await writer.upsert(
                 store_id="s1",
-                org_id="o1",
+                organization_id="o1",
                 external_id="ext3",
                 data={"email": "cust@test.com", "first_name": "John", "last_name": "Doe"},
             )
@@ -76,7 +76,7 @@ class TestEntityWriters:
             writer = CategoryWriter()
             result = await writer.upsert(
                 store_id="s1",
-                org_id="o1",
+                organization_id="o1",
                 external_id="ext4",
                 data={"name": "Electronics", "description": "Gadgets"},
             )
@@ -88,7 +88,7 @@ class TestEntityWriters:
             writer = InventoryWriter()
             result = await writer.upsert(
                 store_id="s1",
-                org_id="o1",
+                organization_id="o1",
                 external_id="ext5",
                 data={"inventory_quantity": 50, "product_id": "p1", "variant_id": "v1"},
             )

@@ -15,21 +15,83 @@ from app.infrastructure.mongodb.collections import (
 logger = logging.getLogger(__name__)
 
 
+def _normalize_currency(value: Any, fallback: str = "USD") -> str:
+    if isinstance(value, str) and len(value) == 3 and value.isalpha():
+        return value.upper()
+    return fallback
+
+
+def _normalize_money(value: Any) -> dict[str, Any] | None:
+    """Coerce API money shapes (dict amount, number, numeric string) into {amount, currency}."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, dict):
+        amount = value.get("amount", value.get("value", 0))
+        try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            return None
+        return {
+            "amount": max(0.0, amount),
+            "currency": _normalize_currency(value.get("currency", "USD")),
+        }
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return None
+    return {"amount": max(0.0, amount), "currency": "USD"}
+
+
+def _normalize_line_items(items: Any) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    normalized: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item = dict(item)
+        price = item.get("price")
+        if isinstance(price, (dict, int, float, str)):
+            item["price"] = _normalize_money(price)
+        tax_lines = item.get("tax_lines")
+        if isinstance(tax_lines, list):
+            clean_tax_lines = []
+            for tax_line in tax_lines:
+                if isinstance(tax_line, dict):
+                    tax_line = dict(tax_line)
+                    tax_price = tax_line.get("price")
+                    if isinstance(tax_price, (dict, int, float, str)):
+                        tax_line["price"] = _normalize_money(tax_price)
+                clean_tax_lines.append(tax_line)
+            item["tax_lines"] = clean_tax_lines
+        normalized.append(item)
+    return normalized
+
+
+def _audit_set(now: datetime) -> dict[str, Any]:
+    return {"updated_at": now, "audit.updated_at": now}
+
+
+def _audit_set_on_insert(now: datetime) -> dict[str, Any]:
+    return {"created_at": now, "audit.created_at": now, "audit.updated_by": None}
+
+
 class EntityWriter(ABC):
     @abstractmethod
-    async def upsert(self, store_id: str, org_id: str, external_id: str, data: dict[str, Any]) -> bool: ...
+    async def upsert(self, store_id: str, organization_id: str, external_id: str, data: dict[str, Any]) -> bool: ...
 
     @abstractmethod
     def collection_name(self) -> str: ...
 
 
 class ProductWriter(EntityWriter):
-    async def upsert(self, store_id: str, org_id: str, external_id: str, data: dict[str, Any]) -> bool:
+    async def upsert(self, store_id: str, organization_id: str, external_id: str, data: dict[str, Any]) -> bool:
         collection = get_products_collection()
         now = datetime.now(UTC)
+        organization_id = organization_id or store_id
         doc = {
             "store_id": store_id,
-            "organization_id": org_id,
+            "organization_id": organization_id,
             "external_id": external_id,
             "title": data.get("title") or data.get("name") or "",
             "description": data.get("description"),
@@ -38,21 +100,21 @@ class ProductWriter(EntityWriter):
             "product_type": data.get("product_type"),
             "vendor": data.get("vendor"),
             "tags": data.get("tags", []),
-            "price": data.get("price"),
-            "compare_at_price": data.get("compare_at_price"),
+            "price": _normalize_money(data.get("price")),
+            "compare_at_price": _normalize_money(data.get("compare_at_price")),
             "sku": data.get("sku"),
             "inventory_quantity": data.get("inventory_quantity") or data.get("stockQuantity") or 0,
             "weight": data.get("weight"),
             "image_url": data.get("image_url") or data.get("imageUrl"),
             "category_id": data.get("category_id") or data.get("categoryId") or data.get("categoryName"),
             "metadata": data.get("metadata", {}),
-            "updated_at": now,
         }
-        for key in ("created_at", "updated_at", "deleted_at"):
-            doc.pop(key, None)
         result = await collection.update_one(
             {"store_id": store_id, "external_id": external_id},
-            {"$set": doc, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {**doc, **_audit_set(now)},
+                "$setOnInsert": _audit_set_on_insert(now),
+            },
             upsert=True,
         )
         return result.upserted_id is not None or result.modified_count > 0
@@ -62,34 +124,37 @@ class ProductWriter(EntityWriter):
 
 
 class OrderWriter(EntityWriter):
-    async def upsert(self, store_id: str, org_id: str, external_id: str, data: dict[str, Any]) -> bool:
+    async def upsert(self, store_id: str, organization_id: str, external_id: str, data: dict[str, Any]) -> bool:
         collection = get_orders_collection()
         now = datetime.now(UTC)
+        organization_id = organization_id or store_id
         doc = {
             "store_id": store_id,
-            "organization_id": org_id,
+            "organization_id": organization_id,
             "external_id": external_id,
             "customer_id": data.get("customer_id"),
             "customer_email": data.get("email") or data.get("customer_email"),
-            "line_items": data.get("line_items", []),
+            "line_items": _normalize_line_items(data.get("line_items", [])),
             "shipping_address": data.get("shipping_address"),
             "billing_address": data.get("billing_address"),
-            "subtotal_price": data.get("subtotal"),
-            "total_price": data.get("total"),
-            "total_tax": data.get("tax"),
-            "total_discount": data.get("discount"),
-            "shipping_price": data.get("shipping_price"),
+            "subtotal_price": _normalize_money(data.get("subtotal")),
+            "total_price": _normalize_money(data.get("total")),
+            "total_tax": _normalize_money(data.get("tax")),
+            "total_discount": _normalize_money(data.get("discount")),
+            "shipping_price": _normalize_money(data.get("shipping_price")),
             "financial_status": data.get("financial_status") or data.get("status"),
             "fulfillment_status": data.get("fulfillment_status"),
-            "currency": data.get("currency", "USD"),
+            "currency": _normalize_currency(data.get("currency", "USD")),
             "notes": data.get("notes"),
             "tags": data.get("tags", []),
             "metadata": data.get("metadata", {}),
-            "updated_at": now,
         }
         result = await collection.update_one(
             {"store_id": store_id, "external_id": external_id},
-            {"$set": doc, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {**doc, **_audit_set(now)},
+                "$setOnInsert": _audit_set_on_insert(now),
+            },
             upsert=True,
         )
         return result.upserted_id is not None or result.modified_count > 0
@@ -99,12 +164,13 @@ class OrderWriter(EntityWriter):
 
 
 class CustomerWriter(EntityWriter):
-    async def upsert(self, store_id: str, org_id: str, external_id: str, data: dict[str, Any]) -> bool:
+    async def upsert(self, store_id: str, organization_id: str, external_id: str, data: dict[str, Any]) -> bool:
         collection = get_customers_collection()
         now = datetime.now(UTC)
+        organization_id = organization_id or store_id
         doc = {
             "store_id": store_id,
-            "organization_id": org_id,
+            "organization_id": organization_id,
             "external_id": external_id,
             "email": data.get("email"),
             "first_name": data.get("first_name"),
@@ -114,11 +180,13 @@ class CustomerWriter(EntityWriter):
             "notes": data.get("notes"),
             "accepts_marketing": data.get("accepts_marketing", False),
             "metadata": data.get("metadata", {}),
-            "updated_at": now,
         }
         result = await collection.update_one(
             {"store_id": store_id, "external_id": external_id},
-            {"$set": doc, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {**doc, **_audit_set(now)},
+                "$setOnInsert": _audit_set_on_insert(now),
+            },
             upsert=True,
         )
         return result.upserted_id is not None or result.modified_count > 0
@@ -128,12 +196,13 @@ class CustomerWriter(EntityWriter):
 
 
 class CategoryWriter(EntityWriter):
-    async def upsert(self, store_id: str, org_id: str, external_id: str, data: dict[str, Any]) -> bool:
+    async def upsert(self, store_id: str, organization_id: str, external_id: str, data: dict[str, Any]) -> bool:
         collection = get_categories_collection()
         now = datetime.now(UTC)
+        organization_id = organization_id or store_id
         doc = {
             "store_id": store_id,
-            "organization_id": org_id,
+            "organization_id": organization_id,
             "external_id": external_id,
             "name": data.get("name", ""),
             "description": data.get("description"),
@@ -142,11 +211,13 @@ class CategoryWriter(EntityWriter):
             "image_url": data.get("image_url"),
             "sort_order": data.get("sort_order", 0),
             "metadata": data.get("metadata", {}),
-            "updated_at": now,
         }
         result = await collection.update_one(
             {"store_id": store_id, "external_id": external_id},
-            {"$set": doc, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {**doc, **_audit_set(now)},
+                "$setOnInsert": _audit_set_on_insert(now),
+            },
             upsert=True,
         )
         return result.upserted_id is not None or result.modified_count > 0
@@ -156,12 +227,13 @@ class CategoryWriter(EntityWriter):
 
 
 class InventoryWriter(EntityWriter):
-    async def upsert(self, store_id: str, org_id: str, external_id: str, data: dict[str, Any]) -> bool:
+    async def upsert(self, store_id: str, organization_id: str, external_id: str, data: dict[str, Any]) -> bool:
         collection = get_inventory_collection()
         now = datetime.now(UTC)
+        organization_id = organization_id or store_id
         doc = {
             "store_id": store_id,
-            "organization_id": org_id,
+            "organization_id": organization_id,
             "external_id": external_id,
             "product_id": data.get("product_id") or data.get("external_id"),
             "variant_id": data.get("variant_id"),
@@ -173,11 +245,13 @@ class InventoryWriter(EntityWriter):
             "location_name": data.get("location_name"),
             "low_stock_threshold": data.get("low_stock_threshold"),
             "metadata": data.get("metadata", {}),
-            "updated_at": now,
         }
         result = await collection.update_one(
             {"store_id": store_id, "external_id": external_id},
-            {"$set": doc, "$setOnInsert": {"created_at": now}},
+            {
+                "$set": {**doc, **_audit_set(now)},
+                "$setOnInsert": _audit_set_on_insert(now),
+            },
             upsert=True,
         )
         return result.upserted_id is not None or result.modified_count > 0
@@ -193,15 +267,16 @@ class DynamicEntityWriter(EntityWriter):
     def __init__(self, entity_type: str = "unknown"):
         self._entity_type = entity_type
 
-    async def upsert(self, store_id: str, org_id: str, external_id: str, data: dict[str, Any]) -> bool:
+    async def upsert(self, store_id: str, organization_id: str, external_id: str, data: dict[str, Any]) -> bool:
         collection = get_entities_collection()
         now = datetime.now(UTC)
+        organization_id = organization_id or store_id
         cleaned_data = {
             k: v for k, v in data.items() if k not in ("created_at", "updated_at", "deleted_at", "synced_at")
         }
         doc = {
             "store_id": store_id,
-            "organization_id": org_id,
+            "organization_id": organization_id,
             "entity_type": self._entity_type,
             "external_id": external_id,
             "data": cleaned_data,

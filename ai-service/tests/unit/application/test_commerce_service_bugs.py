@@ -144,7 +144,7 @@ class TestCommerceServiceBugs:
         entity = Order(
             id="ord-1",
             store_id="s1",
-            org_id="o1",
+            organization_id="o1",
             customer_id="c1",
             customer_email="c@example.com",
             line_items=[
@@ -203,7 +203,7 @@ class TestCommerceServiceBugs:
         entity = Order(
             id="ord-2",
             store_id="s1",
-            org_id="o1",
+            organization_id="o1",
             customer_id="c1",
             customer_email="c@example.com",
             line_items=[
@@ -241,7 +241,7 @@ class TestCommerceServiceBugs:
         entity = Order(
             id="ord-3",
             store_id="s1",
-            org_id="o1",
+            organization_id="o1",
             customer_id="c1",
             customer_email="c@example.com",
             line_items=[

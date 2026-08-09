@@ -2,6 +2,7 @@ import logging
 from datetime import UTC, datetime
 
 from app.application.integration.mapping.engine import MappedRecord, MappingEngine
+from app.application.integration.mapping.llm_mapper import LlmEntityMapper
 from app.application.integration.sync.knowledge_bridge import CommerceKnowledgeBridge
 from app.application.integration.sync.writers import EntityWriter, get_writer
 from app.domain.integration.entities.integration_connection import (
@@ -82,6 +83,7 @@ class SyncOrchestrator:
         auth_handler: AuthHandler | None = None,
         knowledge_bridge: CommerceKnowledgeBridge | None = None,
         vector_sync_enabled: bool = True,
+        llm_mapper: LlmEntityMapper | None = None,
     ):
         self._repository = repository or IntegrationConnectionMongoRepository()
         self._mapping_engine = mapping_engine or MappingEngine()
@@ -89,6 +91,8 @@ class SyncOrchestrator:
         self._auth_handler = auth_handler or AuthHandler()
         self._knowledge_bridge = knowledge_bridge
         self._vector_sync_enabled = vector_sync_enabled
+        self._llm_mapper = llm_mapper if llm_mapper is not None else LlmEntityMapper()
+        self._llm_cache: dict[tuple[str, str], str] = {}
 
     async def sync_connection(self, connection_id: str, entity_types: list[str] | None = None) -> SyncResult:
         connection = await self._repository.find_by_id(connection_id)
@@ -210,6 +214,8 @@ class SyncOrchestrator:
 
         pagination_config = entity_mapping.pagination or PaginationConfig(style=PaginationStyle.NONE)
         mapped_records: list[dict] = []
+        effective_mapping = entity_mapping
+        llm_attempted = False
 
         try:
             async for page in PaginationIterator(
@@ -221,10 +227,17 @@ class SyncOrchestrator:
             ):
                 page_items = page.data if isinstance(page.data, list) else [page.data] if page.data else []
                 entity_result.total_fetched += len(page_items)
+                if not llm_attempted and page_items:
+                    llm_attempted = True
+                    effective_mapping = await self._resolve_llm_mapping(
+                        connection=connection,
+                        entity_mapping=entity_mapping,
+                        samples=page_items,
+                    )
                 await self._process_page(
                     page=page,
                     connection=connection,
-                    entity_mapping=entity_mapping,
+                    entity_mapping=effective_mapping,
                     entity_result=entity_result,
                     writer=writer,
                     mapped_records=mapped_records,
@@ -240,6 +253,63 @@ class SyncOrchestrator:
                 records=mapped_records,
                 entity_result=entity_result,
             )
+
+    async def _resolve_llm_mapping(
+        self,
+        connection: IntegrationConnection,
+        entity_mapping: EntityMapping,
+        samples: list[dict],
+    ) -> EntityMapping:
+        """Attempt an LLM-built field mapping; persist fingerprint + mapping on success.
+
+        The source fingerprint (spec + endpoint identity) is persisted on the
+        connection, so subsequent syncs reuse the LLM mapping without another
+        LLM call until the store's spec changes. On any failure the original
+        rule-based mapping is returned untouched.
+        """
+        cache_key = (connection.id, entity_mapping.entity_type)
+        fingerprint_source = {
+            "spec": connection.raw_spec,
+            "list_path": entity_mapping.list_path,
+            "id_field": entity_mapping.id_field,
+            "pagination": entity_mapping.pagination.model_dump(),
+        }
+        fingerprint = self._llm_mapper.fingerprint(fingerprint_source)
+
+        stored_mapping = next(
+            (em for em in connection.entity_mappings if em.entity_type == entity_mapping.entity_type),
+            None,
+        )
+        if connection.llm_mapping_sources.get(entity_mapping.entity_type) == fingerprint:
+            logger.info("LLM mapping cache hit for '%s' — reusing persisted mapping.", entity_mapping.entity_type)
+            return stored_mapping or entity_mapping
+        if self._llm_cache.get(cache_key) == fingerprint:
+            logger.info("LLM mapping cache hit for '%s' (in-sync) — reusing.", entity_mapping.entity_type)
+            return stored_mapping or entity_mapping
+
+        llm_mapping = await self._llm_mapper.build_entity_mapping(
+            entity_type=entity_mapping.entity_type,
+            current=entity_mapping,
+            raw_spec=connection.raw_spec or {},
+            sample_items=samples,
+        )
+        if llm_mapping is None or not llm_mapping.field_mappings:
+            return entity_mapping
+
+        for i, em in enumerate(connection.entity_mappings):
+            if em.entity_type == entity_mapping.entity_type:
+                connection.entity_mappings[i] = llm_mapping
+                break
+        else:
+            connection.entity_mappings.append(llm_mapping)
+        connection.llm_mapping_sources[entity_mapping.entity_type] = fingerprint
+        self._llm_cache[cache_key] = fingerprint
+        logger.info(
+            "LLM mapping applied for entity '%s' (fields: %d).",
+            entity_mapping.entity_type,
+            len(llm_mapping.field_mappings),
+        )
+        return llm_mapping
 
     async def _process_page(
         self,
@@ -274,7 +344,7 @@ class SyncOrchestrator:
 
                 upserted = await writer.upsert(
                     store_id=connection.store_id,
-                    org_id=connection.organization_id,
+                    organization_id=connection.organization_id,
                     external_id=str(external_id),
                     data=mapped.data,
                 )

@@ -12,6 +12,8 @@ def validate_object_id(v: Any) -> str:
         return str(v)
     if isinstance(v, str) and ObjectId.is_valid(v):
         return v
+    if isinstance(v, str) and v:
+        return v
     raise ValueError(f"Invalid ObjectId: {v}")
 
 
@@ -24,12 +26,17 @@ PyObjectId = Annotated[
 
 
 class AuditInfoModel(BaseModel):
-    created_at: Any
-    updated_at: Any
+    created_at: Any = None
+    updated_at: Any = None
     updated_by: str | None = None
 
     def to_vo(self) -> AuditInfo:
-        return AuditInfo(created_at=self.created_at, updated_at=self.updated_at, updated_by=self.updated_by)
+        now = datetime.now(UTC)
+        return AuditInfo(
+            created_at=self.created_at or now,
+            updated_at=self.updated_at or now,
+            updated_by=self.updated_by,
+        )
 
     @classmethod
     def from_vo(cls, vo: AuditInfo) -> "AuditInfoModel":

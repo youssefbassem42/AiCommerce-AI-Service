@@ -11,7 +11,7 @@ class TestOrder:
         order = Order(
             id="o1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             customer_id="c1",
             customer_email="test@example.com",
         )
@@ -29,7 +29,7 @@ class TestOrder:
         order = Order(
             id="o1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             line_items=[item],
         )
         assert len(order.line_items) == 1
@@ -49,7 +49,7 @@ class TestOrder:
         order = Order(
             id="o1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             tags=["urgent", "priority"],
         )
         assert "urgent" in order.tags
@@ -72,11 +72,11 @@ class TestOrder:
         order = Order(
             id="o1",
             store_id="store1",
-            org_id="org1",
+            organization_id="org1",
             external_id="ext-order-1",
         )
         assert order.external_id == "ext-order-1"
 
     def test_empty_store_id_raises(self):
         with pytest.raises(ValueError):
-            Order(id="o1", store_id="", org_id="org1")
+            Order(id="o1", store_id="", organization_id="org1")

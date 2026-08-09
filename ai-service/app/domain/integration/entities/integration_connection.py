@@ -34,6 +34,7 @@ class IntegrationConnection(AggregateRoot[str]):
     auth_config: AuthConfig = Field(default_factory=lambda: AuthConfig(type="apiKey", name="X-API-Key"))
     encrypted_credentials: str | None = None
     entity_mappings: list[EntityMapping] = Field(default_factory=list)
+    llm_mapping_sources: dict[str, str] = Field(default_factory=dict)
     discovered_endpoints: list[dict] = Field(default_factory=list)
     discovered_schemas: dict = Field(default_factory=dict)
     last_sync_at: datetime | None = None

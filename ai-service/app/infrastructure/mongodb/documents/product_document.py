@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.domain.commerce.aggregates.product import Product, ProductOption, Variant
 from app.domain.commerce.value_objects.image import Image
@@ -13,6 +13,13 @@ from app.infrastructure.mongodb.documents.base_document import AuditInfoModel, B
 class MoneyModel(BaseModel):
     amount: float = Field(..., ge=0)
     currency: str = Field(default="USD", min_length=3, max_length=3)
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def _normalize_currency(cls, value: Any) -> str:
+        if isinstance(value, str) and len(value) == 3 and value.isalpha():
+            return value.upper()
+        return "USD"
 
     def to_vo(self) -> Money:
         return Money(amount=Decimal(str(self.amount)), currency=self.currency)
@@ -64,7 +71,7 @@ class SEOModel(BaseModel):
 
 class VariantModel(BaseModel):
     id: str
-    sku: str
+    sku: str | None = None
     title: str
     price: MoneyModel
     compare_at_price: MoneyModel | None = None

@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from app.domain.commerce.aggregates.category import Category
 from app.infrastructure.mongodb.documents.base_document import AuditInfoModel, BaseMongoDocument
@@ -6,7 +6,7 @@ from app.infrastructure.mongodb.documents.base_document import AuditInfoModel, B
 
 class CategoryDocument(BaseMongoDocument):
     store_id: str = Field(..., index=True)
-    org_id: str = Field(...)
+    organization_id: str = Field(..., validation_alias=AliasChoices("organization_id", "org_id"))
     external_id: str | None = None
     name: str = Field(...)
     description: str | None = None
@@ -21,7 +21,7 @@ class CategoryDocument(BaseMongoDocument):
         return Category(
             id=str(self.id),
             store_id=self.store_id,
-            org_id=self.org_id,
+            organization_id=self.organization_id,
             external_id=self.external_id,
             name=self.name,
             description=self.description,
@@ -41,7 +41,7 @@ class CategoryDocument(BaseMongoDocument):
         return cls(
             _id=entity.id,
             store_id=entity.store_id,
-            org_id=entity.org_id,
+            organization_id=entity.organization_id,
             external_id=entity.external_id,
             name=entity.name,
             description=entity.description,

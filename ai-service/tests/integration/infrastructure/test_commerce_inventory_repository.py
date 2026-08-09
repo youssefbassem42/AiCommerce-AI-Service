@@ -46,7 +46,7 @@ _base_doc = {
     "product_id": "p1",
     "variant_id": "v1",
     "store_id": "s1",
-    "org_id": "o1",
+    "organization_id": "o1",
     "external_id": None,
     "quantity": 100,
     "available": 80,
@@ -69,7 +69,7 @@ class TestCommerceInventoryRepository:
             product_id="p1",
             variant_id="v1",
             store_id="s1",
-            org_id="o1",
+            organization_id="o1",
         )
         result = await repo.create(inv)
         assert result.id == inv.id

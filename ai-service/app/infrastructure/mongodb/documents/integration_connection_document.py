@@ -150,6 +150,7 @@ class IntegrationConnectionDocument(BaseMongoDocument):
     auth_config: AuthConfigModel = Field(default_factory=AuthConfigModel)
     encrypted_credentials: str | None = None
     entity_mappings: list[EntityMappingModel] = Field(default_factory=list)
+    llm_mapping_sources: dict[str, str] = Field(default_factory=dict)
     discovered_endpoints: list[dict] = Field(default_factory=list)
     discovered_schemas: dict = Field(default_factory=dict)
     last_sync_at: Any = None
@@ -170,6 +171,7 @@ class IntegrationConnectionDocument(BaseMongoDocument):
             auth_config=self.auth_config.to_vo(),
             encrypted_credentials=self.encrypted_credentials,
             entity_mappings=[em.to_vo() for em in self.entity_mappings],
+            llm_mapping_sources=self.llm_mapping_sources,
             discovered_endpoints=self.discovered_endpoints,
             discovered_schemas=self.discovered_schemas,
             last_sync_at=self.last_sync_at,
@@ -194,6 +196,7 @@ class IntegrationConnectionDocument(BaseMongoDocument):
             "auth_config": AuthConfigModel.from_vo(entity.auth_config),
             "encrypted_credentials": entity.encrypted_credentials,
             "entity_mappings": [EntityMappingModel.from_vo(em) for em in entity.entity_mappings],
+            "llm_mapping_sources": entity.llm_mapping_sources,
             "discovered_endpoints": entity.discovered_endpoints,
             "discovered_schemas": entity.discovered_schemas,
             "last_sync_at": entity.last_sync_at,

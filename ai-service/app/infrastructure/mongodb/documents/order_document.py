@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from app.domain.commerce.aggregates.order import Fulfillment, LineItem, Order, TaxLine
 from app.domain.commerce.value_objects.address import Address
@@ -124,7 +124,7 @@ class LineItemModel(BaseModel):
 
 class OrderDocument(BaseMongoDocument):
     store_id: str = Field(..., index=True)
-    org_id: str = Field(...)
+    organization_id: str = Field(..., validation_alias=AliasChoices("organization_id", "org_id"))
     external_id: str | None = None
     customer_id: str | None = None
     customer_email: str | None = None
@@ -149,7 +149,7 @@ class OrderDocument(BaseMongoDocument):
         return Order(
             id=str(self.id),
             store_id=self.store_id,
-            org_id=self.org_id,
+            organization_id=self.organization_id,
             external_id=self.external_id,
             customer_id=self.customer_id,
             customer_email=self.customer_email,
@@ -179,7 +179,7 @@ class OrderDocument(BaseMongoDocument):
         return cls(
             _id=entity.id,
             store_id=entity.store_id,
-            org_id=entity.org_id,
+            organization_id=entity.organization_id,
             external_id=entity.external_id,
             customer_id=entity.customer_id,
             customer_email=entity.customer_email,

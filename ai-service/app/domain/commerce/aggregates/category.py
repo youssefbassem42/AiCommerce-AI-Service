@@ -8,7 +8,7 @@ from app.shared.kernel.aggregate_root import AggregateRoot
 
 class Category(AggregateRoot[str]):
     store_id: str = Field(..., min_length=1)
-    org_id: str = Field(..., min_length=1)
+    organization_id: str = Field(..., min_length=1)
     external_id: str | None = None
     name: str = Field(..., min_length=1)
     description: str | None = None
