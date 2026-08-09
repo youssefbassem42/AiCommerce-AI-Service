@@ -110,13 +110,17 @@ class SyncOrchestrator:
         return result
 
     def _is_anonymous(self, connection: IntegrationConnection) -> bool:
-        """True when no credentials are stored, or the stored blob decrypts to an empty value."""
+        """True when no credentials are stored, or the stored blob decrypts to an empty value.
+
+        An undecryptable blob is treated as anonymous: its credentials cannot be used
+        for any request, so anonymous (public-endpoint) syncing is the only sensible path.
+        """
         if not connection.encrypted_credentials:
             return True
         try:
             decrypted = self._key_manager.decrypt_secret(connection.encrypted_credentials)
         except Exception:
-            return False
+            return True
         return not decrypted or decrypted.strip() in _EMPTY_CREDENTIALS_BLOBS
 
     async def _execute_sync(
