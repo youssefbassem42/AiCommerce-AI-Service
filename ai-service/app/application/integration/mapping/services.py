@@ -274,7 +274,9 @@ class IntegrationApplicationService:
             raise IntegrationConnectionNotFoundException(connection_id)
         return await self._repository.delete(connection_id)
 
-    def _encrypt_credentials(self, credentials: dict[str, str]) -> str:
+    def _encrypt_credentials(self, credentials: dict[str, str]) -> str | None:
+        if not credentials:
+            return None
         return self._key_manager.encrypt_secret(json.dumps(credentials))
 
     @staticmethod

@@ -18,6 +18,8 @@ from app.infrastructure.security.key_manager import KeyManager
 
 logger = logging.getLogger(__name__)
 
+_EMPTY_CREDENTIALS_BLOBS = ("{}", "[]", "null")
+
 
 class EntitySyncResult:
     def __init__(self, entity_type: str):
@@ -107,13 +109,23 @@ class SyncOrchestrator:
         result.completed_at = datetime.now(UTC)
         return result
 
+    def _is_anonymous(self, connection: IntegrationConnection) -> bool:
+        """True when no credentials are stored, or the stored blob decrypts to an empty value."""
+        if not connection.encrypted_credentials:
+            return True
+        try:
+            decrypted = self._key_manager.decrypt_secret(connection.encrypted_credentials)
+        except Exception:
+            return False
+        return not decrypted or decrypted.strip() in _EMPTY_CREDENTIALS_BLOBS
+
     async def _execute_sync(
         self,
         connection: IntegrationConnection,
         result: SyncResult,
         entity_types: list[str] | None = None,
     ) -> None:
-        is_anonymous = not connection.encrypted_credentials
+        is_anonymous = self._is_anonymous(connection)
         if connection.status.value != "active" and not (connection.status.value == "inactive" and is_anonymous):
             raise ValueError(f"Connection '{connection.id}' is not active (status: {connection.status.value}).")
 
@@ -131,11 +143,13 @@ class SyncOrchestrator:
             raise ValueError("No base URL found in connection's discovered endpoints.")
 
         decrypted_credentials = None
-        if connection.encrypted_credentials:
+        if not is_anonymous:
             try:
                 decrypted_credentials = self._key_manager.decrypt_secret(connection.encrypted_credentials)
             except Exception as e:
                 raise ValueError(f"Failed to decrypt credentials: {e}") from e
+        elif connection.encrypted_credentials:
+            connection.encrypted_credentials = None
 
         client_config = ConnectionConfig(base_url=base_url, timeout=30.0, max_retries=2)
         client = ExternalApiClient(
