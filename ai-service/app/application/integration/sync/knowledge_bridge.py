@@ -96,6 +96,12 @@ class CommerceKnowledgeBridge:
         collection = f"kb_{store_id}"
 
         try:
+            if not await self._vector_store.collection_exists(collection):
+                await self._vector_store.create_collection(collection, vector_size=768)
+        except Exception as e:
+            logger.warning("Failed to ensure collection '%s': %s", collection, e)
+
+        try:
             await self._delete_stale_vectors(collection, store_id, entity_type)
         except Exception as e:
             logger.warning("Failed to delete stale vectors for %s/%s: %s", store_id, entity_type, e)
