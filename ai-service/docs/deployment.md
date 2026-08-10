@@ -46,3 +46,10 @@ Set via `.env` file or environment variables. See `.env.example` for all options
 - MongoDB: `mongodump` or Atlas snapshots
 - Qdrant: Snapshot API or storage volume backup
 - Redis: RDB/AOF persistence (configured in docker-compose)
+
+## Rollback Strategy
+
+- **Application rollback**: Revert to the previous container image (`docker compose down && docker compose up -d --build` with a pinned previous tag). API compat is guaranteed by the OpenAPI baseline (`docs/api/openapi-baseline.json`) — before upgrading, diff the deployed schema against the baseline; any UNINTENTIONAL BREAKING change blocks release.
+- **Data safety**: No application phase (A–E, G) introduces schema changes, indexes, or data migrations. Rolling back the app never requires Mongo/Qdrant/Redis rollback.
+- **Feature toggles**: Rate-limit tiers and limits are env-configurable (`RATE_LIMIT_*`); the widget AI-execution policy is bounded by `WidgetServerPolicy` defaults in code. Both can be relaxed without redeploying the container (env change + restart).
+- **External services**: Mongo/Redis/Qdrant failures are designed to be controlled (in-flight fallbacks, empty retrieval results, error statuses) and never bypass tenant isolation — see `docs/audit/phase-g-report.md` §G4.

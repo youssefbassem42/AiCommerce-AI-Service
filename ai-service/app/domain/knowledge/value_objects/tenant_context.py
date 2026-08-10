@@ -19,6 +19,7 @@ class TenantContext(BaseModel):
         default="user",
         description="Identity path: 'user' (SaaS JWT) or 'widget' (widget access token)",
     )
+    request_id: str = Field(default="", description="Correlation ID of the originating HTTP request")
 
     def scope_filter(self) -> dict[str, str]:
         return {

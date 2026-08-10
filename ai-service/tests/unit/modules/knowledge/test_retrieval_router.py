@@ -100,8 +100,6 @@ class TestRetrievalRouterSearch:
             "/knowledge/retrieval/search",
             json={
                 "query": "filtered",
-                "organization_id": "org-1",
-                "store_id": "store-1",
                 "language": "en",
                 "use_hybrid": True,
                 "use_mmr": True,
@@ -109,7 +107,13 @@ class TestRetrievalRouterSearch:
             },
         )
         assert resp.status_code == 200
-        assert resp.json()["filters_applied"]["organization_id"] == "org-1"
+
+        # Tenant identifiers are server-derived from the JWT claims only —
+        # a client that echoes ANOTHER store's identifiers is denied (403),
+        # covered by tests/unit/security/test_tenant_isolation.py.
+        _, kwargs = mock_retriever.search.await_args
+        assert kwargs["filters"].store_id == "22222222-2222-2222-2222-222222222222"
+        assert kwargs["filters"].organization_id == "33333333-3333-3333-3333-333333333333"
 
     def test_search_empty_result(self, client, mock_retriever):
         result = UnifiedRetrievalResult(

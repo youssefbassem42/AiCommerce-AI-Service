@@ -24,6 +24,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         store_id = getattr(request.state, "store_id", None)
         user_id = getattr(request.state, "user_id", None)
+        request_id = getattr(request.state, "request_id", "")
 
         start_time = datetime.now(UTC)
 
@@ -45,6 +46,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         "path": request.url.path,
                         "status_code": status_code,
                         "duration_ms": (datetime.now(UTC) - start_time).total_seconds() * 1000,
+                        "request_id": request_id,
                     },
                     outcome="success" if status_code < 400 else "failure",
                 )

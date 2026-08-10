@@ -23,8 +23,12 @@ os.environ["MAX_RETRIES"] = "1"
 os.environ["JWT_SECRET"] = "test-jwt-secret-shared-0123456789abcdef"
 os.environ["JWT_SECRET_KEY"] = "test-jwt-secret-shared-0123456789abcdef"
 # Keep the shared in-memory rate limiter (wall-clock 100 req/min default) from
-# tripping with 429s during fast/back-to-back suite runs.
+# tripping with 429s during fast/back-to-back suite runs. All tiers are raised
+# so only dedicated rate-limit tests exercise the limits.
 os.environ["RATE_LIMIT_PER_MINUTE"] = "1000000"
+os.environ["RATE_LIMIT_LLM_PER_MINUTE"] = "1000000"
+os.environ["RATE_LIMIT_WIDGET_BOOTSTRAP_PER_MINUTE"] = "1000000"
+os.environ["RATE_LIMIT_WIDGET_SESSION_PER_MINUTE"] = "1000000"
 
 
 @pytest.fixture

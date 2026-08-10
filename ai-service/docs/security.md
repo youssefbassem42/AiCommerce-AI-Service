@@ -36,9 +36,20 @@ Key management recommendations:
 
 ## Rate Limiting
 
-- Per-store rate limiting via Redis
-- Falls back to in-memory if Redis is unavailable
-- Configurable limit (default: 100 requests/minute)
+Endpoint-aware tiers (per identity, per minute):
+
+| Tier | Applies to | Identity | Default limit |
+|---|---|---|---|
+| default | all non-whitelisted routes | JWT `store_id` claim, else client IP | 100 |
+| llm | `/chat`, `/api/v1/ai/chat*`, `/rag/chat*`, `/api/v1/recommendations/*`, `/api/v1/widget/chat`, `/api/v1/widget/recommendations` | `store_id` claim, else client IP | 20 |
+| widget_session | `/api/v1/widget/chat`, `/api/v1/widget/recommendations` | widget session store | 60 |
+| widget_bootstrap | `/api/v1/widget/bootstrap` | SHA-256 hash of `X-Widget-Key` (raw key never stored/logged) | 30 |
+
+- A request is counted against every tier it matches; the first tier to trip returns 429 with `tier`, `limit`, `reset_seconds` and `Retry-After`.
+- Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` (default tier), `X-RateLimit-Tier` on 429.
+- Redis is the primary store; falls back to a bounded in-memory sliding window if Redis is unavailable.
+- Limits configured via `RATE_LIMIT_PER_MINUTE`, `RATE_LIMIT_LLM_PER_MINUTE`, `RATE_LIMIT_WIDGET_BOOTSTRAP_PER_MINUTE`, `RATE_LIMIT_WIDGET_SESSION_PER_MINUTE`.
+- `/health` and `/health/` are whitelisted.
 
 ## Audit Logging
 

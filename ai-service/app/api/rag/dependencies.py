@@ -35,6 +35,7 @@ def get_tenant_context(request: Request) -> TenantContext | None:
     claims = {
         "organization_id": getattr(request.state, "organization_id", None),
         "store_id": getattr(request.state, "store_id", None),
+        "request_id": getattr(request.state, "request_id", ""),
     }
     if not claims["organization_id"] and not claims["store_id"]:
         return None

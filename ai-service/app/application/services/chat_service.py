@@ -18,6 +18,7 @@ from app.application.services.orchestration_service import OrchestrationService
 from app.core.ai_exceptions import AIException, ProviderUnavailableException, RateLimitException
 from app.core.ai_settings import ai_settings
 from app.core.model_registry import ModelRegistry
+from app.core.request_context import get_request_id
 from app.infrastructure.providers.factory import LLMProviderFactory
 from app.utils.token_utils import calculate_cost, calculate_tokens
 
@@ -94,7 +95,7 @@ class ChatService:
         When orchestration_service is configured, chat traffic is delegated to the
         coordinator + conversation workflow (Phase 01 orchestration).
         """
-        corr_id = correlation_id or self._generate_correlation_id()
+        corr_id = correlation_id or get_request_id() or self._generate_correlation_id()
 
         if self.orchestration_service:
             return await self._orchestrated_chat(
@@ -237,7 +238,7 @@ class ChatService:
         """
         Stream response from the provider.
         """
-        corr_id = correlation_id or self._generate_correlation_id()
+        corr_id = correlation_id or get_request_id() or self._generate_correlation_id()
         model_info = ModelRegistry.get_model_info(request.model)
         provider_name = model_info.provider if model_info else ai_settings.DEFAULT_PROVIDER
 

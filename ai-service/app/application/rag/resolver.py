@@ -39,6 +39,7 @@ class TenantContextResolver:
             timezone=payload.get("timezone", "UTC"),
             knowledge_version=int(payload.get("knowledge_version", 1)),
             vector_namespace=vector_ns,
+            request_id=payload.get("request_id", ""),
         )
 
     @classmethod

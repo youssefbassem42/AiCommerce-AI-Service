@@ -1,12 +1,13 @@
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.auth.dependencies import get_current_user
 from app.api.knowledge.retrieval_dependencies import get_retriever_service
 from app.api.knowledge.retrieval_schemas import RetrievalRequestSchema, RetrievalResponseSchema, RetrievedChunkSchema
 from app.application.knowledge.retrieval import RetrieverService
 from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
+from app.core.security import ERR_NO_ORG, ERR_NO_STORE
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +19,26 @@ router = APIRouter(
 
 
 def _resolve_filters(payload: RetrievalRequestSchema, request: Request) -> RetrievalFilters:
+    """Tenant filters come from validated JWT claims ONLY.
+
+    `payload.store_id` / `payload.organization_id` remain in the request contract
+    for backward compatibility but are deliberately IGNORED — server-derived tenant
+    identity is authoritative. An authenticated request without a store/organization
+    claim is denied instead of falling back to client-supplied identifiers.
+    """
     store_id = getattr(request.state, "store_id", None)
     organization_id = getattr(request.state, "organization_id", None)
+    if not store_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ERR_NO_STORE)
+    if not organization_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ERR_NO_ORG)
+    if payload.store_id and payload.store_id != store_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ERR_NO_STORE)
+    if payload.organization_id and payload.organization_id != organization_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ERR_NO_ORG)
     return RetrievalFilters(
-        organization_id=organization_id or payload.organization_id,
-        store_id=store_id or payload.store_id,
+        organization_id=organization_id,
+        store_id=store_id,
         language=payload.language,
         document_type=payload.document_type,
         knowledge_scope=payload.knowledge_scope,

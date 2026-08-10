@@ -38,6 +38,9 @@ class Settings(BaseSettings):
         "https://aicommerce-ai-service-production.up.railway.app",
     ]
     RATE_LIMIT_PER_MINUTE: int = 100
+    RATE_LIMIT_LLM_PER_MINUTE: int = 20
+    RATE_LIMIT_WIDGET_BOOTSTRAP_PER_MINUTE: int = 30
+    RATE_LIMIT_WIDGET_SESSION_PER_MINUTE: int = 60
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=True)
 

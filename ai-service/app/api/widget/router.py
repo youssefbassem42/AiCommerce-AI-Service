@@ -22,6 +22,7 @@ from app.application.rag.service import RagOrchestrationService
 from app.application.recommendation.services import RecommendationService
 from app.application.services.conversation_service import ConversationService
 from app.application.widget.bootstrap_service import WidgetBootstrapService
+from app.application.widget.policy import apply_widget_policy
 from app.domain.knowledge.value_objects.tenant_context import TenantContext
 from app.domain.widget.repositories.widget_installation_repository import (
     WidgetInstallationNotFoundError,
@@ -82,22 +83,31 @@ async def widget_chat(
         if not owned:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
+    policy_result = apply_widget_policy(payload)
+    if policy_result.clamped:
+        logger.warning(
+            "Widget chat controls clamped by server policy (store=%s widget=%s): %s",
+            tenant_context.store_id,
+            getattr(request.state, "widget_id", "?"),
+            ", ".join(policy_result.clamped),
+        )
+
     rag_request = RAGRequest(
         message=payload.message,
         conversation_id=payload.conversation_id,
         customer_id=payload.customer_id,
         store_id=tenant_context.store_id,
         organization_id=tenant_context.organization_id,
-        model=payload.model,
-        temperature=payload.temperature,
-        max_tokens=payload.max_tokens,
-        top_k=payload.top_k,
-        score_threshold=payload.score_threshold,
-        use_hybrid=payload.use_hybrid,
-        use_mmr=payload.use_mmr,
-        rerank=payload.rerank,
+        model=policy_result.model,
+        temperature=policy_result.temperature,
+        max_tokens=policy_result.max_tokens,
+        top_k=policy_result.top_k,
+        score_threshold=policy_result.score_threshold,
+        use_hybrid=policy_result.use_hybrid,
+        use_mmr=policy_result.use_mmr,
+        rerank=policy_result.rerank,
         language=payload.language,
-        knowledge_scope=payload.knowledge_scope,
+        knowledge_scope=policy_result.knowledge_scope,
         stream=False,
     )
     result = await rag_service.answer(rag_request)

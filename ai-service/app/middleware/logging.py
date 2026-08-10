@@ -11,15 +11,14 @@ logger = logging.getLogger("ai_service")
 class AITracingMiddleware(BaseHTTPMiddleware):
     """
     HTTP middleware to trace every request.
-    Generates or extracts a correlation ID, tracks execution time, and logs details.
+    Uses the correlation ID established by RequestContextMiddleware (outermost),
+    tracks execution time, and logs every request.
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        # Extract or generate correlation ID
-        correlation_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
-
-        # Attach to request state for reuse in handlers
-        request.state.correlation_id = correlation_id
+        # RequestContextMiddleware always runs before this middleware; fall back to a
+        # fresh ID defensively (e.g. if middleware order changes).
+        correlation_id = getattr(request.state, "request_id", None) or str(uuid.uuid4())
 
         start_time = time.perf_counter()
 
@@ -27,14 +26,13 @@ class AITracingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             process_time_ms = (time.perf_counter() - start_time) * 1000
 
-            # Add correlation ID to response headers
-            response.headers["X-Correlation-ID"] = correlation_id
+            # Add processing time to response headers
             response.headers["X-Process-Time-Ms"] = f"{process_time_ms:.2f}"
 
             # Log successful request
             logger.info(
                 f"[Request Success] Path: {request.url.path} | Method: {request.method} | "
-                f"Status: {response.status_code} | Latency: {process_time_ms:.2f}ms | Correlation ID: {correlation_id}"
+                f"Status: {response.status_code} | Latency: {process_time_ms:.2f}ms | Request ID: {correlation_id}"
             )
 
             return response
@@ -44,7 +42,7 @@ class AITracingMiddleware(BaseHTTPMiddleware):
             # Log failed request
             logger.error(
                 f"[Request Failed] Path: {request.url.path} | Method: {request.method} | "
-                f"Error: {str(e)} | Latency: {process_time_ms:.2f}ms | Correlation ID: {correlation_id}",
+                f"Error: {str(e)} | Latency: {process_time_ms:.2f}ms | Request ID: {correlation_id}",
                 exc_info=True,
             )
             raise e

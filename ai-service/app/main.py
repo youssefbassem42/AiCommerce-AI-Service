@@ -37,6 +37,7 @@ from app.middleware.audit import AuditMiddleware
 from app.middleware.auth import AuthMiddleware
 from app.middleware.logging import AITracingMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.request_context import RequestContextMiddleware
 from app.middleware.widget_cors import WidgetCorsMiddleware
 
 logger = logging.getLogger(__name__)
@@ -92,11 +93,22 @@ app.add_middleware(
     ],
     max_age=3600,
 )
-app.add_middleware(AuditMiddleware)
-app.add_middleware(AuthMiddleware)
-app.add_middleware(RateLimitMiddleware, limit_per_minute=settings.RATE_LIMIT_PER_MINUTE)
-app.add_middleware(AITracingMiddleware)
+# `app.add_middleware` inserts at index 0, so the LAST registration is the OUTERMOST.
+# RequestContextMiddleware must be outermost: every downstream middleware (auth,
+# tracing, widget CORS) and every handler observes the same request_id.
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(WidgetCorsMiddleware)
+app.add_middleware(AITracingMiddleware)
+app.add_middleware(
+    RateLimitMiddleware,
+    limit_per_minute=settings.RATE_LIMIT_PER_MINUTE,
+    llm_limit_per_minute=settings.RATE_LIMIT_LLM_PER_MINUTE,
+    widget_bootstrap_limit_per_minute=settings.RATE_LIMIT_WIDGET_BOOTSTRAP_PER_MINUTE,
+    widget_session_limit_per_minute=settings.RATE_LIMIT_WIDGET_SESSION_PER_MINUTE,
+)
+app.add_middleware(AuthMiddleware)
+app.add_middleware(AuditMiddleware)
+app.add_middleware(CORSMiddleware)
 
 app.include_router(analytics_router)
 app.include_router(integration_router)

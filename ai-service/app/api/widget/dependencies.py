@@ -68,6 +68,7 @@ def get_widget_tenant_context(request: Request) -> TenantContext:
         store_id=store_id,
         widget_id=widget_id,
         actor_type="widget",
+        request_id=getattr(request.state, "request_id", ""),
     )
 
 

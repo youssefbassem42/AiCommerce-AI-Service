@@ -299,13 +299,17 @@ class RetrieverService:
         return response.embeddings[0]
 
     def _enforce_tenant_scope(self, filters: RetrievalFilters) -> RetrievalFilters:
+        """Tenant identity is authoritative: when a tenant is bound to this retriever,
+        its organization/store/version ALWAYS win over caller-supplied filter values.
+
+        The alternative (only filling missing values) would let a caller pass another
+        store's identifiers and escape tenant isolation — this is the single most
+        important tenant enforcement point in retrieval.
+        """
         if self._tenant:
-            if not filters.organization_id:
-                filters.organization_id = self._tenant.organization_id
-            if not filters.store_id:
-                filters.store_id = self._tenant.store_id
-            if not filters.knowledge_version:
-                filters.knowledge_version = self._tenant.knowledge_version
+            filters.organization_id = self._tenant.organization_id
+            filters.store_id = self._tenant.store_id
+            filters.knowledge_version = self._tenant.knowledge_version
         if filters.organization_id is None or filters.store_id is None:
             logger.warning(
                 "No tenant scope set — retrieval would be global. "
