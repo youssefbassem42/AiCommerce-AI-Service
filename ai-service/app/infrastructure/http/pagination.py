@@ -139,9 +139,7 @@ class PaginationIterator:
                 headers=self._headers,
             )
             if response.status_code >= 400:
-                raise IntegrationApiException(
-                    f"HTTP {response.status_code} from {self._path} — expected a JSON API."
-                )
+                raise IntegrationApiException(f"HTTP {response.status_code} from {self._path} — expected a JSON API.")
             data = response.json()
         except IntegrationApiException:
             logger.warning("Integration API error for %s", self._path)

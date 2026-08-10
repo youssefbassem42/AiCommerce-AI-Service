@@ -41,9 +41,7 @@ class TestWriterBugs:
             data={"title": "Test"},
         )
         call_doc = mock_collection.update_one.call_args[0][1]["$set"]
-        assert "organization_id" in call_doc, (
-            f"ProductWriter doc should use 'org_id'. Keys: {list(call_doc.keys())}"
-        )
+        assert "organization_id" in call_doc, f"ProductWriter doc should use 'org_id'. Keys: {list(call_doc.keys())}"
 
     async def test_order_writer_uses_organization_id(self, mock_collection, mock_collections):
         writer = OrderWriter()
@@ -54,9 +52,7 @@ class TestWriterBugs:
             data={"currency": "USD"},
         )
         call_doc = mock_collection.update_one.call_args[0][1]["$set"]
-        assert "organization_id" in call_doc, (
-            f"OrderWriter doc should use 'org_id'. Keys: {list(call_doc.keys())}"
-        )
+        assert "organization_id" in call_doc, f"OrderWriter doc should use 'org_id'. Keys: {list(call_doc.keys())}"
         assert "org_id" not in call_doc, f"OrderWriter doc should not use 'org_id'. Got keys: {list(call_doc.keys())}"
 
     async def test_customer_writer_uses_organization_id(self, mock_collection, mock_collections):
@@ -79,9 +75,7 @@ class TestWriterBugs:
             data={"name": "Test Category"},
         )
         call_doc = mock_collection.update_one.call_args[0][1]["$set"]
-        assert "organization_id" in call_doc, (
-            f"CategoryWriter doc should use 'org_id'. Keys: {list(call_doc.keys())}"
-        )
+        assert "organization_id" in call_doc, f"CategoryWriter doc should use 'org_id'. Keys: {list(call_doc.keys())}"
 
     async def test_inventory_writer_uses_organization_id(self, mock_collection, mock_collections):
         writer = InventoryWriter()
@@ -92,9 +86,7 @@ class TestWriterBugs:
             data={"variant_id": "v1"},
         )
         call_doc = mock_collection.update_one.call_args[0][1]["$set"]
-        assert "organization_id" in call_doc, (
-            f"InventoryWriter doc should use 'org_id'. Keys: {list(call_doc.keys())}"
-        )
+        assert "organization_id" in call_doc, f"InventoryWriter doc should use 'org_id'. Keys: {list(call_doc.keys())}"
 
     async def test_order_writer_preserves_price_types(self, mock_collection, mock_collections):
         writer = OrderWriter()
