@@ -35,9 +35,7 @@ async def test_widget_token_never_matches_saas_issuer():
 @pytest.mark.asyncio
 async def test_widget_token_expiry_enforced():
     service = WidgetTokenService()
-    token, expires_in = service.create_session_token(
-        "wid_a", "store-1", "org-1", ["rag:chat"], expires_in_seconds=1
-    )
+    token, expires_in = service.create_session_token("wid_a", "store-1", "org-1", ["rag:chat"], expires_in_seconds=1)
     assert expires_in == 1
     assert service.validate(token)  # valid within its short lifetime
 

@@ -42,9 +42,7 @@ class FakeWidgetTokenService(WidgetTokenService):
         self.issued = []
 
     def create_session_token(self, widget_id, store_id, organization_id, scopes, expires_in_seconds=None):
-        self.issued.append(
-            (widget_id, store_id, organization_id, scopes, expires_in_seconds)
-        )
+        self.issued.append((widget_id, store_id, organization_id, scopes, expires_in_seconds))
         return "token-jwt", expires_in_seconds or 900
 
 
@@ -90,11 +88,15 @@ async def test_installation_create_enforces_store_limit():
 async def test_bootstrap_denies_unknown_or_disabled_key():
     not_found = DummyRepo(existing=[])
     with pytest.raises(WidgetInstallationNotFoundError):
-        await WidgetBootstrapService(not_found, FakeWidgetTokenService()).bootstrap("wi_wrong", "https://shop.example.com")
+        await WidgetBootstrapService(not_found, FakeWidgetTokenService()).bootstrap(
+            "wi_wrong", "https://shop.example.com"
+        )
 
     disabled = DummyRepo(existing=[_installation(status=WIDGET_STATUS_DISABLED)])
     with pytest.raises(WidgetInstallationNotFoundError):
-        await WidgetBootstrapService(disabled, FakeWidgetTokenService()).bootstrap("wi_test", "https://shop.example.com")
+        await WidgetBootstrapService(disabled, FakeWidgetTokenService()).bootstrap(
+            "wi_test", "https://shop.example.com"
+        )
 
 
 @pytest.mark.asyncio
@@ -108,9 +110,7 @@ async def test_bootstrap_denies_origin_outside_allowlist():
 async def test_bootstrap_mints_scoped_token_for_callers_origin():
     token_service = FakeWidgetTokenService()
     repo = DummyRepo(existing=[_installation()])
-    session = await WidgetBootstrapService(repo, token_service).bootstrap(
-        "wi_test", "https://shop.example.com"
-    )
+    session = await WidgetBootstrapService(repo, token_service).bootstrap("wi_test", "https://shop.example.com")
     assert session.widget_id == "wid_test123"
     assert session.expires_in == 900
     assert session.configuration == {"chat": True, "recommendations": True}

@@ -84,17 +84,13 @@ class WidgetInstallationService:
 
         origins = [normalize_origin(o) for o in (allowed_origins or [])]
         if len(origins) > MAX_ALLOWED_ORIGINS:
-            raise WidgetConfigurationError(
-                f"At most {MAX_ALLOWED_ORIGINS} allowed origins are permitted"
-            )
+            raise WidgetConfigurationError(f"At most {MAX_ALLOWED_ORIGINS} allowed origins are permitted")
 
         requested_scopes = [s for s in (scopes or list(WIDGET_DEFAULT_SCOPES)) if s]
         valid_scopes = {"rag:chat", "recommendations:read"}
         unknown = set(requested_scopes) - valid_scopes
         if unknown:
-            raise WidgetConfigurationError(
-                f"Unknown widget scopes: {', '.join(sorted(unknown))}"
-            )
+            raise WidgetConfigurationError(f"Unknown widget scopes: {', '.join(sorted(unknown))}")
 
         existing = await self.repository.find_by_store_id(store_id)
         active = [i for i in existing if i.status == WIDGET_STATUS_ACTIVE]

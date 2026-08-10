@@ -67,9 +67,7 @@ class WidgetTokenService:
         expires_in_seconds: int | None = None,
     ) -> tuple[str, int]:
         """Issue a widget session token. Returns (token, expires_in_seconds)."""
-        ttl_seconds = expires_in_seconds or (
-            auth_settings.WIDGET_TOKEN_TTL_MINUTES * 60
-        )
+        ttl_seconds = expires_in_seconds or (auth_settings.WIDGET_TOKEN_TTL_MINUTES * 60)
         now = datetime.now(UTC)
         payload = {
             "sub": widget_id,
