@@ -136,6 +136,7 @@ class RagOrchestrationService:
             try:
                 history = await self._conversation_service.get_conversation_history(
                     request.conversation_id,
+                    store_id=request.store_id,
                 )
                 if history:
                     messages.extend(history)
@@ -173,6 +174,7 @@ class RagOrchestrationService:
             llm_response = await self._chat.chat(
                 request=ctx.ai_request,
                 conversation_id=request.conversation_id,
+                store_id=request.store_id,
             )
             (time.perf_counter() - chat_latency_start) * 1000
             llm_success = True
@@ -363,7 +365,9 @@ class RagOrchestrationService:
         history = []
         if request.conversation_id and self._conversation_service:
             try:
-                history = await self._conversation_service.get_conversation_history(request.conversation_id)
+                history = await self._conversation_service.get_conversation_history(
+                    request.conversation_id, store_id=request.store_id
+                )
             except Exception:
                 logger.warning("Failed to load conversation history for escalation check")
 

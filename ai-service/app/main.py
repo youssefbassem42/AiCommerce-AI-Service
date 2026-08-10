@@ -21,6 +21,8 @@ from app.api.knowledge.unified_router import router as knowledge_unified_router
 from app.api.rag.router import router as rag_router
 from app.api.recommendation.router import router as recommendation_router
 from app.api.ticket.router import router as ticket_router
+from app.api.widget.admin_router import router as widget_admin_router
+from app.api.widget.router import router as widget_router
 from app.application.admin.services.prompt_service import PromptService
 from app.core.ai_exceptions import AIException
 from app.core.config import settings
@@ -35,6 +37,7 @@ from app.middleware.audit import AuditMiddleware
 from app.middleware.auth import AuthMiddleware
 from app.middleware.logging import AITracingMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.widget_cors import WidgetCorsMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +96,7 @@ app.add_middleware(AuditMiddleware)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(RateLimitMiddleware, limit_per_minute=settings.RATE_LIMIT_PER_MINUTE)
 app.add_middleware(AITracingMiddleware)
+app.add_middleware(WidgetCorsMiddleware)
 
 app.include_router(analytics_router)
 app.include_router(integration_router)
@@ -110,6 +114,8 @@ app.include_router(admin_prompt_router)
 app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(ticket_router)
+app.include_router(widget_router)
+app.include_router(widget_admin_router)
 
 
 @app.get("/health/")

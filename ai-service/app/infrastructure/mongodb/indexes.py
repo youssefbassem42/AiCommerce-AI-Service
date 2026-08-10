@@ -265,4 +265,14 @@ async def setup_database_indexes(db) -> None:
         ]
     )
 
+    await db["widget_installations"].create_indexes(
+        [
+            IndexModel([("public_key_hash", ASCENDING)], unique=True),
+            IndexModel([("widget_id", ASCENDING)], unique=True),
+            IndexModel([("store_id", ASCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("status", ASCENDING)]),
+            IndexModel([("status", ASCENDING)]),
+        ]
+    )
+
     logger.info("Database indexes successfully created.")

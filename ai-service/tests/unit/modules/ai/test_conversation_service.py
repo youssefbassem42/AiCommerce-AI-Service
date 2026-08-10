@@ -34,7 +34,9 @@ async def test_get_or_create_new(conv_service, mock_repo):
     mock_repo.create_conversation.return_value = {"conversation_id": "conv-new", "messages": []}
     result = await conv_service.get_or_create_conversation("conv-new", "openai", "gpt-4o", {"source": "test"})
     assert result["conversation_id"] == "conv-new"
-    mock_repo.create_conversation.assert_called_once_with("conv-new", "openai", "gpt-4o", {"source": "test"})
+    mock_repo.create_conversation.assert_called_once_with(
+        "conv-new", "openai", "gpt-4o", {"source": "test"}, store_id=None
+    )
 
 
 @pytest.mark.asyncio

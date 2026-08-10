@@ -14,6 +14,11 @@ class TenantContext(BaseModel):
     timezone: str = Field(default="UTC", description="Store timezone")
     knowledge_version: int = Field(default=1, ge=1, description="Current knowledge base version")
     vector_namespace: str = Field(default="", description="Qdrant collection namespace for tenant isolation")
+    widget_id: str = Field(default="", description="Widget installation ID when the actor is a storefront widget")
+    actor_type: str = Field(
+        default="user",
+        description="Identity path: 'user' (SaaS JWT) or 'widget' (widget access token)",
+    )
 
     def scope_filter(self) -> dict[str, str]:
         return {

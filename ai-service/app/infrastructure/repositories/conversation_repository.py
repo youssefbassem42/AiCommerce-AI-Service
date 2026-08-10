@@ -24,11 +24,30 @@ class ConversationRepository:
     def collection(self):
         return self.db["conversations"]
 
-    async def get_conversation(self, conversation_id: str) -> dict[str, Any] | None:
+    async def get_conversation(self, conversation_id: str, store_id: str | None = None) -> dict[str, Any] | None:
+        """Retrieve a conversation by its ID.
+
+        When `store_id` is provided, a store-tagged conversation is only returned
+        when it belongs to that store (tenant-aware access). Conversations created
+        before store tagging (no `store_id` field) keep working for backward
+        compatibility.
         """
-        Retrieve a conversation by its ID.
-        """
-        return await self.collection.find_one({"conversation_id": conversation_id})
+        doc = await self.collection.find_one({"conversation_id": conversation_id})
+        if doc is None:
+            return None
+        if store_id is not None and doc.get("store_id") is not None and doc["store_id"] != store_id:
+            return None
+        return doc
+
+    async def owner_store_id(self, conversation_id: str) -> str | None:
+        """Store that owns the conversation, or None when unknown (legacy/absent)."""
+        doc = await self.collection.find_one(
+            {"conversation_id": conversation_id},
+            {"store_id": 1},
+        )
+        if doc is None:
+            return None
+        return doc.get("store_id")
 
     async def create_conversation(
         self,
@@ -36,6 +55,7 @@ class ConversationRepository:
         provider: str,
         model: str,
         metadata: dict[str, Any] | None = None,
+        store_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Create a new conversation document.
@@ -57,6 +77,8 @@ class ConversationRepository:
             "created_at": datetime.datetime.now(datetime.UTC),
             "updated_at": datetime.datetime.now(datetime.UTC),
         }
+        if store_id is not None:
+            doc["store_id"] = store_id
         await self.collection.update_one({"conversation_id": conversation_id}, {"$setOnInsert": doc}, upsert=True)
         return doc
 
@@ -66,6 +88,7 @@ class ConversationRepository:
         message: dict[str, Any],
         usage: dict[str, Any] | None = None,
         latency_ms: float | None = None,
+        store_id: str | None = None,
     ) -> None:
         """
         Add a message to an existing conversation and update usage metrics.
@@ -77,6 +100,8 @@ class ConversationRepository:
             "$push": {"messages": message},
             "$set": {"updated_at": now},
         }
+        if store_id is not None:
+            update_doc["$setOnInsert"] = {"store_id": store_id}
 
         # Update running usage and averages if provided
         if usage or latency_ms:

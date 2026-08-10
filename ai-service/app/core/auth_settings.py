@@ -14,6 +14,9 @@ class AuthSettings(BaseSettings):
     JWT_ISSUER: str = Field(default="AI-Sales-Agent")
     JWT_AUDIENCE: str = Field(default="AI-Sales-Agent")
     JWT_REQUIRED: bool = Field(default=False)
+    WIDGET_TOKEN_TTL_MINUTES: int = Field(default=15)
+    WIDGET_ISSUER: str = Field(default="AI-Commerce-Widget")
+    WIDGET_AUDIENCE: str = Field(default="AI-Commerce-Widget")
 
     model_config = SettingsConfigDict(
         env_file=".env",

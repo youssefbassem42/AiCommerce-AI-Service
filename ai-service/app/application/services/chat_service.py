@@ -107,7 +107,7 @@ class ChatService:
 
         # Inject conversation history if conversation_id is provided
         if conversation_id and self.conversation_service:
-            history = await self.conversation_service.get_conversation_history(conversation_id)
+            history = await self.conversation_service.get_conversation_history(conversation_id, store_id=store_id)
             if history:
                 # Merge history messages before current messages
                 request.messages = history + request.messages
@@ -152,6 +152,7 @@ class ChatService:
                         assistant_message=response.message,
                         usage=response.usage,
                         latency_ms=latency,
+                        store_id=store_id,
                     )
 
                 return response
@@ -189,7 +190,9 @@ class ChatService:
 
         history: list[dict[str, Any]] = []
         if conversation_id and self.conversation_service:
-            history_messages = await self.conversation_service.get_conversation_history(conversation_id)
+            history_messages = await self.conversation_service.get_conversation_history(
+                conversation_id, store_id=store_id
+            )
             history = [
                 {"role": m.role, "content": m.content if isinstance(m.content, str) else str(m.content)}
                 for m in history_messages
@@ -219,6 +222,7 @@ class ChatService:
                 assistant_message=response.message,
                 usage=response.usage,
                 latency_ms=latency,
+                store_id=store_id,
             )
 
         self._log_metrics(corr_id, "orchestration", "coordinator", latency, response.usage, "chat")

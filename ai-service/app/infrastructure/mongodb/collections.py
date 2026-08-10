@@ -113,3 +113,7 @@ def get_prompts_collection():
 
 def get_user_memories_collection():
     return get_collection("user_memories")
+
+
+def get_widget_installations_collection():
+    return get_collection("widget_installations")

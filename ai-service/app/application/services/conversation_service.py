@@ -19,20 +19,30 @@ class ConversationService:
         provider: str,
         model: str,
         metadata: dict[str, Any] | None = None,
+        store_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Retrieves or creates a conversation.
         """
         conv = await self.repository.get_conversation(conversation_id)
         if not conv:
-            conv = await self.repository.create_conversation(conversation_id, provider, model, metadata)
+            conv = await self.repository.create_conversation(
+                conversation_id, provider, model, metadata, store_id=store_id
+            )
         return conv
 
-    async def get_conversation_history(self, conversation_id: str) -> list[MessageDTO]:
+    async def get_conversation_history(
+        self,
+        conversation_id: str,
+        store_id: str | None = None,
+    ) -> list[MessageDTO]:
         """
         Fetch conversation history as list of MessageDTOs.
+
+        When `store_id` is provided, only conversations owned by that store are
+        returned (tenant-scoped access).
         """
-        conv = await self.repository.get_conversation(conversation_id)
+        conv = await self.repository.get_conversation(conversation_id, store_id=store_id)
         if not conv:
             return []
 
@@ -48,6 +58,19 @@ class ConversationService:
             )
         return messages
 
+    async def conversation_owned_by_store(self, conversation_id: str, store_id: str) -> bool:
+        """
+        Whether the conversation belongs to the given store.
+
+        - Unknown conversation → True (a fresh conversation may be started).
+        - Legacy conversation without store tagging → False (not resumable via widget).
+        - Otherwise the store must match.
+        """
+        owner = await self.repository.owner_store_id(conversation_id)
+        if owner is None:
+            return True
+        return owner == store_id
+
     async def save_interaction(
         self,
         conversation_id: str,
@@ -55,6 +78,7 @@ class ConversationService:
         assistant_message: MessageDTO,
         usage: UsageDTO | None = None,
         latency_ms: float | None = None,
+        store_id: str | None = None,
     ) -> None:
         """
         Persists both the user prompt and assistant response to conversation history.
@@ -65,7 +89,7 @@ class ConversationService:
             "content": user_message.content,
             "name": user_message.name,
         }
-        await self.repository.add_message(conversation_id, user_dict)
+        await self.repository.add_message(conversation_id, user_dict, store_id=store_id)
 
         # Save assistant message and update stats
         assistant_dict = {
@@ -98,4 +122,5 @@ class ConversationService:
             assistant_dict,
             usage=usage_dict,
             latency_ms=latency_ms,
+            store_id=store_id,
         )
