@@ -44,11 +44,7 @@ SPEC_LOGIN_IN_OPERATION_ID = {
 
 SPEC_WITHOUT_LOGIN = {
     "servers": [{"url": "https://93.184.216.34"}],
-    "paths": {
-        "/api/Products": {
-            "get": {"responses": {"200": {"description": "OK"}}}
-        }
-    },
+    "paths": {"/api/Products": {"get": {"responses": {"200": {"description": "OK"}}}}},
 }
 
 
@@ -88,9 +84,7 @@ class TestEcommerceAuthenticator:
             yield client
 
     async def test_login_success_returns_token(self, mock_client) -> None:
-        mock_client.post = AsyncMock(
-            return_value=httpx.Response(200, json={"isSuccess": True, "token": "tok-123"})
-        )
+        mock_client.post = AsyncMock(return_value=httpx.Response(200, json={"isSuccess": True, "token": "tok-123"}))
         authenticator = EcommerceAuthenticator(max_attempts=DEFAULT_MAX_ATTEMPTS)
         token = await authenticator.login(SPEC_WITH_LOGIN, "admin@example.com", "Test@123")
         assert token == "tok-123"
@@ -106,9 +100,7 @@ class TestEcommerceAuthenticator:
         assert token == "nested-tok"
 
     async def test_login_fails_after_all_attempts(self, mock_client) -> None:
-        mock_client.post = AsyncMock(
-            return_value=httpx.Response(401, json={"message": "Invalid credentials"})
-        )
+        mock_client.post = AsyncMock(return_value=httpx.Response(401, json={"message": "Invalid credentials"}))
         authenticator = EcommerceAuthenticator(max_attempts=3)
         with pytest.raises(IntegrationAuthenticationError) as exc_info:
             await authenticator.login(SPEC_WITH_LOGIN, "admin@example.com", "wrong")

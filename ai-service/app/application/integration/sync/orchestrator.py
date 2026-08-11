@@ -332,9 +332,7 @@ class SyncOrchestrator:
             if e.status_code in (401, 403):
                 # Admin-protected endpoint (or an expired/invalid token): skip
                 # THIS entity only and let the remaining entities sync.
-                entity_result.errors.append(
-                    f"Skipped: endpoint requires admin authentication (HTTP {e.status_code})."
-                )
+                entity_result.errors.append(f"Skipped: endpoint requires admin authentication (HTTP {e.status_code}).")
                 return
             logger.exception("Error syncing entity type '%s'", entity_mapping.entity_type)
             entity_result.errors.append(f"Sync failed: {e}")

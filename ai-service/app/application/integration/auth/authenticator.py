@@ -92,8 +92,7 @@ class EcommerceAuthenticator:
         login_path = discover_login_endpoint(spec)
         if not login_path:
             raise IntegrationAuthenticationError(
-                "E-commerce authentication failed: no login endpoint was discovered "
-                "in the API specification."
+                "E-commerce authentication failed: no login endpoint was discovered in the API specification."
             )
 
         client = httpx.AsyncClient(

@@ -44,8 +44,7 @@ class IntegrationAuthenticationError(IntegrationDomainException):
     def __init__(self, message: str | None = None, details: dict | None = None):
         self.details = details
         super().__init__(
-            message
-            or "E-commerce authentication failed. Check the e-commerce admin panel email and password."
+            message or "E-commerce authentication failed. Check the e-commerce admin panel email and password."
         )
 
 

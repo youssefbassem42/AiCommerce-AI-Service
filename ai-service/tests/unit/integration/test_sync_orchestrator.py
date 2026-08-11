@@ -382,9 +382,7 @@ class TestSyncNowAuthModes:
         return writer
 
     @pytest.mark.asyncio
-    async def test_token_mode_skips_401_entity_and_syncs_others(
-        self, orchestrator, writer
-    ):
+    async def test_token_mode_skips_401_entity_and_syncs_others(self, orchestrator, writer):
         page = PagePayload(
             data=[{"id": 7, "name": "Chair", "price": 49.9}],
             page_number=1,
@@ -411,9 +409,7 @@ class TestSyncNowAuthModes:
         assert entities["customer"].total_fetched == 0
 
     @pytest.mark.asyncio
-    async def test_public_fallback_stores_public_and_skips_protected(
-        self, orchestrator, writer
-    ):
+    async def test_public_fallback_stores_public_and_skips_protected(self, orchestrator, writer):
         page = PagePayload(
             data=[{"id": 3, "name": "Cup", "price": 4.5}],
             page_number=1,
@@ -455,9 +451,7 @@ class TestSyncNowAuthModes:
         assert kwargs["encrypted_credentials"] is None
 
     @pytest.mark.asyncio
-    async def test_token_client_uses_ephemeral_bearer_and_never_persists(
-        self, orchestrator, connection
-    ):
+    async def test_token_client_uses_ephemeral_bearer_and_never_persists(self, orchestrator, connection):
         empty = FakePagination()
         with (
             patch("app.application.integration.sync.orchestrator.ExternalApiClient") as mock_client_cls,
