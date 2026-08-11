@@ -35,6 +35,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://ai-commerce-frontend-tau.vercel.app",
+        "https://navi-frontend-nine.vercel.app",
         "https://aicommerce-ai-service-production.up.railway.app",
     ]
     RATE_LIMIT_PER_MINUTE: int = 100

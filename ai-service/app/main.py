@@ -108,7 +108,7 @@ app.add_middleware(
 )
 app.add_middleware(AuthMiddleware)
 app.add_middleware(AuditMiddleware)
-app.add_middleware(CORSMiddleware)
+# app.add_middleware(CORSMiddleware)
 
 app.include_router(analytics_router)
 app.include_router(integration_router)
