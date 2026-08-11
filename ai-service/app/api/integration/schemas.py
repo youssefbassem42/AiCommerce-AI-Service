@@ -115,6 +115,7 @@ class ConnectionResponseSchema(BaseModel):
     entity_mappings: list[EntityMappingSchema]
     discovered_endpoints: list[dict] = Field(default_factory=list)
     discovered_schemas: dict = Field(default_factory=dict)
+    raw_spec: Any | None = None
     last_sync_at: datetime | None = None
     last_sync_status: str | None = None
     last_vector_sync_at: datetime | None = None

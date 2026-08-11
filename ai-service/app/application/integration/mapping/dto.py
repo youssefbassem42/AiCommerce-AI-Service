@@ -72,6 +72,7 @@ class ConnectionResponseDTO(BaseModel):
     entity_mappings: list[EntityMappingDTO] = Field(default_factory=list)
     discovered_endpoints: list[dict] = Field(default_factory=list)
     discovered_schemas: dict = Field(default_factory=dict)
+    raw_spec: dict | None = None
     last_sync_at: datetime | None = None
     last_sync_status: str | None = None
     error_message: str | None = None

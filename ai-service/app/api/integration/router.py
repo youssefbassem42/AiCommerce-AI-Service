@@ -1,6 +1,8 @@
 import logging
+from typing import Any
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi.encoders import jsonable_encoder
 
 from app.agents.integration.agent import IntegrationMappingAgent
 from app.api.auth.dependencies import (
@@ -9,6 +11,7 @@ from app.api.auth.dependencies import (
     require_admin_role,
 )
 from app.api.integration.dependencies import (
+    get_ecommerce_authenticator,
     get_integration_agent,
     get_integration_service,
     get_integration_workflow,
@@ -32,6 +35,10 @@ from app.api.integration.schemas import (
     UpdateCredentialsSchema,
     UpdateMappingsSchema,
 )
+from app.application.integration.auth.authenticator import (
+    EcommerceAuthenticator,
+    discover_login_endpoint,
+)
 from app.application.integration.mapping.dto import (
     AuthConfigDTO,
     ConnectionCreateDTO,
@@ -43,7 +50,16 @@ from app.application.integration.mapping.dto import (
 )
 from app.application.integration.mapping.services import IntegrationApplicationService
 from app.application.integration.sync.orchestrator import SyncOrchestrator
-from app.domain.integration.exceptions import IntegrationConnectionNotFoundException
+from app.core.security import (
+    JWTAuthenticationError,
+    decode_jwt,
+    get_store_admin_email_from_token,
+    get_store_admin_password_from_token,
+)
+from app.domain.integration.exceptions import (
+    IntegrationAuthenticationError,
+    IntegrationConnectionNotFoundException,
+)
 from app.workflows.integration.graph import IntegrationWorkflow
 
 logger = logging.getLogger(__name__)
@@ -57,6 +73,31 @@ router = APIRouter(
 
 def _connection_is_owned(connection: ConnectionResponseDTO, store_id: str) -> bool:
     return bool(connection) and connection.store_id == store_id
+
+
+def _extract_store_admin_credentials(request: Request) -> tuple[str, str] | None:
+    """E-commerce admin email/password from the AI Commerce JWT claims.
+
+    Returns ``None`` when the token is missing or carries no store admin
+    credentials, in which case the existing (request-body credentials) flow is
+    used unchanged.
+    """
+    auth_header = request.headers.get("authorization") or ""
+    if not auth_header.lower().startswith("bearer "):
+        return None
+    try:
+        payload = decode_jwt(auth_header[7:].strip())
+    except JWTAuthenticationError:
+        return None
+    email = get_store_admin_email_from_token(payload)
+    password = get_store_admin_password_from_token(payload)
+    if not email or not password:
+        return None
+    return email, password
+
+
+def _spec_as_dict(raw_spec: Any) -> dict | None:
+    return raw_spec if isinstance(raw_spec, dict) else None
 
 
 @router.post("/schemas/parse", response_model=ParseSpecResponseSchema, status_code=status.HTTP_200_OK)
@@ -172,7 +213,10 @@ async def agent_sync(
 @router.post("/connections", response_model=ConnectionResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_connection(
     payload: CreateConnectionSchema,
+    request: Request,
     service: IntegrationApplicationService = Depends(get_integration_service),
+    orchestrator: SyncOrchestrator = Depends(get_sync_orchestrator),
+    authenticator: EcommerceAuthenticator = Depends(get_ecommerce_authenticator),
     store_id: str = Depends(get_current_store_id),
     organization_id: str | None = Depends(get_optional_organization_id),
 ) -> ConnectionResponseSchema:
@@ -198,7 +242,35 @@ async def create_connection(
             for em in payload.entity_mappings
         ],
     )
-    result = await service.create_connection(dto)
+
+    # Sync Now flow: the AI Commerce JWT is the source of the e-commerce admin
+    # credentials. When present and the submitted spec exposes a login endpoint,
+    # the e-commerce login (up to 3 attempts) gates connection creation with the
+    # public-data fallback:
+    #   - login succeeds  -> create the connection and return 201
+    #   - all attempts fail -> the connection IS still created, public data is
+    #     synced (admin-protected endpoints skipped), and the response is 401
+    #     with the authentication error so the admin fixes the credentials.
+    credentials = _extract_store_admin_credentials(request)
+    spec = _spec_as_dict(payload.raw_spec)
+    replace_existing = False
+    if credentials and spec is not None and discover_login_endpoint(spec):
+        email, password = credentials
+        replace_existing = True
+        try:
+            await authenticator.login(spec, email, password)
+        except IntegrationAuthenticationError as e:
+            created = await service.create_connection(dto, replace_existing=True)
+            fallback = await orchestrator.sync_connection(created.id, auth_token=None, public_fallback=True)
+            raise IntegrationAuthenticationError(
+                str(e),
+                details={
+                    "connection_id": created.id,
+                    "sync": jsonable_encoder(fallback.to_dict()),
+                },
+            ) from e
+
+    result = await service.create_connection(dto, replace_existing=replace_existing)
     return ConnectionResponseSchema(**result.model_dump())
 
 
@@ -286,14 +358,41 @@ async def update_connection_credentials(
 async def sync_connection(
     connection_id: str,
     payload: SyncRequestSchema,
+    request: Request,
     store_id: str = Depends(get_current_store_id),
     orchestrator: SyncOrchestrator = Depends(get_sync_orchestrator),
     service: IntegrationApplicationService = Depends(get_integration_service),
+    authenticator: EcommerceAuthenticator = Depends(get_ecommerce_authenticator),
 ) -> SyncResponseSchema:
     existing = await service.get_connection(connection_id)
     if not _connection_is_owned(existing, store_id):
         raise IntegrationConnectionNotFoundException(connection_id)
-    result = await orchestrator.sync_connection(connection_id)
+
+    # Sync Now flow: log in with the JWT-supplied admin credentials and use the
+    # ephemeral token for this sync only (never stored). A failed login runs
+    # the public-data fallback: public endpoints are fetched and stored,
+    # admin-protected endpoints are skipped, and the response is 401 with the
+    # authentication error.
+    auth_token = None
+    credentials = _extract_store_admin_credentials(request)
+    spec = _spec_as_dict(existing.raw_spec)
+    if credentials and spec is not None and discover_login_endpoint(spec):
+        email, password = credentials
+        try:
+            auth_token = await authenticator.login(spec, email, password)
+        except IntegrationAuthenticationError as e:
+            fallback = await orchestrator.sync_connection(
+                connection_id,
+                auth_token=None,
+                public_fallback=True,
+                entity_types=payload.entity_types,
+            )
+            raise IntegrationAuthenticationError(
+                str(e),
+                details={"sync": jsonable_encoder(fallback.to_dict())},
+            ) from e
+
+    result = await orchestrator.sync_connection(connection_id, auth_token=auth_token, entity_types=payload.entity_types)
     return SyncResponseSchema(**result.to_dict())
 
 

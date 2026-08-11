@@ -26,6 +26,13 @@ NAME_IDENTIFIER_CLAIM = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/n
 # presence requirement; value comparison is out of scope (requires the .NET user DB).
 SECURITY_STAMP_CLAIM = "security_stamp"
 
+# The .NET backend embeds the e-commerce admin panel credentials used for the
+# integration "Sync Now" flow (e-commerce login before connection/sync). Values are
+# present when the account has an e-commerce store attached; FastAPI treats them as
+# the source for integration authentication and never persists them.
+STORE_ADMIN_EMAIL_CLAIM = "store_admin_email"
+STORE_ADMIN_PASSWORD_CLAIM = "store_admin_password"
+
 # Contract section 6: exact role values, normalized to internal lowercase names.
 ROLE_MAPPING = {
     "Admin": "admin",
@@ -210,6 +217,16 @@ def get_permissions_from_token(payload: dict) -> list[str]:
 def get_security_stamp_from_token(payload: dict) -> str | None:
     """Security stamp — present in the token but MUST NOT be validated by FastAPI (contract §5/§7)."""
     return payload.get("security_stamp")
+
+
+def get_store_admin_email_from_token(payload: dict) -> str | None:
+    """E-commerce admin panel email from the `store_admin_email` claim (integration login)."""
+    return payload.get(STORE_ADMIN_EMAIL_CLAIM)
+
+
+def get_store_admin_password_from_token(payload: dict) -> str | None:
+    """E-commerce admin panel password from the `store_admin_password` claim (integration login)."""
+    return payload.get(STORE_ADMIN_PASSWORD_CLAIM)
 
 
 def get_jti_from_token(payload: dict) -> str | None:

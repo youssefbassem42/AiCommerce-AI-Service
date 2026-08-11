@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import UTC, datetime
 
@@ -9,6 +10,11 @@ from app.domain.integration.entities.integration_connection import (
     ConnectionStatus,
     IntegrationConnection,
 )
+from app.domain.integration.exceptions import (
+    IntegrationApiException,
+    IntegrationValidationException,
+)
+from app.domain.integration.value_objects.auth_config import AuthConfig, AuthType, CredentialsLocation
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.pagination_config import PaginationConfig, PaginationStyle
 from app.infrastructure.http.auth.auth_handler import AuthHandler
@@ -17,6 +23,9 @@ from app.infrastructure.http.pagination import PagePayload, PaginationIterator
 from app.infrastructure.http.ssrf import assert_safe_http_url
 from app.infrastructure.mongodb.repositories.integration_connection_repository import (
     IntegrationConnectionMongoRepository,
+)
+from app.infrastructure.mongodb.repositories.store_capabilities_repository import (
+    StoreCapabilitiesMongoRepository,
 )
 from app.infrastructure.security.key_manager import KeyManager
 
@@ -94,7 +103,13 @@ class SyncOrchestrator:
         self._llm_mapper = llm_mapper if llm_mapper is not None else LlmEntityMapper()
         self._llm_cache: dict[tuple[str, str], str] = {}
 
-    async def sync_connection(self, connection_id: str, entity_types: list[str] | None = None) -> SyncResult:
+    async def sync_connection(
+        self,
+        connection_id: str,
+        entity_types: list[str] | None = None,
+        auth_token: str | None = None,
+        public_fallback: bool = False,
+    ) -> SyncResult:
         connection = await self._repository.find_by_id(connection_id)
         if not connection:
             raise ValueError(f"Connection '{connection_id}' not found.")
@@ -102,7 +117,13 @@ class SyncOrchestrator:
         result = SyncResult(connection_id=connection_id, store_id=connection.store_id)
 
         try:
-            await self._execute_sync(connection, result, entity_types=entity_types)
+            await self._execute_sync(
+                connection,
+                result,
+                entity_types=entity_types,
+                auth_token=auth_token,
+                public_fallback=public_fallback,
+            )
         except Exception as e:
             logger.exception("Sync failed for connection '%s'", connection_id)
             result.status = "error"
@@ -136,15 +157,21 @@ class SyncOrchestrator:
         connection: IntegrationConnection,
         result: SyncResult,
         entity_types: list[str] | None = None,
+        auth_token: str | None = None,
+        public_fallback: bool = False,
     ) -> None:
         is_anonymous = self._is_anonymous(connection)
-        syncable = (
-            connection.status.value == "active"
-            or (connection.status.value == "error" and not is_anonymous)
-            or (connection.status.value == "inactive" and is_anonymous)
-        )
-        if not syncable:
-            raise ValueError(f"Connection '{connection.id}' is not active (status: {connection.status.value}).")
+        if auth_token is None and not public_fallback:
+            # With a JWT-supplied login token or the public-data fallback, the
+            # e-commerce login (or its absence) is the gate; the stored-credentials
+            # status gate does not apply.
+            syncable = (
+                connection.status.value == "active"
+                or (connection.status.value == "error" and not is_anonymous)
+                or (connection.status.value == "inactive" and is_anonymous)
+            )
+            if not syncable:
+                raise ValueError(f"Connection '{connection.id}' is not active (status: {connection.status.value}).")
 
         entity_mappings = connection.entity_mappings
         if entity_types:
@@ -159,24 +186,50 @@ class SyncOrchestrator:
         if not base_url:
             raise ValueError("No base URL found in connection's discovered endpoints.")
 
-        decrypted_credentials = None
-        if not is_anonymous:
-            try:
-                decrypted_credentials = self._key_manager.decrypt_secret(connection.encrypted_credentials)
-            except Exception as e:
-                raise ValueError(f"Failed to decrypt credentials: {e}") from e
-        elif connection.encrypted_credentials:
-            connection.encrypted_credentials = None
-
         client_config = ConnectionConfig(base_url=base_url, timeout=30.0, max_retries=2)
-        client = ExternalApiClient(
-            config=client_config,
-            auth_config=connection.auth_config,
-            encrypted_credentials=decrypted_credentials,
-            auth_handler=self._auth_handler,
-        )
+        if auth_token is not None:
+            # The e-commerce access token is ephemeral: used for this sync only
+            # and NEVER persisted on the connection.
+            client = ExternalApiClient(
+                config=client_config,
+                auth_config=AuthConfig(
+                    type=AuthType.BEARER,
+                    credentials_location=CredentialsLocation.HEADER,
+                    scheme="bearer",
+                ),
+                encrypted_credentials=json.dumps({"token": auth_token}),
+                auth_handler=self._auth_handler,
+            )
+        elif public_fallback:
+            # Login failed: probe endpoints unauthenticated. Admin-protected
+            # endpoints 401/403 and are skipped; public endpoints are fetched
+            # and stored. Neither stored credentials nor any token are attached.
+            client = ExternalApiClient(
+                config=client_config,
+                auth_config=None,
+                encrypted_credentials=None,
+                auth_handler=self._auth_handler,
+            )
+        else:
+            decrypted_credentials = None
+            if not is_anonymous:
+                try:
+                    decrypted_credentials = self._key_manager.decrypt_secret(connection.encrypted_credentials)
+                except Exception as e:
+                    raise ValueError(f"Failed to decrypt credentials: {e}") from e
+            elif connection.encrypted_credentials:
+                connection.encrypted_credentials = None
+
+            client = ExternalApiClient(
+                config=client_config,
+                auth_config=connection.auth_config,
+                encrypted_credentials=decrypted_credentials,
+                auth_handler=self._auth_handler,
+            )
 
         try:
+            if auth_token is not None:
+                await self._persist_promo_capability(connection)
             for em in entity_mappings:
                 entity_result = EntitySyncResult(entity_type=em.entity_type)
                 result.entity_results.append(entity_result)
@@ -184,16 +237,49 @@ class SyncOrchestrator:
         finally:
             await client.close()
 
-        if all(r.errors or r.total_fetched > 0 for r in result.entity_results):
-            connection.mark_synced()
-        elif any(r.errors for r in result.entity_results):
-            connection.mark_synced("partial_error")
-        else:
-            connection.mark_synced("no_data")
-        if connection.status == ConnectionStatus.ERROR and not is_anonymous:
-            connection.activate()
+        try:
+            if all(r.errors or r.total_fetched > 0 for r in result.entity_results):
+                connection.mark_synced()
+            elif any(r.errors for r in result.entity_results):
+                connection.mark_synced("partial_error")
+            else:
+                connection.mark_synced("no_data")
+            if connection.status == ConnectionStatus.ERROR and not is_anonymous:
+                connection.activate()
+        except IntegrationValidationException:
+            # Login-gated syncs run on freshly created connections that may
+            # still be inactive with stored credentials; status marking is not
+            # applicable there, and the failure must not surface a 500.
+            logger.warning(
+                "Skipped sync-status update for connection '%s' (inactive with stored credentials).",
+                connection.id,
+            )
         await self._repository.update(connection)
         result.status = "completed"
+
+    async def _persist_promo_capability(self, connection: IntegrationConnection) -> None:
+        """Persist the store's promo-code capability after a successful login."""
+        try:
+            entity_types = {em.entity_type for em in connection.entity_mappings}
+            has_promo = bool({"coupon", "discount"} & entity_types)
+            repository = StoreCapabilitiesMongoRepository()
+            await repository.update_capability(
+                connection.store_id,
+                "has_promo_codes",
+                has_promo,
+                is_manual=False,
+            )
+            logger.info(
+                "Stored promo capability for store '%s': has_promo_codes=%s",
+                connection.store_id,
+                has_promo,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to persist promo capability for store '%s': %s",
+                connection.store_id,
+                e,
+            )
 
     async def _sync_entity_type(
         self,
@@ -242,6 +328,16 @@ class SyncOrchestrator:
                     writer=writer,
                     mapped_records=mapped_records,
                 )
+        except IntegrationApiException as e:
+            if e.status_code in (401, 403):
+                # Admin-protected endpoint (or an expired/invalid token): skip
+                # THIS entity only and let the remaining entities sync.
+                entity_result.errors.append(
+                    f"Skipped: endpoint requires admin authentication (HTTP {e.status_code})."
+                )
+                return
+            logger.exception("Error syncing entity type '%s'", entity_mapping.entity_type)
+            entity_result.errors.append(f"Sync failed: {e}")
         except Exception as e:
             logger.exception("Error syncing entity type '%s'", entity_mapping.entity_type)
             entity_result.errors.append(f"Sync failed: {e}")

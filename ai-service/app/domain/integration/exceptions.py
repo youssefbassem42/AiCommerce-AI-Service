@@ -25,6 +25,29 @@ class InvalidSpecException(IntegrationValidationException):
 class IntegrationApiException(IntegrationDomainException):
     """Raised when an external API returns an unusable response (HTTP error or non-JSON body)."""
 
+    def __init__(self, message: str, status_code: int | None = None):
+        self.status_code = status_code
+        super().__init__(message)
+
+
+class IntegrationAuthenticationError(IntegrationDomainException):
+    """Raised when e-commerce authentication fails.
+
+    Surfaced as HTTP 401 so the caller can validate the e-commerce admin panel
+    email/password. Guarantees no connection is created and no data is synced.
+    ``details`` may carry a fallback sync summary (public data fetched/stored,
+    admin-protected endpoints skipped).
+    """
+
+    status_code = 401
+
+    def __init__(self, message: str | None = None, details: dict | None = None):
+        self.details = details
+        super().__init__(
+            message
+            or "E-commerce authentication failed. Check the e-commerce admin panel email and password."
+        )
+
 
 class InvalidMappingException(IntegrationValidationException):
     """Raised when a field/entity mapping is invalid."""

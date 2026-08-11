@@ -172,12 +172,24 @@ class IntegrationApplicationService:
             organization_id=organization_id,
         )
 
-    async def create_connection(self, data: ConnectionCreateDTO) -> ConnectionResponseDTO:
+    async def create_connection(
+        self,
+        data: ConnectionCreateDTO,
+        replace_existing: bool = False,
+    ) -> ConnectionResponseDTO:
         existing = await self._repository.find_by_store_and_name(store_id=data.store_id, name=data.name)
         if existing is not None:
-            raise DuplicateConnectionException(
-                f"Connection with name '{data.name}' already exists in store '{data.store_id}'."
+            if not replace_existing:
+                raise DuplicateConnectionException(
+                    f"Connection with name '{data.name}' already exists in store '{data.store_id}'."
+                )
+            logger.info(
+                "Replacing existing connection '%s' (store='%s', name='%s').",
+                existing.id,
+                data.store_id,
+                data.name,
             )
+            await self._repository.delete(existing.id)
 
         raw_spec_dict = self._parser.normalize_spec(data.raw_spec)
         integration_schema = self._parser.parse(raw_spec_dict, data.platform_name)
@@ -370,6 +382,7 @@ class IntegrationApplicationService:
             ],
             discovered_endpoints=entity.discovered_endpoints,
             discovered_schemas=entity.discovered_schemas,
+            raw_spec=entity.raw_spec,
             last_sync_at=entity.last_sync_at,
             last_sync_status=entity.last_sync_status,
             error_message=entity.error_message,

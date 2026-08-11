@@ -27,6 +27,7 @@ async def domain_exception_handler(request: Request, exc: DomainException) -> JS
         status_code=exc.status_code,
         code=exc.__class__.__name__,
         message=exc.message,
+        details=getattr(exc, "details", None),
     )
 
 

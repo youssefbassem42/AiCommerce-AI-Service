@@ -1,807 +1,1152 @@
-# AI Commerce FastAPI — Production Audit, Testing & Safe Hardening Execution Plan
+# AI Commerce FastAPI — Integration JWT Decode + E-commerce Authentication + Sync Now
 
-You are acting as a **Staff Software Architect, Senior Backend Engineer, Security Engineer, QA Engineer, and Production Reliability Engineer**.
+## STRICT IMPLEMENTATION SPECIFICATION
 
-You are working on the existing **AI Commerce FastAPI AI Service**.
+You are acting as a:
 
-Your task is NOT to rewrite the system.
+* Senior Software Architect
+* Senior FastAPI Engineer
+* Integration Engineer
+* Security Engineer
+* QA Engineer
 
-Your task is to:
+You are modifying the existing **AI Commerce FastAPI AI Service**.
 
-> **Audit the current implementation → execute the recommended test plan → identify real failures → fix only necessary issues → verify regressions → produce a detailed implementation/test report.**
-
-The system is already partially implemented.
-
-The current architecture includes:
-
-```text
-React
-   ↓
-ASP.NET Core
-   ↓
-SQL Server
-
-ASP.NET Core
-   ↓
-FastAPI AI Service
-   ↓
-MongoDB / Vector Search
-   ↓
-LLM Providers
-```
-
-The architecture defines FastAPI as the AI service responsible for RAG, AI execution and AI-oriented MongoDB/vector operations, while ASP.NET Core remains responsible for SaaS/business-domain logic and SQL Server. Preserve this boundary.
-
-The current OpenAPI schema already contains:
-
-* AI APIs
-* AI streaming
-* RAG APIs
-* knowledge management
-* conversations
-* recommendations
-* widget installation
-* widget bootstrap
-* widget chat
-* widget recommendations
-* products
-* prompts
-* jobs
-* connections
-* analytics-related APIs
-* other existing functionality
-
-Do NOT assume anything is missing simply because it is not part of the future plan.
+Your task is strictly limited to the exact flow defined in this document.
 
 ---
 
-# 1. ABSOLUTE RULES
+# 1. ABSOLUTE RULE — DO NOT EXPAND SCOPE
 
-## RULE 1 — DO NOT BREAK THE EXISTING SYSTEM
+You MUST implement ONLY the requirements explicitly defined in this prompt.
 
-Do not:
-
-* rewrite the FastAPI service
-* replace frameworks
-* replace MongoDB
-* replace vector storage
-* replace Redis
-* replace LLM providers
-* replace authentication
-* replace the RAG engine
-* replace the current repository implementation
-* replace existing widget implementation
-* change ASP.NET Core architecture
-* change SQL ownership
-* remove existing APIs
-* rename existing APIs unnecessarily
-* change existing request/response contracts unnecessarily
-* perform destructive migrations
-* change production behavior without evidence
-
----
-
-# 2. SOURCE OF TRUTH
-
-Use this priority order:
-
-1. Current source code
-2. Current tests
-3. Current OpenAPI schema
-4. Existing database/schema implementation
-5. Existing architecture documents
-6. This execution plan
-
-Do NOT blindly implement something from an old architecture document if the current implementation already solves the requirement differently.
-
-For example:
-
-The existing system has:
-
-```text
-ai_settings
-ModelRegistry
-Prompt key/version/is_active
-```
-
-Do NOT automatically create:
-
-```text
-PromptResolver
-AIExecutionPolicy
-```
-
-unless the audit proves that the current implementation cannot satisfy the required behavior.
-
-The same applies to internal service authentication.
-
----
-
-# 3. CURRENT KNOWN STATUS
-
-The following has already been reported and MUST be verified against the actual code.
-
-| Capability                      | Expected current status  |
-| ------------------------------- | ------------------------ |
-| TenantContext                   | Implemented              |
-| User actor                      | Implemented              |
-| Widget actor                    | Implemented              |
-| Widget lifecycle                | Implemented              |
-| Widget key hashing              | Implemented              |
-| Widget scopes                   | Implemented              |
-| Widget bootstrap                | Implemented              |
-| Origin validation               | Implemented              |
-| Short-lived widget JWT          | Implemented              |
-| Bootstrap cache                 | Implemented              |
-| Widget chat                     | Implemented              |
-| Widget recommendations          | Implemented              |
-| Conversation store isolation    | Implemented              |
-| Knowledge namespace isolation   | Implemented but untested |
-| Request correlation             | Partial                  |
-| X-Request-ID                    | Missing                  |
-| Runtime correlation propagation | Partial                  |
-| Rate limiting                   | Global per-IP            |
-| Endpoint/session rate limits    | Missing                  |
-| Internal service authentication | Partial                  |
-| OpenAPI baseline                | Missing                  |
-| Endpoint ownership matrix       | Missing                  |
-| Repository tenant audit         | Incomplete               |
-| PromptResolver                  | Missing                  |
-| AIExecutionPolicy               | Missing                  |
-| Widget streaming                | Missing                  |
-| Widget events                   | Missing                  |
-| Attribution                     | Missing                  |
-| Explicit widget sessions        | Incomplete               |
-| Cross-store tests               | Missing                  |
-| Prompt injection tests          | Missing                  |
-| RAG leakage tests               | Missing                  |
-
-Do not trust this table blindly.
-
-Verify everything.
-
----
-
-# 4. EXECUTION STRATEGY
-
-Execute in this exact order:
-
-```text
-PHASE A
-Baseline & Inventory
-        ↓
-PHASE B
-Observability & Correlation
-        ↓
-PHASE C
-Tenant Isolation & Security Testing
-        ↓
-PHASE D
-Rate Limiting
-        ↓
-PHASE E
-Widget Streaming
-        ↓
-PHASE F
-Widget Events & Attribution
-        ↓
-PHASE G
-Final Regression & Production Audit
-```
-
-Do not skip a phase.
-
-Do not start a later phase if an earlier security gate fails.
-
----
-
-# PHASE G — FINAL PRODUCTION AUDIT
-
-After all implementation work:
-
----
-
-## G1. Full regression suite
-
-Run:
-
-```text
-unit tests
-integration tests
-repository tests
-API tests
-authentication tests
-authorization tests
-RAG tests
-vector tests
-Mongo tests
-Redis tests
-widget tests
-streaming tests
-rate-limit tests
-event tests
-```
-
----
-
-# G2. OpenAPI compatibility
-
-Compare:
-
-```text
-docs/api/openapi-baseline.json
-```
-
-against the final schema.
-
-Classify every difference:
-
-```text
-NON-BREAKING
-INTENTIONAL BREAKING
-UNINTENTIONAL BREAKING
-```
-
-Any:
-
-```text
-UNINTENTIONAL BREAKING
-```
-
-is a release blocker.
-
----
-
-# G3. Security audit
-
-Verify:
-
-```text
-tenant isolation
-authentication
-authorization
-origin validation
-widget token expiration
-widget token scopes
-rate limiting
-prompt injection resistance
-secret exposure
-PII logging
-CORS
-```
-
----
-
-# G4. Failure testing
-
-Test:
-
-```text
-Mongo unavailable
-Redis unavailable
-Vector DB unavailable
-LLM unavailable
-LLM timeout
-LLM rate limit
-embedding failure
-document processing failure
-stream disconnect
-invalid widget key
-expired widget token
-disabled widget
-```
-
-Expected behavior must be controlled and must never bypass tenant isolation.
-
----
-
-# G5. Performance
-
-Measure:
-
-```text
-bootstrap P50/P95/P99
-chat P50/P95/P99
-stream start latency
-recommendation P50/P95/P99
-RAG retrieval latency
-vector search latency
-Mongo latency
-LLM latency
-```
-
-Do not optimize blindly.
-
-Record the actual measurements.
-
----
-
-# G6. Production readiness checklist
-
-Verify:
-
-```text
-[ ] No destructive migrations
-[ ] No broken existing API
-[ ] No broken widget
-[ ] No broken RAG
-[ ] No broken AI providers
-[ ] No tenant leakage
-[ ] No secret leakage
-[ ] No uncontrolled LLM parameters from widget
-[ ] Rate limiting enabled
-[ ] Request correlation enabled
-[ ] Runtime logging correlated
-[ ] Streaming tested
-[ ] Events tested
-[ ] Attribution tested
-[ ] OpenAPI baseline updated
-[ ] Regression suite passes
-[ ] Rollback strategy documented
-```
-
----
-
-# 5. REQUIRED REPORTING FORMAT
-
-After EVERY phase, produce a report.
-
-Do not simply say:
-
-```text
-Done.
-```
-
-Use:
-
-````text
-# Phase X Report
-
-## 1. Status
-
-PASS / PASS WITH WARNINGS / BLOCKED
-
-## 2. What Was Audited
-
-List exact components.
-
-## 3. What Was Changed
-
-List exact files and changes.
-
-## 4. What Was NOT Changed
-
-Explicitly state preserved architecture/components.
-
-## 5. Tests Executed
-
-| ID | Test | Result | Evidence |
-|---|---|---|---|
-| C-01 | Store A conversation | PASS | ... |
-| C-02 | Store A → Store B | PASS | ... |
-
-## 6. Failures Found
-
-For every failure:
-
-- test ID
-- component
-- expected behavior
-- actual behavior
-- severity
-- root cause
-
-## 7. Fixes Applied
-
-For every fix:
-
-- problem
-- change
-- files
-- reason
-- compatibility impact
-
-## 8. Security Impact
-
-Explain whether security posture improved, unchanged, or degraded.
-
-## 9. Production Impact
-
-Explain whether production behavior changed.
-
-## 10. API Impact
-
-List:
-
-- added endpoints
-- modified endpoints
-- deprecated endpoints
-- unchanged endpoints
-- breaking changes
-
-## 11. Database Impact
-
-List:
-
-- schema changes
-- indexes
-- migrations
-- data migrations
-
-If none:
-
-```text
-No database changes.
-````
-
-## 12. Remaining Risks
-
-List every unresolved issue.
-
-## 13. Required Action
-
-For each unresolved issue:
-
-| Issue | Severity | Action | Owner | Blocking? |
-| ----- | -------- | ------ | ----- | --------- |
-
-## 14. Exit Gate
-
-```text
-PASS
-PASS WITH WARNINGS
-BLOCKED
-```
-
-````
-
----
-
-# 6. SEVERITY CLASSIFICATION
-
-Use:
-
-### P0 — Critical
-
-Examples:
-
-```text
-cross-store data leakage
-authentication bypass
-tenant impersonation
-secret exposure
-destructive production migration
-````
-
-Action:
-
-```text
-STOP
-```
-
----
-
-### P1 — High
-
-Examples:
-
-```text
-RAG isolation failure
-widget authorization failure
-uncontrolled LLM cost
-major production regression
-```
-
-Action:
-
-```text
-BLOCK RELEASE
-```
-
----
-
-### P2 — Medium
-
-Examples:
-
-```text
-missing observability
-incomplete attribution
-missing endpoint rate limit
-non-critical API inconsistency
-```
-
-Action:
-
-```text
-Fix before production if practical
-or explicitly accept risk
-```
-
----
-
-### P3 — Low
-
-Examples:
-
-```text
-documentation gap
-minor schema cleanup
-non-critical optimization
-```
-
-Action:
-
-```text
-Backlog
-```
-
----
-
-# 7. ACTION REPORT
-
-At the end of the complete audit, create:
-
-```text
-docs/audit/FINAL-AUDIT-REPORT.md
-```
-
-It must contain:
-
-```text
-# AI Commerce FastAPI Production Audit
-
-## Executive Summary
-
-## Current Architecture
-
-## Phase Results
-
-### Phase A
-### Phase B
-### Phase C
-### Phase D
-### Phase E
-### Phase F
-### Phase G
-
-## Test Summary
-
-Total tests:
-Passed:
-Failed:
-Skipped:
-Blocked:
-
-## Security Findings
-
-P0:
-P1:
-P2:
-P3:
-
-## Production Findings
-
-## API Compatibility
-
-## Database Changes
-
-## Performance Results
-
-## Observability
-
-## Remaining Risks
-
-## Required Actions
-
-## Release Recommendation
-
-GO
-GO WITH WARNINGS
-NO-GO
-
-## Final Decision
-```
-
----
-
-# 8. IMPORTANT — DO NOT HIDE FAILURES
-
-If something fails, report it.
+Do NOT add, redesign, refactor, or introduce any feature that is not explicitly requested.
 
 Do NOT:
 
-* weaken the test
-* remove the test
-* change expected behavior just to pass
-* mark a failure as warning without justification
-* silently skip tests
-* modify production behavior to hide a regression
+* redesign the integration architecture
+* redesign authentication
+* redesign JWT structure
+* store the e-commerce JWT
+* add refresh-token storage
+* add OAuth
+* add service accounts
+* add token rotation
+* add credential rotation
+* add background authentication workers
+* add scheduled authentication
+* add connection-health architecture
+* add new synchronization stages
+* add new AI/RAG features
+* add widget features
+* add new promo-code features
+* add discount calculation
+* add maximum-discount logic
+* add coupon generation
+* create new collections unnecessarily
+* create duplicate services
+* create duplicate repositories
+* rewrite existing synchronization
+* rewrite existing OpenAPI parsing
+* rewrite existing tenant isolation
+* modify unrelated endpoints
 
-If a failure is caused by an existing architectural decision:
+If you discover a possible improvement:
 
-Document:
+> **DO NOT IMPLEMENT IT.**
+
+Record it only under:
 
 ```text
-Existing behavior
-↓
-Why it conflicts
-↓
-Risk
-↓
-Minimum safe solution
+OUT OF SCOPE / FUTURE WORK
 ```
 
 ---
 
-# 9. IMPORTANT — DO NOT OVER-IMPLEMENT
+# 2. EXACT BUSINESS OBJECTIVE
 
-If you discover:
-
-```text
-PromptResolver not required
-```
-
-do not create it.
-
-If:
+The current AI Commerce .Net service encoded JWT already contains:
 
 ```text
-AIExecutionPolicy
+E-commerce Admin Email
+E-commerce Admin Password
 ```
 
-is already effectively provided by:
+The required behavior is:
 
 ```text
-ai_settings + ModelRegistry
+AI Commerce Fetch JWT
+       ↓
+Decode JWT
+       ↓
+Extract E-commerce Admin Email
+Extract E-commerce Admin Password
+       ↓
+Authenticate/Login to E-commerce
+       ↓
+Obtain temporary/current E-commerce authentication
+       ↓
+Fetch required data
+       ↓
+Store existing synchronized data
 ```
 
-do not duplicate it.
+The resulting e-commerce JWT/access token:
 
-If:
+> **MUST NOT be persisted in our service.**
 
-```text
-existing JWT
-```
-
-is sufficient for internal authentication:
-
-do not create another authentication system.
-
-If:
-
-```text
-existing namespace isolation
-```
-
-is secure after testing:
-
-do not redesign the vector architecture.
-
-The goal is:
-
-> **Prove the current architecture is safe first. Change only what the evidence proves must change.**
+It may exist only in memory/current execution for the required e-commerce API operations.
 
 ---
 
-# 10. FINAL NON-NEGOTIABLE PRINCIPLE
+# 3. REQUIRED NEW RETRY BEHAVIOR
 
-The implementation must preserve:
+The ONLY additional architecture being introduced by this task is:
+
+> **Retry e-commerce login a maximum of 3 times using the credentials extracted from the AI Commerce JWT.**
+
+The exact behavior is:
 
 ```text
-Existing Architecture
-        +
-Existing APIs
-        +
-Existing AI Providers
-        +
-Existing RAG
-        +
-Existing MongoDB
-        +
-Existing Widget
-        +
-Existing Production Behavior
+Decode AI Commerce JWT
+        ↓
+Extract email/password
+        ↓
+Login Attempt #1
+        ↓
+Failed
+        ↓
+Login Attempt #2
+        ↓
+Failed
+        ↓
+Login Attempt #3
+        ↓
+Failed
+        ↓
+STOP
 ```
 
-while adding:
+Maximum:
 
 ```text
-Strong Tenant Isolation
-+
-Request Correlation
-+
-Endpoint Rate Limits
-+
-Widget Streaming
-+
-Widget Events
-+
-Attribution
-+
-Security Tests
-+
-Production Evidence
+3 login attempts
 ```
 
-The final system must follow:
+No fourth attempt.
 
-```text
-                    STOREFRONT
-                         │
-                         ▼
-                    Widget API
-                         │
-                    Widget Token
-                         │
-                         ▼
-                  TenantContext
-                         │
-                 ┌───────┴───────┐
-                 │               │
-          organization_id     store_id
-                 │               │
-                 └───────┬───────┘
-                         ▼
-                 Application Layer
-                         │
-                 ┌───────┼────────┐
-                 ▼       ▼        ▼
-                RAG     AI      Recommendations
-                 │       │        │
-                 └───────┼────────┘
-                         ▼
-                  Mongo / Vector
-                         │
-                         ▼
-                       LLM
+No infinite retry.
+
+No exponential background retry.
+
+No scheduled retry.
+
+No retry worker.
+
+No automatic retry after the operation has returned an error.
+
+---
+
+# 4. LOGIN RETRY RULE
+
+The three attempts MUST use the same credentials extracted from the current AI Commerce JWT.
+
+Conceptually:
+
+```python
+for attempt in range(1, 4):
+    try:
+        ecommerce_auth = login(email, password)
+
+        if successful:
+            break
+
+    except AuthenticationError:
+        if attempt == 3:
+            raise IntegrationAuthenticationError(...)
 ```
 
-The **server-derived `store_id` remains the canonical AI tenant boundary**.
+However:
 
-The client/widget may provide:
+> First inspect the existing integration authentication implementation and follow its existing patterns.
+
+Do not blindly copy this pseudocode.
+
+---
+
+# 5. DO NOT RETRY EVERYTHING
+
+The retry mechanism is specifically for:
+
+> **E-commerce login/authentication failure.**
+
+Do NOT retry:
+
+* order fetching
+* customer fetching
+* product fetching
+* database writes
+* MongoDB operations
+* OpenAPI parsing
+* capability detection
+* arbitrary HTTP failures
+
+unless the existing architecture already has such behavior.
+
+The requested retry is:
 
 ```text
-customer_id
-session_id
-conversation_id
-page context
-product context
+LOGIN ONLY
 ```
 
-but must never be trusted to define:
+---
+
+# 6. LOGIN FAILURE AFTER THREE ATTEMPTS
+
+If all three login attempts fail:
 
 ```text
-organization_id
+Attempt 1 → FAILED
+Attempt 2 → FAILED
+Attempt 3 → FAILED
+```
+
+the operation MUST STOP.
+
+Do NOT continue to:
+
+```text
+/orders
+/customers
+```
+
+Do NOT attempt to fetch any protected e-commerce data if not pritected fetch them as the previous behaviour.
+
+Do NOT partially continue synchronization.
+
+Return a clear integration authentication error.
+
+The user-facing meaning must be:
+
+> **The e-commerce admin email or password is incorrect. Orders, customers, and other protected store data could not be fetched. Please update the e-commerce integration credentials in the Admin Panel and try again.**
+
+---
+
+# 7. REQUIRED ERROR SEMANTICS
+
+The exact HTTP status must follow the existing API error conventions.
+
+Do not invent a new error framework.
+
+The error must clearly communicate:
+
+```text
+Authentication with the e-commerce system failed after 3 attempts.
+The configured admin email/password may be incorrect.
+No protected store data was fetched.
+Update the integration credentials in the Admin Panel and try again.
+```
+
+Do NOT expose:
+
+```text
+actual password
+JWT
+Authorization header
+internal authentication response
+stack trace
+```
+
+---
+
+# 8. IMPORTANT — DO NOT SAY THE PASSWORD IS DEFINITELY WRONG
+
+The implementation cannot always prove that the password itself is wrong.
+
+Therefore the backend error should preferably communicate:
+
+> **E-commerce authentication failed. Please verify that the configured admin email and password are correct.**
+
+Do not falsely claim:
+
+> "The password is definitely wrong."
+
+The actual login failure could theoretically be caused by another authentication issue.
+
+The UI/message can explain that the configured email/password should be checked.
+
+---
+
+# 9. REQUIRED USER RECOVERY FLOW
+
+After three failed login attempts:
+
+```text
+Sync Now
+   ↓
+Authentication failed
+   ↓
+STOP
+```
+
+The user must be instructed to:
+
+```text
+Admin Panel
+   ↓
+Integration
+   ↓
+Update E-commerce Admin Email/Password
+   ↓
+Save / Complete Integration
+   ↓
+Try Again
+```
+
+The backend MUST NOT automatically retry later.
+
+The user explicitly retries after correcting the integration credentials.
+
+---
+
+# 10. REQUIRED SYNC NOW FLOW
+
+The existing Sync Now flow includes connection creation.
+
+Preserve this behavior.
+
+The required flow is:
+
+```text
+USER CLICKS "SYNC NOW"
+        ↓
+POST /api/v1/integration/connections
+        ↓
+Decode AI Commerce JWT
+        ↓
+Extract E-commerce Admin Email
+Extract E-commerce Admin Password
+        ↓
+E-commerce Login Attempt #1
+        ↓
+Failure?
+        ↓
+E-commerce Login Attempt #2
+        ↓
+Failure?
+        ↓
+E-commerce Login Attempt #3
+        ↓
+Success?
+       / \
+     YES  NO
+      │    │
+      │    └──────────────→ STOP
+      │                     ↓
+      │                 Return error
+      │                     ↓
+      │                 NO DATA FETCH
+      │
+      ▼
+Create Connection
+      ↓
+POST /api/v1/integration/connections/{connection_id}/sync
+      ↓
+Decode AI Commerce JWT
+      ↓
+Extract E-commerce credentials
+      ↓
+E-commerce Login
+      ↓
+Check Promo Code capability
+      ↓
+Fetch existing required data
+      ↓
+Store existing synchronized data
+```
+
+Do not add additional stages.
+
+---
+
+# 11. IMPORTANT: FETCH DATA THAT PUBLIC NOT REQUIRE AUTHENTICATION OR 401 ERROR IF AUTHENTICATION FAILD SKIP THESE ENDPOINTS AND RETURN ERROR TO CHECK ADMIN PANEL EMAIL AND PASSWORD VALIDATION
+
+This is a hard rule.
+
+The system MUST NOT execute any endpoints that require admin role in e-commerce:
+
+```text
+/orders
+/customers
+```
+
+before successful e-commerce authentication.
+
+Correct:
+
+```text
+LOGIN SUCCESS
+    ↓
+FETCH DATA
+```
+
+Incorrect:
+
+```text
+FETCH ORDERS
+    ↓
+401
+    ↓
+TRY LOGIN
+```
+
+The login must happen first for the requested flow.
+
+---
+
+# 12. REQUIRED ENDPOINT #1
+
+Audit and modify:
+
+```http
+POST /api/v1/integration/connections
+```
+
+The endpoint must:
+
+1. Authenticate the AI Commerce request.
+2. Resolve the current tenant/store using the existing architecture.
+3. Decode the AI Commerce JWT.
+4. Extract e-commerce admin email.
+5. Extract e-commerce admin password.
+6. Attempt e-commerce login.
+7. Retry login up to 3 times if authentication fails.
+8. Stop immediately after successful authentication.
+9. If all 3 attempts fail, fetch public data but DO NOT DUPLICATE DATA and return the integration authentication error.
+10. If successful, continue the EXISTING connection creation flow.
+11. Do not persist the resulting e-commerce JWT.
+
+---
+
+# 13. REQUIRED ENDPOINT #2
+
+Audit and modify:
+
+```http
+POST /api/v1/integration/connections/{connection_id}/sync
+```
+
+The endpoint must:
+
+1. Authenticate the AI Commerce request.
+2. Validate the connection belongs to the authenticated store.
+3. Decode the AI Commerce JWT.
+4. Extract e-commerce admin email/password.
+5. Authenticate with the e-commerce system.
+6. Retry login up to 3 times.
+7. Stop if authentication fails after 3 attempts.
+8. Do NOT fetch orders/customers or any endpoints that require admin role after failed authentication.
+9. If authentication succeeds, continue the existing synchronization logic.
+10. Check Promo Code capability.
+11. Update `store_capabilities.has_promo_code`.
+12. Fetch the existing required entities.
+13. Store them using the existing storage pipeline and make sure not duplicating data.
+14. Return the existing sync response format.
+
+---
+
+# 14. E-COMMERCE JWT MUST NOT BE STORED
+
+The e-commerce login may return:
+
+```text
+access_token
+JWT
+token
+session token
+```
+
+Use it only for the current operation.
+
+Do NOT:
+
+* save it in MongoDB
+* save it in SQL
+* save it in Redis
+* put it in StoreIntegration
+* put it in AI Commerce JWT
+* return it to frontend
+* log it
+
+The e-commerce authentication token is temporary/current-operation state.
+
+---
+
+# 15. AI COMMERCE JWT
+
+The AI Commerce JWT remains the source of:
+
+```text
+TenantContext
++
+E-commerce Admin Email
++
+E-commerce Admin Password
+```
+
+Conceptually:
+
+```text
+AI Commerce JWT
+│
+├── user identity
+├── organization identity
+├── store identity
+├── roles/scopes
+│
+├── e-commerce admin email
+└── e-commerce admin password
+```
+
+Do not change this architecture unless the current implementation literally lacks the required claims.
+
+---
+
+# 16. TENANT ISOLATION MUST NOT CHANGE
+
+The decoded e-commerce credentials are NOT tenant identifiers.
+
+Tenant identity remains derived from the existing authenticated AI Commerce context.
+
+```text
+AI Commerce JWT
+       │
+       ├── TenantContext
+       │     ├── organization_id
+       │     └── store_id
+       │
+       └── E-commerce credentials
+             ├── email
+             └── password
+```
+
+Never use e-commerce JWT claims to override:
+
+```text
 store_id
-widget ownership
+organization_id
+widget_id
 ```
 
 ---
 
-# 11. FINAL INSTRUCTION TO THE AGENT
+# 17. JWT DECODING
 
-Start with **Phase A only**.
+Inspect the existing JWT implementation first.
 
-Do not implement Phase B until Phase A is complete and reported.
+Find:
 
-Do not implement Phase C until Phase B is complete and reported.
+* existing decoder
+* authentication middleware
+* JWT utilities
+* claim definitions
+* current credential claims
 
-Do not implement Phase D until Phase C passes all tenant-isolation gates.
+Reuse existing implementation.
 
-Do not implement Phase E until Phase D passes.
+Do not create duplicate JWT utilities.
 
-Do not implement Phase F until Phase E passes.
+Extract only the actual claim names used by the current system.
 
-Do not implement Phase G until all previous phases are complete.
+Do not invent claim names.
 
-At the end of each phase:
+---
 
-1. Stop.
-2. Run the required tests.
-3. Generate the phase report.
-4. State PASS / PASS WITH WARNINGS / BLOCKED.
-5. List exactly what needs action.
-6. Continue only if the exit gate allows it.
+# 18. E-COMMERCE LOGIN
 
-**Never sacrifice production stability or tenant security to complete the roadmap faster.**
+Inspect the current integration implementation/OpenAPI configuration to determine the actual e-commerce authentication endpoint.
+
+Do not assume:
+
+```text
+/login
+/auth/login
+/api/login
+```
+
+or any other URL.
+
+Use the existing integration configuration/discovery.
+
+The credentials must be:
+
+```text
+email
+password
+```
+
+from the decoded AI Commerce JWT.
+
+---
+
+# 19. PROMO CODE CAPABILITY
+
+During the requested connection/sync flow, determine whether the connected e-commerce system provides a Promo Code service.
+
+Use the existing integration/OpenAPI discovery mechanisms.
+
+Do not introduce a new discovery architecture.
+
+Existing collection:
+
+```text
+store_capabilities
+```
+
+Existing field:
+
+```text
+has_promo_code: boolean
+```
+
+---
+
+# 20. UPDATE PROMO CAPABILITY
+
+If Promo Code service exists:
+
+```text
+has_promo_code = true
+```
+
+If Promo Code service does not exist:
+
+```text
+has_promo_code = false
+```
+
+Update the capability for the correct store only.
+
+Do not create a new collection.
+
+Do not create a second capability flag.
+
+Do not implement promo-code creation or discount logic.
+
+---
+
+# 21. CAPABILITY FAILURE
+
+If capability discovery itself fails:
+
+Do NOT silently claim:
+
+```text
+has_promo_code = false
+```
+
+unless the existing business logic explicitly defines failure as false.
+
+Preserve the existing capability state if that is the current architecture's behavior.
+
+Do not introduce an `UNKNOWN` state unless the existing model already supports it.
+
+This task only requires the existing boolean to be correctly updated when capability detection succeeds.
+
+---
+
+# 22. EXISTING DATA SYNCHRONIZATION
+
+Once authentication succeeds, continue the existing synchronization implementation.
+
+Do NOT change the existing list of synchronized entities.
+
+Do NOT introduce new entities.
+
+Do NOT redesign canonical models.
+
+Do NOT redesign repositories.
+
+Do NOT redesign MongoDB collections.
+
+The only authentication change is:
+
+```text
+Decode JWT
+ ↓
+Extract credentials
+ ↓
+Login
+ ↓
+Maximum 3 attempts
+ ↓
+Successful login
+ ↓
+Existing synchronization
+```
+
+---
+
+# 23. SECURITY — NEVER LOG CREDENTIALS
+
+Never log:
+
+```text
+AI Commerce JWT
+E-commerce password
+E-commerce JWT
+Authorization header
+Full login request
+```
+
+Safe logging may include:
+
+```text
+connection_id
+store_id
+authentication attempt number
+authentication succeeded/failed
+sync started
+sync completed
+```
+
+Example:
+
+```text
+E-commerce authentication attempt 1 failed for connection <id>
+```
+
+Do NOT include the email if existing logging policy treats it as sensitive.
+
+---
+
+# 24. RETRY LOGGING
+
+The implementation may log:
+
+```text
+attempt = 1
+attempt = 2
+attempt = 3
+```
+
+but never:
+
+```text
+password
+JWT
+Authorization header
+```
+
+After attempt 3:
+
+```text
+E-commerce authentication failed after 3 attempts.
+```
+
+Then stop.
+
+---
+
+# 25. NO RETRY AFTER THREE FAILURES
+
+After:
+
+```text
+Attempt 1 → fail
+Attempt 2 → fail
+Attempt 3 → fail
+```
+
+the operation ends.
+
+Do NOT:
+
+```text
+sleep
+retry later
+queue another login
+schedule another login
+spawn worker
+refresh in background
+```
+
+The user must correct the integration configuration and explicitly click:
+
+```text
+Try Again
+```
+
+---
+
+# 26. ADMIN PANEL RECOVERY
+
+The intended recovery is:
+
+```text
+Authentication Failed
+        ↓
+Admin Panel
+        ↓
+Integration
+        ↓
+Correct E-commerce Admin Email
+Correct E-commerce Admin Password
+        ↓
+Save / Complete Integration
+        ↓
+Try Again
+```
+
+Do not implement additional recovery mechanisms.
+
+The backend only needs to return a clear error that enables the frontend to communicate this recovery path.
+
+---
+
+# 27. ERROR RESPONSE REQUIREMENT
+
+Use the existing API error response format.
+
+The error must communicate:
+
+```text
+E-commerce authentication failed after 3 attempts.
+
+The configured e-commerce admin email/password could not authenticate.
+
+Orders, customers, and other protected store data were NOT fetched.
+
+Please update the e-commerce integration credentials in the Admin Panel and try again.
+```
+
+Do not expose credentials or internal details.
+
+---
+
+# 28. TESTS — ONLY REQUIRED TESTS
+
+Add tests for exactly this functionality.
+
+## JWT
+
+```text
+T01 — Decode valid AI Commerce JWT
+T02 — Extract e-commerce email
+T03 — Extract e-commerce password
+T04 — Missing credentials fails safely
+T05 — Invalid JWT fails safely
+```
+
+## Login Retry
+
+```text
+T06 — Login succeeds on attempt 1
+T07 — Login fails once then succeeds on attempt 2
+T08 — Login fails twice then succeeds on attempt 3
+T09 — Login fails three times
+T10 — Fourth login attempt NEVER occurs
+```
+
+## Failure Behavior
+
+```text
+T11 — Three failed logins return integration authentication error
+T12 — Orders are NOT fetched after three login failures
+T13 — Customers are NOT fetched after three login failures
+T14 — Products are NOT fetched after three login failures
+T15 — No synchronization data is stored after authentication failure
+```
+
+## Success Behavior
+
+```text
+T16 — Successful login continues existing connection flow
+T17 — Successful login continues existing sync flow
+T18 — Existing synchronized data is stored normally
+```
+
+## Promo Capability
+
+```text
+T19 — Promo Code service detected
+T20 — Promo Code service absent
+T21 — has_promo_code=true persisted
+T22 — has_promo_code=false persisted
+T23 — Store A cannot modify Store B capability
+```
+
+## Regression
+
+```text
+T24 — Existing connection tests pass
+T25 — Existing sync tests pass
+T26 — Existing integration tests pass
+```
+
+---
+
+# 29. TEST THE EXACT RETRY SEQUENCE
+
+The most important test is:
+
+```text
+Attempt 1 → authentication failure
+Attempt 2 → authentication failure
+Attempt 3 → authentication failure
+        ↓
+STOP
+        ↓
+Error returned
+        ↓
+NO /orders
+NO /customers
+NO /products
+NO database synchronization
+```
+
+And:
+
+```text
+Attempt 1 → failure
+Attempt 2 → success
+        ↓
+STOP RETRYING
+        ↓
+Continue synchronization
+```
+
+Do NOT execute attempt 3 after attempt 2 succeeds.
+
+---
+
+# 30. CONNECTION + SYNC SEQUENCE
+
+Verify the exact sequence:
+
+```text
+Sync Now
+   ↓
+Create Connection
+   ↓
+Decode JWT
+   ↓
+Extract credentials
+   ↓
+Login
+   ↓
+Retry max 3
+   ↓
+Success
+   ↓
+Sync
+   ↓
+Capability detection
+   ↓
+Store data
+```
+
+Do not introduce additional stages.
+
+---
+
+# 31. FILE CHANGE RULE
+
+Before editing any file:
+
+1. Search for existing implementation.
+2. Understand current dependency flow.
+3. Modify the smallest possible area.
+4. Preserve existing public contracts where possible.
+5. Do not refactor unrelated code.
+
+After editing:
+
+```text
+git diff
+```
+
+must be reviewed.
+
+Look specifically for accidental changes outside:
+
+```text
+JWT decoding
+integration authentication
+connection creation
+sync authentication
+promo capability update
+tests
+documentation/report
+```
+
+---
+
+# 32. REQUIRED FINAL REPORT
+
+Generate:
+
+```text
+docs/audit/INTEGRATION-JWT-SYNC-RETRY-REPORT.md
+```
+
+The report must contain:
+
+## 1. Executive Summary
+
+## 2. Exact Flow Implemented
+
+## 3. AI Commerce JWT Decoding
+
+## 4. E-commerce Authentication
+
+## 5. Three-Attempt Retry Mechanism
+
+## 6. Connection Endpoint Changes
+
+```text
+POST /api/v1/integration/connections
+```
+
+## 7. Sync Endpoint Changes
+
+```text
+POST /api/v1/integration/connections/{connection_id}/sync
+```
+
+## 8. Promo Code Capability Detection
+
+## 9. `store_capabilities.has_promo_code`
+
+## 10. Authentication Failure Behavior
+
+## 11. Data Fetch Prevention After Authentication Failure
+
+## 12. Tenant Isolation
+
+## 13. Security
+
+## 14. Files Changed
+
+## 15. Tests Added
+
+## 16. Tests Executed
+
+## 17. Test Results
+
+## 18. Regression Results
+
+## 19. Out-of-Scope Items Not Implemented
+
+## 20. Frontend/Admin Panel Behavior Required
+
+---
+
+# 33. FINAL ACCEPTANCE CRITERIA
+
+The implementation is complete ONLY if:
+
+```text
+[ ] Existing AI Commerce JWT is decoded
+[ ] E-commerce admin email is extracted
+[ ] E-commerce admin password is extracted
+[ ] Credentials are used for e-commerce login
+[ ] E-commerce JWT/access token is NOT persisted
+[ ] Login has maximum 3 attempts
+[ ] Attempt 2 happens only after attempt 1 fails
+[ ] Attempt 3 happens only after attempt 2 fails
+[ ] No fourth attempt exists
+[ ] Successful attempt stops retrying immediately
+[ ] Three failures stop the entire operation
+[ ] Orders are NOT fetched after authentication failure
+[ ] Customers are NOT fetched after authentication failure
+[ ] Products are NOT fetched after authentication failure
+[ ] Existing sync data is NOT partially fetched/stored after authentication failure
+[ ] Error clearly tells the user to verify integration email/password
+[ ] Error instructs user to update Integration settings and Try Again
+[ ] Connection endpoint follows the requested flow
+[ ] Sync endpoint follows the requested flow
+[ ] Sync Now creates connection then synchronizes
+[ ] Promo Code capability is detected
+[ ] store_capabilities.has_promo_code is updated
+[ ] Capability update is tenant isolated
+[ ] Existing synchronization remains unchanged
+[ ] Existing tenant isolation remains unchanged
+[ ] No e-commerce JWT persistence was added
+[ ] No refresh-token architecture was added
+[ ] No unrelated features were added
+[ ] Existing tests pass
+[ ] New tests pass
+```
+
+---
+
+# 34. STRICT STOP CONDITION
+
+When all acceptance criteria are satisfied:
+
+**STOP.**
+
+Do not continue implementing improvements.
+
+If you discover any additional issue, write it only under:
+
+```text
+Potential Future Work
+```
+
+Do not modify code for it.
+
+---
+
+# FINAL REQUIRED IMPLEMENTATION
+
+The only new behavior beyond the previously defined flow is:
+
+```text
+                    AI Commerce JWT
+                           │
+                           ▼
+                     Decode JWT
+                           │
+               ┌───────────┴───────────┐
+               ▼                       ▼
+         Admin Email            Admin Password
+               │                       │
+               └───────────┬───────────┘
+                           ▼
+                  E-commerce Login
+                           │
+                    ┌──────┴──────┐
+                    │             │
+                  FAIL          SUCCESS
+                    │             │
+              Retry #2            ▼
+                    │         Continue
+                  FAIL
+                    │
+              Retry #3
+                    │
+              ┌─────┴─────┐
+              │           │
+            FAIL        SUCCESS
+              │           │
+              ▼           ▼
+            STOP       Continue
+              │
+              ▼
+      Return authentication
+            error
+              │
+              ▼
+       DO NOT FETCH DATA
+              │
+              ▼
+ Admin updates Integration
+ credentials in Admin Panel
+              │
+              ▼
+           Try Again
+```
+
+**Implement exactly this. Nothing more.**

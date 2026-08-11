@@ -4,8 +4,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.auth.dependencies import require_admin_role
-from app.api.integration.dependencies import get_integration_service, get_sync_orchestrator
+from app.api.integration.dependencies import (
+    get_ecommerce_authenticator,
+    get_integration_service,
+    get_sync_orchestrator,
+)
 from app.application.integration.sync.orchestrator import SyncResult
+from app.domain.integration.exceptions import IntegrationAuthenticationError
 from app.main import app
 from app.middleware.audit import AuditMiddleware
 from tests.conftest import admin_headers
@@ -37,6 +42,25 @@ OPENAPI_V3_MINIMAL = {
     },
 }
 
+ECOMMERCE_SPEC = {
+    "openapi": "3.0.0",
+    "info": {"title": "E-Commerce API", "version": "1.0.0"},
+    "servers": [{"url": "https://api.shop.com"}],
+    "paths": {
+        "/api/Auth/login": {
+            "post": {
+                "summary": "Login user and obtain JWT token",
+                "responses": {"200": {"description": "OK"}},
+            }
+        },
+        "/products": {
+            "get": {
+                "summary": "List products",
+                "responses": {"200": {"description": "OK"}},
+            }
+        },
+    },
+}
 
 STORE_ID = "11111111-1111-1111-1111-111111111111"
 
@@ -67,6 +91,7 @@ def connection_dto(**overrides):
         "entity_mappings": [],
         "discovered_endpoints": [],
         "discovered_schemas": {},
+        "raw_spec": None,
         "last_sync_at": None,
         "last_sync_status": None,
         "error_message": None,
@@ -78,6 +103,7 @@ def connection_dto(**overrides):
     obj.model_dump = MagicMock(return_value=base)
     obj.store_id = base["store_id"]
     obj.id = base["id"]
+    obj.raw_spec = base["raw_spec"]
     return obj
 
 
@@ -102,6 +128,27 @@ def mock_sync_orchestrator():
 
 
 @pytest.fixture
+def mock_authenticator():
+    auth = MagicMock()
+    auth.login = AsyncMock(return_value="ecomm-token")
+    return auth
+
+
+@pytest.fixture
+def claims_client():
+    with patch.object(AuditMiddleware, "_log_audit_entry", AsyncMock()):
+        yield TestClient(
+            app,
+            raise_server_exceptions=False,
+            headers=admin_headers(
+                store_id=STORE_ID,
+                store_admin_email="admin@shop.com",
+                store_admin_password="Test@123",
+            ),
+        )
+
+
+@pytest.fixture
 def override_deps(client, mock_service, mock_sync_orchestrator):
     app.dependency_overrides[get_integration_service] = lambda: mock_service
     app.dependency_overrides[get_sync_orchestrator] = lambda: mock_sync_orchestrator
@@ -110,6 +157,13 @@ def override_deps(client, mock_service, mock_sync_orchestrator):
     app.dependency_overrides.pop(get_integration_service, None)
     app.dependency_overrides.pop(get_sync_orchestrator, None)
     app.dependency_overrides.pop(require_admin_role, None)
+
+
+@pytest.fixture
+def override_deps_with_auth(override_deps, mock_authenticator):
+    app.dependency_overrides[get_ecommerce_authenticator] = lambda: mock_authenticator
+    yield override_deps
+    app.dependency_overrides.pop(get_ecommerce_authenticator, None)
 
 
 class TestIntegrationAPI:
@@ -287,3 +341,106 @@ class TestIntegrationAPI:
         resp = client.delete("/api/v1/integration/connections/conn1")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
+
+
+class TestSyncNowLoginGate:
+    def create_payload(self, raw_spec=ECOMMERCE_SPEC):
+        return {
+            "store_id": STORE_ID,
+            "name": "E-Commerce",
+            "platform_name": "ecommerce",
+            "raw_spec": raw_spec,
+            "auth_config": {"type": "bearer", "name": "Authorization"},
+        }
+
+    def test_create_connection_logs_in_before_create(
+        self, claims_client, mock_service, mock_authenticator, override_deps_with_auth
+    ):
+        mock_service.create_connection = AsyncMock(return_value=connection_dto(name="E-Commerce"))
+        resp = claims_client.post("/api/v1/integration/connections", json=self.create_payload())
+        assert resp.status_code == 201
+        mock_authenticator.login.assert_awaited_once()
+        _, kwargs = mock_service.create_connection.call_args
+        assert kwargs.get("replace_existing") is True
+
+    def test_create_connection_login_failure_creates_and_runs_public_fallback(
+        self, claims_client, mock_service, mock_sync_orchestrator, mock_authenticator, override_deps_with_auth
+    ):
+        mock_authenticator.login = AsyncMock(side_effect=IntegrationAuthenticationError())
+        mock_service.create_connection = AsyncMock(return_value=connection_dto(name="E-Commerce"))
+        fallback = SyncResult(connection_id="conn1", store_id=STORE_ID)
+        fallback.status = "completed"
+        fallback.completed_at = fallback.started_at
+        mock_sync_orchestrator.sync_connection = AsyncMock(return_value=fallback)
+
+        resp = claims_client.post("/api/v1/integration/connections", json=self.create_payload())
+
+        assert resp.status_code == 401
+        body = resp.json()
+        assert body["code"] == "IntegrationAuthenticationError"
+        assert "details" in body and body["details"]["connection_id"] == "conn1"
+        _, create_kwargs = mock_service.create_connection.call_args
+        assert create_kwargs.get("replace_existing") is True
+        _, sync_kwargs = mock_sync_orchestrator.sync_connection.call_args
+        assert sync_kwargs.get("auth_token") is None
+        assert sync_kwargs.get("public_fallback") is True
+
+    def test_create_connection_without_login_endpoint_skips_login(
+        self, claims_client, mock_service, mock_authenticator, override_deps_with_auth
+    ):
+        mock_service.create_connection = AsyncMock(return_value=connection_dto(name="Test API"))
+        resp = claims_client.post(
+            "/api/v1/integration/connections", json=self.create_payload(raw_spec=OPENAPI_V3_MINIMAL)
+        )
+        assert resp.status_code == 201
+        mock_authenticator.login.assert_not_called()
+
+    def test_sync_logs_in_and_passes_ephemeral_token(
+        self, claims_client, mock_service, mock_sync_orchestrator, mock_authenticator, override_deps_with_auth
+    ):
+        result = SyncResult(connection_id="conn1", store_id=STORE_ID)
+        result.status = "completed"
+        result.completed_at = result.started_at
+        mock_service.get_connection = AsyncMock(return_value=connection_dto(raw_spec=ECOMMERCE_SPEC))
+        mock_sync_orchestrator.sync_connection = AsyncMock(return_value=result)
+
+        resp = claims_client.post("/api/v1/integration/connections/conn1/sync", json={})
+        assert resp.status_code == 200
+        mock_authenticator.login.assert_awaited_once()
+        _, kwargs = mock_sync_orchestrator.sync_connection.call_args
+        assert kwargs.get("auth_token") == "ecomm-token"
+
+    def test_sync_login_failure_runs_public_fallback_with_401(
+        self, claims_client, mock_service, mock_sync_orchestrator, mock_authenticator, override_deps_with_auth
+    ):
+        mock_service.get_connection = AsyncMock(return_value=connection_dto(raw_spec=ECOMMERCE_SPEC))
+        mock_authenticator.login = AsyncMock(side_effect=IntegrationAuthenticationError())
+        fallback = SyncResult(connection_id="conn1", store_id=STORE_ID)
+        fallback.status = "completed"
+        fallback.completed_at = fallback.started_at
+        mock_sync_orchestrator.sync_connection = AsyncMock(return_value=fallback)
+
+        resp = claims_client.post("/api/v1/integration/connections/conn1/sync", json={})
+
+        assert resp.status_code == 401
+        body = resp.json()
+        assert body["code"] == "IntegrationAuthenticationError"
+        assert "sync" in body["details"]
+        _, kwargs = mock_sync_orchestrator.sync_connection.call_args
+        assert kwargs.get("auth_token") is None
+        assert kwargs.get("public_fallback") is True
+
+    def test_sync_without_claims_keeps_existing_flow(
+        self, client, mock_service, mock_sync_orchestrator, mock_authenticator, override_deps_with_auth
+    ):
+        result = SyncResult(connection_id="conn1", store_id=STORE_ID)
+        result.status = "completed"
+        result.completed_at = result.started_at
+        mock_service.get_connection = AsyncMock(return_value=connection_dto(raw_spec=ECOMMERCE_SPEC))
+        mock_sync_orchestrator.sync_connection = AsyncMock(return_value=result)
+
+        resp = client.post("/api/v1/integration/connections/conn1/sync", json={})
+        assert resp.status_code == 200
+        mock_authenticator.login.assert_not_called()
+        _, kwargs = mock_sync_orchestrator.sync_connection.call_args
+        assert kwargs.get("auth_token") is None

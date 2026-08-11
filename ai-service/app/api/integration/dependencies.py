@@ -1,6 +1,7 @@
 from fastapi import Depends
 
 from app.agents.integration.agent import IntegrationMappingAgent
+from app.application.integration.auth.authenticator import EcommerceAuthenticator
 from app.application.integration.mapping.services import IntegrationApplicationService
 from app.application.integration.sync.orchestrator import SyncOrchestrator
 from app.infrastructure.mongodb.repositories.integration_connection_repository import (
@@ -16,6 +17,10 @@ def get_integration_connection_repository() -> IntegrationConnectionMongoReposit
 
 def get_key_manager() -> KeyManager:
     return KeyManager()
+
+
+def get_ecommerce_authenticator() -> EcommerceAuthenticator:
+    return EcommerceAuthenticator()
 
 
 def get_integration_service(

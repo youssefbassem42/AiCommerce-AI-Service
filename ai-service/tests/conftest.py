@@ -76,11 +76,18 @@ def override_auth_dependencies(app) -> None:
     )
 
 
-def admin_headers(role: str = "Admin", store_id: str = "22222222-2222-2222-2222-222222222222") -> dict[str, str]:
+def admin_headers(
+    role: str = "Admin",
+    store_id: str = "22222222-2222-2222-2222-222222222222",
+    store_admin_email: str | None = None,
+    store_admin_password: str | None = None,
+) -> dict[str, str]:
     """Bearer headers using a contract-compliant token for integration tests.
 
     Mirrors the exact claim set the .NET backend emits (sub + ASP.NET NameIdentifier URI,
     email + emailaddress URI, security_stamp, role URI, store_id, org_id optional).
+    Pass ``store_admin_email``/``store_admin_password`` to include the e-commerce
+    admin credentials claims used by the integration "Sync Now" flow.
     """
     from datetime import UTC, datetime, timedelta
 
@@ -104,5 +111,9 @@ def admin_headers(role: str = "Admin", store_id: str = "22222222-2222-2222-2222-
         "exp": datetime.now(UTC) + timedelta(hours=1),
         "iat": datetime.now(UTC),
     }
+    if store_admin_email is not None:
+        payload["store_admin_email"] = store_admin_email
+    if store_admin_password is not None:
+        payload["store_admin_password"] = store_admin_password
     token = pyjwt.encode(payload, auth_settings.JWT_SECRET, algorithm=auth_settings.JWT_ALGORITHM)
     return {"Authorization": f"Bearer {token}"}
