@@ -376,7 +376,19 @@ class SyncOrchestrator:
         )
         if connection.llm_mapping_sources.get(entity_mapping.entity_type) == fingerprint:
             logger.info("LLM mapping cache hit for '%s' — reusing persisted mapping.", entity_mapping.entity_type)
-            return stored_mapping or entity_mapping
+            if stored_mapping is not None:
+                cleaned = self._llm_mapper.sanitize_entity_mapping(stored_mapping)
+                if cleaned is not stored_mapping:
+                    for i, em in enumerate(connection.entity_mappings):
+                        if em.entity_type == entity_mapping.entity_type:
+                            connection.entity_mappings[i] = cleaned
+                            break
+                    logger.info(
+                        "Sanitized persisted LLM mapping for '%s' (e.g. unknown transformers / derive junk).",
+                        entity_mapping.entity_type,
+                    )
+                return cleaned
+            return entity_mapping
         if self._llm_cache.get(cache_key) == fingerprint:
             logger.info("LLM mapping cache hit for '%s' (in-sync) — reusing.", entity_mapping.entity_type)
             return stored_mapping or entity_mapping

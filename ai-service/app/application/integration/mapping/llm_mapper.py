@@ -21,6 +21,7 @@ from app.application.integration.mapping.canonical_schema import (
     CANONICAL_SCHEMAS,
     canonical_targets,
 )
+from app.application.integration.mapping.transformers import get_default_registry
 from app.core.ai_settings import ai_settings
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.field_mapping import FieldMapping
@@ -39,11 +40,14 @@ Instructions:
    semantically correct source, not the same-named one.
 2. `source` supports dot notation for nested objects (e.g. "pricing.list").
 3. When a required canonical field has no reasonable source in the item,
-   still provide a mapping with `value_source: "derive"` and a
-   `default_value`, or map the closest field (the platform tolerates nulls).
-4. `transformer` may be one of: lowercase, uppercase, strip, url_join,
-   money_to_amount, money_to_currency, datetime_iso. Use None when no
-   transformation is needed.
+   still provide a mapping with `source: "derive"` and a LITERAL
+   `default_value` (e.g. "active", 0, true) — never descriptive text like
+   "derive from X", which would be stored verbatim — or map the closest
+   field (the platform tolerates nulls).
+4. `transformer` may be one of: lowercase, uppercase, trim, strip,
+   string_to_decimal, string_to_int, iso_date, datetime_iso, unix_timestamp,
+   split_by_comma, concat_fields, map_enum, first_image_url, money_to_amount,
+   money_to_currency, url_join. Use None when no transformation is needed.
 5. NEVER invent fake `source` paths that do not appear in the item samples;
    when unsure, map to the closest real key.
 6. `required: true` ONLY when the canonical field is required AND the source
@@ -195,22 +199,107 @@ class LlmEntityMapper:
         allowed = canonical_targets(entity_type)
         if not allowed:
             return []
+        registry = get_default_registry()
         seen: dict[str, FieldMapping] = {}
         for fm in llm_fields:
             target = fm.target.strip()
             if target not in allowed:
                 continue
             source = fm.source.strip().strip("`")
-            if not source or source in ("derive", "null"):
-                source = "derive"
+            if not source or source in ("null", "None"):
+                continue
+
+            transformer = fm.transformer
+            if transformer and not registry.has(transformer):
+                logger.warning(
+                    "Dropping unknown transformer '%s' on field '%s' (entity '%s').",
+                    transformer,
+                    target,
+                    entity_type,
+                )
+                transformer = None
+
+            if source == "derive":
+                default = fm.default_value
+                if not self._is_constant_default(default):
+                    logger.warning(
+                        "Dropping derive field '%s' whose default '%s' is not a literal constant.",
+                        target,
+                        default,
+                    )
+                    continue
+                seen[target] = FieldMapping(
+                    source="derive",
+                    target=target,
+                    transformer=transformer,
+                    default_value=default,
+                    required=bool(fm.required),
+                )
+                continue
+
             seen[target] = FieldMapping(
                 source=source,
                 target=target,
-                transformer=fm.transformer,
+                transformer=transformer,
                 default_value=fm.default_value,
                 required=bool(fm.required),
             )
         return [seen[t] for t in allowed if t in seen]
+
+    @staticmethod
+    def _is_constant_default(value: Any) -> bool:
+        """True when a derive default is a literal constant (not descriptive text)."""
+        if value is None or isinstance(value, (bool, int, float)):
+            return True
+        if isinstance(value, str):
+            text = value.strip()
+            if len(text) > 60 or "derive" in text.lower():
+                return False
+            return bool(text)
+        return False
+
+    def sanitize_entity_mapping(self, mapping: EntityMapping) -> EntityMapping:
+        """Re-validate a persisted mapping against the canonical schema and registry.
+
+        Used for cached/LLM-built mappings stored on the connection: unknown
+        transformers are dropped (fields keep their raw values) and derive
+        fields with descriptive pseudo-defaults (e.g. "derive from title") are
+        removed instead of being written as literal junk.
+        """
+        if not mapping.field_mappings:
+            return mapping
+        registry = get_default_registry()
+        cleaned: list[FieldMapping] = []
+        for fm in mapping.field_mappings:
+            transformer = fm.transformer
+            if transformer and not registry.has(transformer):
+                logger.warning(
+                    "Dropping unknown transformer '%s' on field '%s' (entity '%s').",
+                    transformer,
+                    fm.target,
+                    mapping.entity_type,
+                )
+                transformer = None
+            if fm.source == "derive" and not LlmEntityMapper._is_constant_default(fm.default_value):
+                logger.warning(
+                    "Dropping derive field '%s' with non-literal default '%s' (entity '%s').",
+                    fm.target,
+                    fm.default_value,
+                    mapping.entity_type,
+                )
+                continue
+            if not fm.source or fm.source in ("null", "None"):
+                continue
+            cleaned.append(FieldMapping(
+                source=fm.source,
+                target=fm.target,
+                transformer=transformer,
+                default_value=fm.default_value,
+                required=fm.required,
+            ))
+        if len(cleaned) == len(mapping.field_mappings):
+            return mapping
+        return mapping.model_copy(update={"field_mappings": cleaned})
 
     @staticmethod
     def fingerprint(source: Any) -> str:

@@ -55,8 +55,11 @@ class PaginationIterator:
     async def _iterate(self) -> AsyncIterator[PagePayload]:
         if self._config.style == PaginationStyle.NONE:
             payload = await self._fetch_page(self._params)
-            if payload is not None:
-                yield payload
+            if payload is None:
+                return
+            yield payload
+            async for page in self._iterate_envelope_pages(payload):
+                yield page
             return
 
         if self._config.style == PaginationStyle.OFFSET:
@@ -72,6 +75,96 @@ class PaginationIterator:
             payload = await self._fetch_page(self._params)
             if payload is not None:
                 yield payload
+
+    def _envelope_pagination_info(self, response: dict) -> tuple[str, str, int, int, int] | None:
+        """Detect a wrapped list response with page-number pagination metadata.
+
+        Scans the response dict and its nested ``data`` container (1 level
+        deep, or 2 levels when nested under a wrapper key) for the classic
+        envelope trio: a page number, a page size and a total. Returns
+        ``(page_param, size_param, current_page, page_size, total)`` or None.
+        """
+        if not isinstance(response, dict):
+            return None
+        containers: list[tuple[str, dict]] = [("root", response)]
+        data = response.get("data") if isinstance(response, dict) else None
+        if isinstance(data, dict):
+            containers.append(("data", data))
+            for key, value in data.items():
+                if isinstance(value, dict) and any(
+                    isinstance(k, str) and any(tok in k.lower() for tok in ("total", "page"))
+                    for k in value
+                ):
+                    containers.append((key, value))
+
+        page_param: str | None = None
+        size_param: str | None = None
+        current_page: int | None = None
+        page_size: int | None = None
+        total: int | None = None
+
+        for _, container in containers:
+            for key, value in container.items():
+                if not isinstance(key, str):
+                    continue
+                key_lower = key.lower()
+                if page_param is None and key_lower in ("pagenumber", "page_num", "page"):
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        page_param = key
+                        current_page = int(value)
+                elif size_param is None and key_lower in ("pagesize", "page_size", "size", "limit", "per_page"):
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        size_param = key
+                        page_size = int(value)
+                elif total is None and key_lower in ("totalcount", "total_items", "totalitems", "total", "count"):
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        total = int(value)
+
+        if page_param is None or current_page is None or page_size is None or total is None:
+            return None
+        return page_param, size_param, current_page, page_size, total
+
+    async def _iterate_envelope_pages(self, first: PagePayload) -> AsyncIterator[PagePayload]:
+        """Follow page-number envelopes when a ``none`` config hid pagination.
+
+        Some APIs wrap lists as ``{"data": {"totalCount": N, "pageNumber": p,
+        "pageSize": s, "data": [...]}}`` and the original config (or the LLM)
+        declared them non-paginated. When the envelope metadata is present and
+        the first page is full, keep fetching until the total is reached or a
+        short/empty page ends the run.
+        """
+        page_data = first.data
+        if not isinstance(page_data, list) or not page_data:
+            return
+        info = self._envelope_pagination_info(first.raw_response)
+        if info is None:
+            return
+        _, _, current, page_size, total = info
+        if page_size <= 0:
+            return
+        if total is not None:
+            if len(page_data) >= total:
+                return
+        elif len(page_data) < page_size:
+            return
+
+        params = dict(self._params)
+        collected = len(page_data)
+        page_num = 1
+        while (total is None or collected < total) and page_num < self._max_pages:
+            next_params = dict(params)
+            next_params[info[0]] = current + page_num
+            payload = await self._fetch_page(next_params)
+            if payload is None:
+                break
+            next_data = payload.data
+            if not isinstance(next_data, list) or not next_data:
+                break
+            yield payload
+            collected += len(next_data)
+            if len(next_data) < page_size:
+                break
+            page_num += 1
 
     async def _iterate_offset(self) -> AsyncIterator[PagePayload]:
         offset = 0
@@ -169,6 +262,8 @@ class PaginationIterator:
 
     @staticmethod
     def _default_extractor(data: dict) -> Any:
+        if isinstance(data, list):
+            return data
         for key in ("data", "results", "items", "records", "rows", "response", "content"):
             if key in data and isinstance(data[key], list):
                 return data[key]
@@ -206,6 +301,15 @@ class PaginationIterator:
                         return int(val)
                     except (ValueError, TypeError):
                         pass
+        container = response.get("data")
+        if isinstance(container, dict):
+            for key in ("totalCount", "totalItems", "total", "total_count", "total_items", "count"):
+                val = container.get(key)
+                if val is not None:
+                    try:
+                        return int(val)
+                    except (ValueError, TypeError):
+                        pass
         return None
 
     def _extract_cursor(self, response: dict) -> Any:
@@ -226,7 +330,7 @@ class PaginationIterator:
         return None
 
     def _infer_page_number(self, params: dict) -> int:
-        for key in ("page", "offset", "cursor"):
+        for key in ("page", "pageNumber", "pagenumber", "page_num", "offset", "cursor"):
             val = params.get(key)
             if val is not None:
                 try:

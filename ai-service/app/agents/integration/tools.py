@@ -10,9 +10,13 @@ from app.agents.integration.prompts import ANALYZE_SPEC_PROMPT, ERROR_EXPLANATIO
 from app.agents.integration.schemas import (
     AuthInfo,
     FeatureAnalysis,
+    FieldMappingInfo,
     IntegrationMappingReport,
 )
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
+from app.application.integration.discovery.field_suggester import FieldSuggester
+from app.application.integration.mapping.transformers import get_default_registry
+from app.application.integration.openapi.resolver import RefResolver
 from app.core.model_registry import ModelRegistry
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
@@ -187,6 +191,115 @@ def _ensure_dict(spec: Any) -> dict:
 MAX_RETRIES = 3
 
 
+def _response_item_fields(spec: dict, list_path: str) -> set[str]:
+    """Collect the flat property names of a list endpoint's item schema.
+
+    Follows ``$ref`` chains and drills into the classic ``{data: [item]}``
+    wrapper (and {@code data: {data: [...]}}) so fields of the *items* are
+    returned, not just the wrapper properties.
+    """
+    paths = spec.get("paths", {})
+    path_item = paths.get(list_path) if isinstance(paths, dict) else None
+    operation = (path_item or {}).get("get") if isinstance(path_item, dict) else None
+    if not isinstance(operation, dict):
+        return set()
+    responses = operation.get("responses", {})
+    if not isinstance(responses, dict):
+        return set()
+    schema: dict = {}
+    for status in ("200", "201", "default"):
+        resp = responses.get(status)
+        if not isinstance(resp, dict):
+            continue
+        content = resp.get("content") or {}
+        for media in content.values():
+            candidate = (media or {}).get("schema")
+            if candidate:
+                schema = candidate or {}
+                break
+        if schema:
+            break
+    schemas = ((spec.get("components") or {}).get("schemas")) or (spec.get("definitions") or {})
+    return _collect_schema_fields(schemas, schema)
+
+
+def _collect_schema_fields(schemas: dict, schema: dict, seen: set | None = None) -> set[str]:
+    """Resolve a response schema into its flat item field names."""
+    if seen is None:
+        seen = set()
+    if not isinstance(schema, dict) or id(schema) in seen:
+        return set()
+    seen.add(id(schema))
+    ref = schema.get("$ref")
+    if ref:
+        name = RefResolver._extract_schema_name(ref)
+        target = schemas.get(name)
+        if target is not None:
+            return _collect_schema_fields(schemas, target, seen)
+        return set()
+    if "allOf" in schema:
+        result: set[str] = set()
+        for sub in schema.get("allOf", []):
+            result |= _collect_schema_fields(schemas, sub, seen)
+        return result
+    props = schema.get("properties")
+    if not isinstance(props, dict):
+        return set()
+    result: set[str] = set()
+    for prop_name, prop_schema in props.items():
+        if not isinstance(prop_schema, dict):
+            continue
+        if prop_schema.get("type") == "array" and isinstance(prop_schema.get("items"), dict):
+            result |= _collect_schema_fields(schemas, prop_schema["items"], seen)
+        elif prop_schema.get("type") == "object" and isinstance(prop_schema.get("properties"), dict):
+            result |= _collect_schema_fields(schemas, prop_schema, seen)
+        else:
+            result.add(prop_name)
+    return result
+
+
+def _enrich_report_field_mappings(report: IntegrationMappingReport, spec: dict) -> IntegrationMappingReport:
+    """Fill empty entity field mappings with deterministic rule-based suggestions.
+
+    The LLM report is authoritative when it provides mappings; entities whose
+    ``field_mappings`` came back empty (a common failure for secondary
+    entities like orders/customers/coupons) are backfilled from the list
+    endpoint's schema via the field suggester so the sync stores real data
+    instead of raw pass-through.
+    """
+    suggester = FieldSuggester()
+    registry = get_default_registry()
+    for entity in report.entities:
+        if entity.field_mappings or not entity.list_path:
+            continue
+        fields = _response_item_fields(spec, entity.list_path)
+        if not fields:
+            continue
+        suggestions = suggester.suggest(fields, entity.entity_type)
+        for s in suggestions:
+            transformer = s.transformer if s.transformer and registry.has(s.transformer) else None
+            entity.field_mappings.append(
+                FieldMappingInfo(
+                    source=s.source,
+                    target=s.target,
+                    transformer=transformer,
+                    required=False,
+                    confidence=s.confidence,
+                )
+            )
+        if suggestions:
+            report.warnings.append(
+                f"Backfilled field mappings for '{entity.entity_type}' from its response schema "
+                f"({len(suggestions)} fields)."
+            )
+        elif not suggestions:
+            report.warnings.append(
+                f"Entity '{entity.entity_type}' returned no field mappings and its schema "
+                "could not be matched; data will be stored as-is."
+            )
+    return report
+
+
 def _build_fallback_report(summary: dict, platform_name: str) -> IntegrationMappingReport:
     return IntegrationMappingReport(
         platform_name=platform_name,
@@ -263,6 +376,8 @@ async def analyze_spec_with_llm(
 
             if not report.base_url:
                 report.base_url = summary["base_url"]
+
+            report = _enrich_report_field_mappings(report, spec)
 
             feature_gaps = await analyze_feature_gaps(
                 entities=report.entities,

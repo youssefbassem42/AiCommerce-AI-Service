@@ -140,6 +140,90 @@ class TestLlmEntityMapper:
         assert fp1 == fp2
         assert mapper.fingerprint({"a": 1}) != fp1
 
+    @pytest.mark.asyncio
+    async def test_unknown_transformer_is_dropped_not_fatal(self):
+        content = json.dumps(
+            {
+                "entity_type": "product",
+                "field_mappings": [
+                    {"source": "name", "target": "title"},
+                    {"source": "price", "target": "price", "transformer": "money_to_currency"},
+                    {"source": "price", "target": "compare_at_price", "transformer": "not_a_real_transformer"},
+                ],
+            }
+        )
+        mapper = LlmEntityMapper(provider_factory=FakeFactory(FakeProvider(content)))
+        result = await mapper.build_entity_mapping("product", make_entity_mapping(), {}, [{"name": "W", "price": 10}])
+        assert result is not None
+        price = next(fm for fm in result.field_mappings if fm.target == "price")
+        assert price.transformer == "money_to_currency"
+        compare_at = next(fm for fm in result.field_mappings if fm.target == "compare_at_price")
+        assert compare_at.transformer is None, "unknown transformer must be stripped, not fatal"
+        assert compare_at.source == "price"
+
+    @pytest.mark.asyncio
+    async def test_derive_with_descriptive_default_is_dropped(self):
+        content = json.dumps(
+            {
+                "entity_type": "product",
+                "field_mappings": [
+                    {"source": "name", "target": "title"},
+                    {"source": "derive", "target": "vendor", "default_value": "derive from sellerName"},
+                    {"source": "derive", "target": "status", "default_value": "active"},
+                ],
+            }
+        )
+        mapper = LlmEntityMapper(provider_factory=FakeFactory(FakeProvider(content)))
+        result = await mapper.build_entity_mapping("product", make_entity_mapping(), {}, [{"name": "W"}])
+        assert result is not None
+        targets = {fm.target for fm in result.field_mappings}
+        assert "vendor" not in targets, "descriptive derive default must be dropped"
+        assert "status" in targets
+        status = next(fm for fm in result.field_mappings if fm.target == "status")
+        assert status.default_value == "active"
+
+    @pytest.mark.asyncio
+    async def test_null_source_is_dropped(self):
+        content = json.dumps(
+            {
+                "entity_type": "product",
+                "field_mappings": [
+                    {"source": "name", "target": "title"},
+                    {"source": "null", "target": "sku"},
+                ],
+            }
+        )
+        mapper = LlmEntityMapper(provider_factory=FakeFactory(FakeProvider(content)))
+        result = await mapper.build_entity_mapping("product", make_entity_mapping(), {}, [{"name": "W"}])
+        assert result is not None
+        targets = {fm.target for fm in result.field_mappings}
+        assert "sku" not in targets
+
+    def test_sanitize_entity_mapping_cleans_persisted_junk(self):
+        mapper = LlmEntityMapper(enabled=False)
+        mapping = make_entity_mapping(
+            fields=[
+                FieldMapping(source="name", target="title"),
+                FieldMapping(source="price", target="price", transformer="money_to_currency"),
+                FieldMapping(source="price", target="compare_at_price", transformer="bogus"),
+                FieldMapping(source="derive", target="vendor", default_value="derive from sellerName"),
+                FieldMapping(source="derive", target="handle", default_value="derive from title"),
+                FieldMapping(source="derive", target="status", default_value="active"),
+            ]
+        )
+        cleaned = mapper.sanitize_entity_mapping(mapping)
+        by_target = {fm.target: fm for fm in cleaned.field_mappings}
+        assert by_target["price"].transformer == "money_to_currency"
+        assert by_target["compare_at_price"].transformer is None
+        assert "vendor" not in by_target
+        assert "handle" not in by_target
+        assert by_target["status"].default_value == "active"
+
+    def test_sanitize_entity_mapping_is_noop_when_clean(self):
+        mapper = LlmEntityMapper(enabled=False)
+        mapping = make_entity_mapping(fields=[FieldMapping(source="name", target="title")])
+        assert mapper.sanitize_entity_mapping(mapping) is mapping
+
 
 class TestOrchestratorLlmWiring:
     @pytest.mark.asyncio
@@ -188,3 +272,36 @@ class TestOrchestratorLlmWiring:
 
         assert result is connection.entity_mappings[0]
         assert connection.llm_mapping_sources.get("product") is None
+
+    @pytest.mark.asyncio
+    async def test_cached_mapping_is_sanitized_and_persisted(self):
+        dirty = make_entity_mapping(
+            fields=[
+                FieldMapping(source="name", target="title"),
+                FieldMapping(source="price", target="price", transformer="money_to_currency"),
+                FieldMapping(source="price", target="compare_at_price", transformer="bogus"),
+                FieldMapping(source="derive", target="vendor", default_value="derive from sellerName"),
+            ]
+        )
+        connection = make_connection()
+        connection.entity_mappings[0] = dirty
+        fingerprint = LlmEntityMapper(enabled=False).fingerprint(
+            {
+                "spec": connection.raw_spec,
+                "list_path": dirty.list_path,
+                "id_field": dirty.id_field,
+                "pagination": dirty.pagination.model_dump(),
+            }
+        )
+        connection.llm_mapping_sources["product"] = fingerprint
+
+        mapper = LlmEntityMapper(enabled=False, provider_factory=FakeFactory(FakeProvider("{}")))
+        orch = SyncOrchestrator(llm_mapper=mapper)
+        result = await orch._resolve_llm_mapping(connection, connection.entity_mappings[0], [{"name": "W"}])
+
+        by_target = {fm.target: fm for fm in result.field_mappings}
+        assert "vendor" not in by_target
+        assert by_target["compare_at_price"].transformer is None
+        assert by_target["price"].transformer == "money_to_currency"
+        persisted = connection.entity_mappings[0]
+        assert {fm.target for fm in persisted.field_mappings} == {"title", "price", "compare_at_price"}

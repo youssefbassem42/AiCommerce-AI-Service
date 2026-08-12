@@ -111,3 +111,57 @@ class TestConcatFields:
 
     def test_string_value(self, registry: TransformerRegistry) -> None:
         assert registry.apply("concat_fields", "hello") == "hello"
+
+
+class TestStrip:
+    def test_strip_whitespace(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("strip", "  hello  ") == "hello"
+
+    def test_strip_non_string(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("strip", 123) == 123
+
+
+class TestMoneyToCurrency:
+    def test_numeric_value(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("money_to_currency", 55.0) == {"amount": 55.0, "currency": "USD"}
+
+    def test_numeric_string(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("money_to_currency", "29.99") == {"amount": 29.99, "currency": "USD"}
+
+    def test_money_dict(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("money_to_currency", {"amount": 12.5, "currency": "EUR"}) == {
+            "amount": 12.5,
+            "currency": "EUR",
+        }
+
+    def test_negative_clamped(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("money_to_currency", -5) == {"amount": 0.0, "currency": "USD"}
+
+    def test_non_money_passthrough(self, registry: TransformerRegistry) -> None:
+        value = registry.apply("money_to_currency", "n/a")
+        assert value == "n/a"
+
+
+class TestMoneyToAmount:
+    def test_numeric(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("money_to_amount", 55.0) == 55.0
+
+    def test_numeric_string(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("money_to_amount", "29.99") == 29.99
+
+    def test_money_dict(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("money_to_amount", {"amount": 8.25, "currency": "USD"}) == 8.25
+
+    def test_non_money_passthrough(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("money_to_amount", None) is None
+
+
+class TestUrlJoin:
+    def test_absolute_url_unchanged(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("url_join", "https://example.com/img.png") == "https://example.com/img.png"
+
+    def test_relative_path_passthrough(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("url_join", "/images/1.png") == "/images/1.png"
+
+    def test_non_string(self, registry: TransformerRegistry) -> None:
+        assert registry.apply("url_join", 123) == 123

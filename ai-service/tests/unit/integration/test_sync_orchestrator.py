@@ -71,6 +71,69 @@ class TestEntityWriters:
             assert call_args[0] == {"store_id": "s1", "external_id": "ext1"}
 
     @pytest.mark.asyncio
+    async def test_product_writer_resolves_category_id_from_name(self, mock_collection):
+        products = AsyncMock()
+        products.update_one = AsyncMock(return_value=MagicMock(upserted_id="new_id", modified_count=0))
+        categories = AsyncMock()
+        categories.find_one = AsyncMock(side_effect=[{"external_id": "5", "name": "Accessories"}, None])
+        with (
+            patch("app.application.integration.sync.writers.get_products_collection", return_value=products),
+            patch("app.application.integration.sync.writers.get_categories_collection", return_value=categories),
+        ):
+            writer = ProductWriter()
+            result = await writer.upsert(
+                store_id="s1",
+                organization_id="o1",
+                external_id="ext1",
+                data={"title": "Bag", "price": 55.0, "product_type": "Accessories"},
+            )
+            assert result is True
+            categories.find_one.assert_awaited_once()
+            doc = products.update_one.call_args[0][1]["$set"]
+            assert doc["category_id"] == "5"
+
+    @pytest.mark.asyncio
+    async def test_product_writer_category_lookup_case_insensitive_fallback(self, mock_collection):
+        products = AsyncMock()
+        products.update_one = AsyncMock(return_value=MagicMock(upserted_id="new_id", modified_count=0))
+        categories = AsyncMock()
+        categories.find_one = AsyncMock(side_effect=[None, {"external_id": "2", "name": "Fashion"}])
+        with (
+            patch("app.application.integration.sync.writers.get_products_collection", return_value=products),
+            patch("app.application.integration.sync.writers.get_categories_collection", return_value=categories),
+        ):
+            writer = ProductWriter()
+            await writer.upsert(
+                store_id="s1",
+                organization_id="o1",
+                external_id="ext1",
+                data={"title": "Dress", "price": 55.0, "product_type": "fashion"},
+            )
+            assert categories.find_one.await_count == 2
+            doc = products.update_one.call_args[0][1]["$set"]
+            assert doc["category_id"] == "2"
+
+    @pytest.mark.asyncio
+    async def test_product_writer_keeps_explicit_category_id(self, mock_collection):
+        products = AsyncMock()
+        products.update_one = AsyncMock(return_value=MagicMock(upserted_id="new_id", modified_count=0))
+        categories = AsyncMock()
+        with (
+            patch("app.application.integration.sync.writers.get_products_collection", return_value=products),
+            patch("app.application.integration.sync.writers.get_categories_collection", return_value=categories),
+        ):
+            writer = ProductWriter()
+            await writer.upsert(
+                store_id="s1",
+                organization_id="o1",
+                external_id="ext1",
+                data={"title": "Bag", "price": 55.0, "category_id": "7", "product_type": "Accessories"},
+            )
+            categories.find_one.assert_not_awaited()
+            doc = products.update_one.call_args[0][1]["$set"]
+            assert doc["category_id"] == "7"
+
+    @pytest.mark.asyncio
     async def test_order_writer_upsert(self, mock_collection):
         with patch("app.application.integration.sync.writers.get_orders_collection", return_value=mock_collection):
             writer = OrderWriter()
@@ -241,8 +304,13 @@ class TestSyncOrchestrator:
     async def test_sync_no_writer_for_entity_type(self, orchestrator, connection):
         connection.entity_mappings[0].entity_type = "unknown"
         connection.encrypted_credentials = None
-        result = await orchestrator.sync_connection("conn1")
+        with patch(
+            "app.application.integration.sync.orchestrator.PaginationIterator",
+            side_effect=IntegrationApiException("offline", status_code=404),
+        ):
+            result = await orchestrator.sync_connection("conn1")
         assert result.entity_results[0].entity_type == "unknown"
+        assert result.entity_results[0].errors
 
     @pytest.mark.asyncio
     async def test_sync_no_list_path(self, orchestrator, connection):

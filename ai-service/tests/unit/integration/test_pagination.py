@@ -35,6 +35,30 @@ def _mock_http_response(status: int, body: str, content_type: str) -> httpx.Asyn
     return client
 
 
+def _mock_envelope_client(total: int, page_size: int) -> httpx.AsyncClient:
+    client = AsyncMock(spec=httpx.AsyncClient)
+
+    async def mock_request(*, method, url, params, headers, **kwargs):
+        page = int((params or {}).get("pageNumber", 1))
+        start = (page - 1) * page_size
+        items = [{"id": i} for i in range(start, min(total, start + page_size))]
+        return httpx.Response(
+            200,
+            json={
+                "isSuccess": True,
+                "data": {
+                    "totalCount": total,
+                    "pageNumber": page,
+                    "pageSize": page_size,
+                    "data": items,
+                },
+            },
+        )
+
+    client.request = mock_request
+    return client
+
+
 class TestPaginationIterator:
     async def test_no_pagination_single_page(self) -> None:
         client = _mock_client([{"data": [{"id": 1}, {"id": 2}]}])
@@ -174,3 +198,93 @@ class TestPaginationIterator:
             pages.append(page)
         assert len(pages) == 1
         assert pages[0].data == [{"id": 23, "name": "Sunglasses Retro"}, {"id": 24, "name": "Watch"}]
+
+    async def test_none_style_follows_envelope_pagination(self) -> None:
+        client = _mock_envelope_client(total=25, page_size=10)
+        config = PaginationConfig(style=PaginationStyle.NONE)
+        pages = []
+        async for page in PaginationIterator(client, "GET", "/api/Products", config):
+            pages.append(page)
+        ids = [item["id"] for page in pages for item in page.data]
+        assert len(pages) == 3
+        assert ids == list(range(25))
+        assert pages[1].page_number == 2
+
+    async def test_none_style_envelope_single_page_when_total_matches(self) -> None:
+        client = _mock_envelope_client(total=10, page_size=10)
+        config = PaginationConfig(style=PaginationStyle.NONE)
+        pages = []
+        async for page in PaginationIterator(client, "GET", "/api/Products", config):
+            pages.append(page)
+        assert len(pages) == 1
+
+    async def test_none_style_envelope_short_first_page_is_single(self) -> None:
+        client = _mock_client(
+            [
+                {
+                    "data": {
+                        "totalCount": 3,
+                        "pageNumber": 1,
+                        "pageSize": 10,
+                        "data": [{"id": 1}],
+                    }
+                }
+            ]
+        )
+        config = PaginationConfig(style=PaginationStyle.NONE)
+        pages = []
+        async for page in PaginationIterator(client, "GET", "/api/Products", config):
+            pages.append(page)
+        assert len(pages) == 1
+
+    async def test_envelope_pagination_info_detected(self) -> None:
+        from app.infrastructure.http.pagination import PaginationIterator as PI
+
+        response = {
+            "isSuccess": True,
+            "data": {
+                "totalCount": 29,
+                "pageNumber": 1,
+                "pageSize": 10,
+                "data": [{"id": 1}],
+            },
+        }
+        iterator = PI.__new__(PI)
+        info = iterator._envelope_pagination_info(response)
+        assert info == ("pageNumber", "pageSize", 1, 10, 29)
+
+    async def test_envelope_info_none_for_plain_list(self) -> None:
+        from app.infrastructure.http.pagination import PaginationIterator as PI
+
+        iterator = PI.__new__(PI)
+        assert iterator._envelope_pagination_info({"data": [{"id": 1}]}) is None
+
+    async def test_extract_total_finds_nested_envelope_total(self) -> None:
+        iterator = PaginationIterator.__new__(PaginationIterator)
+        iterator._config = PaginationConfig(style=PaginationStyle.PAGE)
+        response = {
+            "isSuccess": True,
+            "data": {
+                "totalCount": 29,
+                "pageNumber": 1,
+                "pageSize": 10,
+                "data": [{"id": 1}],
+            },
+        }
+        assert iterator._extract_total(response) == 29
+
+    async def test_default_extractor_bare_list_response(self) -> None:
+        from app.infrastructure.http.pagination import PaginationIterator as PI
+
+        data = [{"id": 1}, {"id": 2}]
+        items = PI._default_extractor(data)
+        assert items == data
+
+    async def test_bare_list_response_single_page(self) -> None:
+        client = _mock_client([[{"id": 1}, {"id": 2}]])
+        config = PaginationConfig(style=PaginationStyle.NONE)
+        pages = []
+        async for page in PaginationIterator(client, "GET", "/api/admin/users", config):
+            pages.append(page)
+        assert len(pages) == 1
+        assert len(pages[0].data) == 2

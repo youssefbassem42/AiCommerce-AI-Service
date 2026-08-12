@@ -29,7 +29,7 @@ class FieldSuggester:
 
     @staticmethod
     def _field_tokens(name: str) -> set[str]:
-        parts = re.split(r"[_\s\-]+", name.lower())
+        parts = re.split(r"[_\s\-]+|(?<=[a-z0-9])(?=[A-Z])", name.lower())
         return {p for p in parts if len(p) > 1}
 
     @staticmethod

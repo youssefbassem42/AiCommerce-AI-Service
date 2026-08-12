@@ -1,4 +1,5 @@
 import logging
+import re
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import Any
@@ -19,6 +20,23 @@ def _normalize_currency(value: Any, fallback: str = "USD") -> str:
     if isinstance(value, str) and len(value) == 3 and value.isalpha():
         return value.upper()
     return fallback
+
+
+def _coerce_str(value: Any) -> str | None:
+    """Coerce a scalar/array API value into a plain string (or None).
+
+    Some endpoints return single-element arrays for string fields
+    (e.g. ``firstName: ["mouren mohsen"]``); those are joined so the
+    document still satisfies the collection's string|null schema.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, list):
+        parts = [str(v) for v in value if v is not None and v != ""]
+        if not parts:
+            return None
+        value = " ".join(parts)
+    return str(value) if value is not None else None
 
 
 def _normalize_money(value: Any) -> dict[str, Any] | None:
@@ -89,6 +107,9 @@ class ProductWriter(EntityWriter):
         collection = get_products_collection()
         now = datetime.now(UTC)
         organization_id = organization_id or store_id
+        category_id = data.get("category_id") or data.get("categoryId")
+        if not category_id:
+            category_id = await self._resolve_category_id(store_id, data)
         doc = {
             "store_id": store_id,
             "organization_id": organization_id,
@@ -106,7 +127,7 @@ class ProductWriter(EntityWriter):
             "inventory_quantity": data.get("inventory_quantity") or data.get("stockQuantity") or 0,
             "weight": data.get("weight"),
             "image_url": data.get("image_url") or data.get("imageUrl"),
-            "category_id": data.get("category_id") or data.get("categoryId") or data.get("categoryName"),
+            "category_id": category_id,
             "metadata": data.get("metadata", {}),
         }
         result = await collection.update_one(
@@ -118,6 +139,27 @@ class ProductWriter(EntityWriter):
             upsert=True,
         )
         return result.upserted_id is not None or result.modified_count > 0
+
+    @staticmethod
+    async def _resolve_category_id(store_id: str, data: dict[str, Any]) -> Any:
+        """Resolve a product's category from the category *name* when the API
+        omits ``categoryId`` on the list endpoint (e.g. only ``categoryName``).
+
+        Matches against the synced categories of the same store and returns
+        the category's ``external_id`` so products and categories share the
+        same reference.
+        """
+        name = data.get("category_name") or data.get("product_type")
+        if not name or not isinstance(name, str):
+            return None
+        collection = get_categories_collection()
+        category = await collection.find_one({"store_id": store_id, "name": name})
+        if category is None:
+            escaped = re.escape(name)
+            category = await collection.find_one({"store_id": store_id, "name": {"$regex": f"^{escaped}$", "$options": "i"}})
+        if category is None:
+            return None
+        return str(category.get("external_id") or category.get("_id"))
 
     def collection_name(self) -> str:
         return "products"
@@ -133,7 +175,7 @@ class OrderWriter(EntityWriter):
             "organization_id": organization_id,
             "external_id": external_id,
             "customer_id": data.get("customer_id"),
-            "customer_email": data.get("email") or data.get("customer_email"),
+            "customer_email": _coerce_str(data.get("email") or data.get("customer_email")),
             "line_items": _normalize_line_items(data.get("line_items", [])),
             "shipping_address": data.get("shipping_address"),
             "billing_address": data.get("billing_address"),
@@ -172,10 +214,10 @@ class CustomerWriter(EntityWriter):
             "store_id": store_id,
             "organization_id": organization_id,
             "external_id": external_id,
-            "email": data.get("email"),
-            "first_name": data.get("first_name"),
-            "last_name": data.get("last_name"),
-            "phone": data.get("phone"),
+            "email": _coerce_str(data.get("email")),
+            "first_name": _coerce_str(data.get("first_name")),
+            "last_name": _coerce_str(data.get("last_name")),
+            "phone": _coerce_str(data.get("phone")),
             "tags": data.get("tags", []),
             "notes": data.get("notes"),
             "accepts_marketing": data.get("accepts_marketing", False),

@@ -27,8 +27,12 @@ class TransformerRegistry:
         self.register("lowercase", self._lowercase)
         self.register("uppercase", self._uppercase)
         self.register("trim", self._trim)
+        self.register("strip", self._trim)
         self.register("map_enum", self._map_enum)
         self.register("first_image_url", self._first_image_url)
+        self.register("money_to_currency", self._money_to_currency)
+        self.register("money_to_amount", self._money_to_amount)
+        self.register("url_join", self._url_join)
 
     def register(self, name: str, func: TransformerFunc) -> None:
         self._transformers[name] = func
@@ -131,6 +135,55 @@ class TransformerRegistry:
 
     @staticmethod
     def _map_enum(value: Any) -> Any:
+        return value
+
+    @staticmethod
+    def _money_to_currency(value: Any) -> Any:
+        """Coerce a money value into a ``{amount, currency}`` object.
+
+        Accepts a pre-shaped money dict (``amount``/``value`` + ``currency``),
+        a number, or a numeric string. Non-money values pass through unchanged
+        so a malformed field never fails the whole mapping.
+        """
+        if isinstance(value, dict):
+            amount = value.get("amount", value.get("value", 0))
+            try:
+                amount = float(amount)
+            except (TypeError, ValueError):
+                return value
+            currency = value.get("currency")
+            return {
+                "amount": max(0.0, amount),
+                "currency": str(currency).upper() if isinstance(currency, str) and len(currency) == 3 else "USD",
+            }
+        try:
+            return {"amount": max(0.0, float(value)), "currency": "USD"}
+        except (TypeError, ValueError):
+            return value
+
+    @staticmethod
+    def _money_to_amount(value: Any) -> Any:
+        """Coerce a money value into its numeric amount only."""
+        if isinstance(value, dict):
+            amount = value.get("amount", value.get("value", 0))
+            try:
+                return max(0.0, float(amount))
+            except (TypeError, ValueError):
+                return value
+        try:
+            return max(0.0, float(value))
+        except (TypeError, ValueError):
+            return value
+
+    @staticmethod
+    def _url_join(value: Any) -> Any:
+        """Normalize a URL field.
+
+        Absolute URLs pass through unchanged; relative paths can't be resolved
+        without a base URL, so they are returned untouched rather than failing.
+        """
+        if isinstance(value, str) and value.lower().startswith(("http://", "https://", "data:")):
+            return value.strip()
         return value
 
     @staticmethod
