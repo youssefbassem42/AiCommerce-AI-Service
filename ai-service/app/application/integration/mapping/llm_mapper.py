@@ -290,13 +290,15 @@ class LlmEntityMapper:
                 continue
             if not fm.source or fm.source in ("null", "None"):
                 continue
-            cleaned.append(FieldMapping(
-                source=fm.source,
-                target=fm.target,
-                transformer=transformer,
-                default_value=fm.default_value,
-                required=fm.required,
-            ))
+            cleaned.append(
+                FieldMapping(
+                    source=fm.source,
+                    target=fm.target,
+                    transformer=transformer,
+                    default_value=fm.default_value,
+                    required=fm.required,
+                )
+            )
         if len(cleaned) == len(mapping.field_mappings):
             return mapping
         return mapping.model_copy(update={"field_mappings": cleaned})

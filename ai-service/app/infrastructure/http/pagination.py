@@ -92,8 +92,7 @@ class PaginationIterator:
             containers.append(("data", data))
             for key, value in data.items():
                 if isinstance(value, dict) and any(
-                    isinstance(k, str) and any(tok in k.lower() for tok in ("total", "page"))
-                    for k in value
+                    isinstance(k, str) and any(tok in k.lower() for tok in ("total", "page")) for k in value
                 ):
                     containers.append((key, value))
 

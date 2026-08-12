@@ -13,9 +13,7 @@ SPEC = {
                 "responses": {
                     "200": {
                         "content": {
-                            "application/json": {
-                                "schema": {"$ref": "#/components/schemas/GeneralResponseProductList"}
-                            }
+                            "application/json": {"schema": {"$ref": "#/components/schemas/GeneralResponseProductList"}}
                         }
                     }
                 }
@@ -24,13 +22,7 @@ SPEC = {
         "/api/admin/users": {
             "get": {
                 "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {"$ref": "#/components/schemas/UserList"}
-                            }
-                        }
-                    }
+                    "200": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/UserList"}}}}
                 }
             }
         },
