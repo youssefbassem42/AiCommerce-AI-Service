@@ -45,8 +45,9 @@ async def infrastructure_exception_handler(
 async def ai_exception_handler(request: Request, exc: AIException) -> JSONResponse:  # noqa: ARG001
     return _error_response(
         status_code=exc.status_code,
-        code=exc.__class__.__name__,
+        code=getattr(exc, "code", None) or exc.__class__.__name__,
         message=exc.message,
+        details=getattr(exc, "details", None),
     )
 
 

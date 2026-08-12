@@ -25,6 +25,7 @@ Intelligent, tenant-aware Retrieval-Augmented Generation (RAG) system for the AI
 | [Knowledge Sync](KNOWLEDGE_SYNC.md) | Change detection, versioning, coordinator orchestration |
 | [API Reference](API_REFERENCE.md) | Public interfaces, DTOs, service contracts |
 | [Playground Guide](PLAYGROUND.md) | Running the multi-tenant RAG playground |
+| [Widget Installation Guide](WIDGET_INSTALLATION_GUIDE.md) | Widget keys, embed install (React/Vue/Angular/vanilla), demo storefront |
 
 ## Quick Start
 

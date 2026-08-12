@@ -101,3 +101,99 @@ class AnalyticsRepository(BaseMongoRepository[AIRuntimeLogDocument, AIRuntimeLog
         except Exception as e:
             self._handle_db_error(e)
             raise
+
+    async def aggregate_usage(self, store_id: str, billing_period: str, session: Any = None) -> dict:
+        """Aggregate usage records for one store inside one billing period.
+
+        Tenant isolation is enforced by the ``store_id`` filter; the stream is
+        closed after consumption.
+        """
+        try:
+            match = {"store_id": store_id, "billing_period": billing_period}
+
+            totals_pipeline = [
+                {"$match": match},
+                {
+                    "$group": {
+                        "_id": None,
+                        "requests": {"$sum": 1},
+                        "prompt_tokens": {"$sum": {"$toLong": "$prompt_tokens"}},
+                        "completion_tokens": {"$sum": "$completion_tokens"},
+                        "total_tokens": {"$sum": "$total_tokens"},
+                        "cost": {"$sum": "$cost"},
+                    }
+                },
+            ]
+            provider_pipeline = [
+                {"$match": match},
+                {
+                    "$group": {
+                        "_id": "$provider",
+                        "requests": {"$sum": 1},
+                        "prompt_tokens": {"$sum": {"$toLong": "$prompt_tokens"}},
+                        "completion_tokens": {"$sum": "$completion_tokens"},
+                        "total_tokens": {"$sum": "$total_tokens"},
+                        "cost": {"$sum": "$cost"},
+                    }
+                },
+            ]
+            model_pipeline = [
+                {"$match": match},
+                {
+                    "$group": {
+                        "_id": "$model",
+                        "requests": {"$sum": 1},
+                        "total_tokens": {"$sum": "$total_tokens"},
+                        "cost": {"$sum": "$cost"},
+                    }
+                },
+            ]
+
+            async def _first_result(pipeline):
+                cursor = self.collection.aggregate(pipeline, session=session)
+                try:
+                    async for doc in cursor:
+                        return doc
+                    return None
+                finally:
+                    await cursor.close()
+
+            totals = await _first_result(totals_pipeline)
+            providers = {}
+            cursor = self.collection.aggregate(provider_pipeline, session=session)
+            try:
+                async for doc in cursor:
+                    providers[doc["_id"] or ""] = {
+                        "requests": doc["requests"],
+                        "prompt_tokens": doc["prompt_tokens"],
+                        "completion_tokens": doc["completion_tokens"],
+                        "total_tokens": doc["total_tokens"],
+                        "cost": doc["cost"],
+                    }
+            finally:
+                await cursor.close()
+
+            models = {}
+            cursor = self.collection.aggregate(model_pipeline, session=session)
+            try:
+                async for doc in cursor:
+                    models[doc["_id"] or ""] = {
+                        "requests": doc["requests"],
+                        "total_tokens": doc["total_tokens"],
+                        "cost": doc["cost"],
+                    }
+            finally:
+                await cursor.close()
+
+            return {
+                "requests": totals["requests"] if totals else 0,
+                "prompt_tokens": totals["prompt_tokens"] if totals else 0,
+                "completion_tokens": totals["completion_tokens"] if totals else 0,
+                "total_tokens": totals["total_tokens"] if totals else 0,
+                "cost": totals["cost"] if totals else 0.0,
+                "providers": providers,
+                "models": models,
+            }
+        except Exception as e:
+            self._handle_db_error(e)
+            raise

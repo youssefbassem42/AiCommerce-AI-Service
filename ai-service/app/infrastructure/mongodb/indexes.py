@@ -275,4 +275,18 @@ async def setup_database_indexes(db) -> None:
         ]
     )
 
+    await db["store_plan_policies"].create_indexes(
+        [
+            IndexModel([("store_id", ASCENDING)], unique=True),
+        ]
+    )
+
+    await db["runtime_logs"].create_indexes(
+        [
+            IndexModel([("store_id", ASCENDING), ("billing_period", ASCENDING), ("timestamp", DESCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("provider", ASCENDING), ("timestamp", DESCENDING)]),
+            IndexModel([("store_id", ASCENDING), ("model", ASCENDING), ("timestamp", DESCENDING)]),
+        ]
+    )
+
     logger.info("Database indexes successfully created.")

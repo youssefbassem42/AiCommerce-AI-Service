@@ -22,3 +22,11 @@ class AnalyticsRepository(AsyncRepository[AIRuntimeLog, str], ABC):
     async def save_dashboard_insight(self, insight: DashboardInsight) -> DashboardInsight:
         """Create or update a calculated dashboard metric."""
         pass
+
+    @abstractmethod
+    async def aggregate_usage(self, store_id: str, billing_period: str) -> dict:
+        """Aggregate token usage for the store within the billing period.
+
+        Returns totals plus provider and model breakdowns (spec §21, §38-39).
+        """
+        pass

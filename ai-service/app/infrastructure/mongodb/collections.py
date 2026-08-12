@@ -117,3 +117,7 @@ def get_user_memories_collection():
 
 def get_widget_installations_collection():
     return get_collection("widget_installations")
+
+
+def get_store_plan_policies_collection():
+    return get_collection("store_plan_policies")

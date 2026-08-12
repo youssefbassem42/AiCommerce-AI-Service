@@ -23,6 +23,7 @@ from app.api.recommendation.router import router as recommendation_router
 from app.api.ticket.router import router as ticket_router
 from app.api.widget.admin_router import router as widget_admin_router
 from app.api.widget.router import router as widget_router
+from app.api.widget.static_router import router as widget_static_router
 from app.application.admin.services.prompt_service import PromptService
 from app.core.ai_exceptions import AIException
 from app.core.config import settings
@@ -128,6 +129,7 @@ app.include_router(auth_router)
 app.include_router(ticket_router)
 app.include_router(widget_router)
 app.include_router(widget_admin_router)
+app.include_router(widget_static_router)
 
 
 @app.get("/health/")

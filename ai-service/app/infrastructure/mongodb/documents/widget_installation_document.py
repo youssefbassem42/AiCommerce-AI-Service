@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import Field
 
 from app.domain.widget.entities.widget_installation import (
@@ -8,6 +10,13 @@ from app.infrastructure.mongodb.documents.base_document import BaseMongoDocument
 
 
 class WidgetInstallationDocument(BaseMongoDocument):
+    """Mongo mapping for widget installations.
+
+    Overrides ``to_mongo_dict`` because widget installations use human-readable
+    prefixed ids (``inst_...``) instead of Mongo ObjectIds; the base conversion
+    would raise ``bson.errors.InvalidId`` on creation.
+    """
+
     widget_id: str = Field(..., index=True, unique=True)
     store_id: str = Field(..., index=True)
     organization_id: str = Field(...)
@@ -17,6 +26,11 @@ class WidgetInstallationDocument(BaseMongoDocument):
     allowed_origins: list[str] = Field(default_factory=list)
     scopes: list[str] = Field(default_factory=lambda: list(WIDGET_DEFAULT_SCOPES))
     last_used_at: object | None = None
+
+    def to_mongo_dict(self) -> dict[str, Any]:
+        data = self.model_dump(by_alias=True, exclude={"id"})
+        data["_id"] = self.id
+        return data
 
     def to_entity(self) -> WidgetInstallation:
         return WidgetInstallation(

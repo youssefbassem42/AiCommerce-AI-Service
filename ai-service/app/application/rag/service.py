@@ -175,6 +175,7 @@ class RagOrchestrationService:
                 request=ctx.ai_request,
                 conversation_id=request.conversation_id,
                 store_id=request.store_id,
+                fallbacks=request.fallback_providers or None,
             )
             (time.perf_counter() - chat_latency_start) * 1000
             llm_success = True

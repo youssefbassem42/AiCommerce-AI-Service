@@ -3,11 +3,11 @@ from fastapi import Depends, Request
 from app.agents.escalation.agent import EscalationAgent
 from app.agents.support.agent import SupportAgent
 from app.api.ai.dependencies import (
-    get_ai_service,
     get_conversation_service,
     get_customer_repository,
     get_order_repository,
     get_provider,
+    get_provider_factory,
 )
 from app.api.knowledge.retrieval_dependencies import get_retriever_service
 from app.api.ticket.dependencies import get_notification_service, get_ticket_service
@@ -76,9 +76,32 @@ def get_support_agent(
     )
 
 
+def get_quota_failover_llm() -> BaseLLMProvider:
+    """Plan-aware failover LLM facade used during active quota runs.
+
+    Inactive (no quota run in progress) it behaves like the default provider,
+    so non-enforced paths keep their existing behaviour.
+    """
+    from app.application.quota.provider_selector import default_failover_provider
+
+    return default_failover_provider()
+
+
+def get_rag_chat_service(
+    factory=Depends(get_provider_factory),
+    conv_service: ConversationService = Depends(get_conversation_service),
+    failover_llm: BaseLLMProvider = Depends(get_quota_failover_llm),
+) -> ChatService:
+    return ChatService(
+        provider_factory=factory,
+        conversation_service=conv_service,
+        provider_override=failover_llm,
+    )
+
+
 async def get_rag_service(
     retriever_service: RetrieverService = Depends(get_retriever_service),
-    chat_service: ChatService = Depends(get_ai_service),
+    chat_service: ChatService = Depends(get_rag_chat_service),
     conversation_service: ConversationService = Depends(get_conversation_service),
     summary_repo: BusinessSummaryRepository = Depends(get_summary_repository),
     ticket_service: TicketService = Depends(get_ticket_service),

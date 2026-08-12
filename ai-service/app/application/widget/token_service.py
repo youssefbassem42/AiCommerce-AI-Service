@@ -39,6 +39,7 @@ class WidgetTokenClaims:
     store_id: str
     organization_id: str
     scopes: list[str]
+    session_id: str = ""
 
 
 class WidgetTokenService:
@@ -119,6 +120,7 @@ class WidgetTokenService:
             store_id=str(payload["store_id"]),
             organization_id=str(payload["organization_id"]),
             scopes=scopes,
+            session_id=str(payload.get("jti", "")),
         )
 
 

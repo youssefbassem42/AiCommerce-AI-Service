@@ -1,3 +1,6 @@
+from typing import Any
+
+
 class AIException(Exception):
     """Base exception for all AI-related errors."""
 
@@ -61,3 +64,58 @@ class StructuredOutputException(AIException):
 
     def __init__(self, provider: str, details: str):
         super().__init__(f"Structured output generation failed with provider '{provider}': {details}", 422)
+
+
+class AllProvidersFailedException(AIException):
+    """Every plan-allowed provider failed; no fallback remains."""
+
+    code = "AI_PROVIDER_UNAVAILABLE"
+
+    def __init__(self, details: str = ""):
+        super().__init__("No plan-allowed provider could complete the request", 503)
+        self.details = details or "all plan-allowed providers failed"
+
+
+class StoreTokenQuotaExceededException(AIException):
+    """Store token quota exhausted for the current billing period."""
+
+    code = "STORE_TOKEN_QUOTA_EXCEEDED"
+
+    def __init__(self, limit: int, used: int, details: Any = None):
+        super().__init__("This store has reached its AI usage limit for the current billing period", 429)
+        self.limit = limit
+        self.used = used
+        self.details = details
+
+
+class ConsumerDailyLimitExceededException(AIException):
+    """Consumer daily message limit reached."""
+
+    code = "CONSUMER_DAILY_LIMIT_EXCEEDED"
+
+    def __init__(self, limit: int, used: int, reset_at: str, details: Any = None):
+        super().__init__("You have reached today's AI message limit", 429)
+        self.limit = limit
+        self.used = used
+        self.reset_at = reset_at
+        self.details = details
+
+
+class QuotaUnavailableException(AIException):
+    """Quota enforcement degraded (Redis unavailable) — failed closed."""
+
+    code = "QUOTA_UNAVAILABLE"
+
+    def __init__(self, details: str = "quota engine unavailable"):
+        super().__init__("AI quota enforcement is temporarily unavailable", 503)
+        self.details = details
+
+
+class PlanNotAvailableException(AIException):
+    """The store has no usable plan entitlement (fail closed)."""
+
+    code = "PLAN_NOT_AVAILABLE"
+
+    def __init__(self, reason: str = "plan_not_available"):
+        super().__init__("Plan not available for AI execution", 403)
+        self.reason = reason

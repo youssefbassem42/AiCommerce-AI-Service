@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from app.api.ai.dependencies import get_conversation_service
+from app.api.quota.dependencies import get_quota_enforcer
 from app.api.rag.dependencies import get_rag_service
 from app.api.recommendation.dependencies import get_recommendation_service
 from app.api.widget.dependencies import (
@@ -17,12 +18,14 @@ from app.api.widget.schemas import (
     WidgetRecommendationRequestSchema,
     WidgetRecommendationResponseSchema,
 )
+from app.application.dto.ai_dto import UsageDTO
+from app.application.quota.enforcer import QuotaEnforcer
 from app.application.rag.dto import RAGRequest
 from app.application.rag.service import RagOrchestrationService
 from app.application.recommendation.services import RecommendationService
 from app.application.services.conversation_service import ConversationService
 from app.application.widget.bootstrap_service import WidgetBootstrapService
-from app.application.widget.policy import apply_widget_policy
+from app.application.widget.policy import apply_widget_policy, widget_policy_from_plan
 from app.domain.knowledge.value_objects.tenant_context import TenantContext
 from app.domain.widget.repositories.widget_installation_repository import (
     WidgetInstallationNotFoundError,
@@ -74,6 +77,7 @@ async def widget_chat(
     tenant_context: TenantContext = Depends(get_widget_tenant_context),
     rag_service: RagOrchestrationService = Depends(get_rag_service),
     conversation_service: ConversationService = Depends(get_conversation_service),
+    enforcer: QuotaEnforcer = Depends(get_quota_enforcer),
 ) -> WidgetChatResponseSchema:
     if payload.conversation_id:
         owned = await conversation_service.conversation_owned_by_store(
@@ -83,7 +87,8 @@ async def widget_chat(
         if not owned:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    policy_result = apply_widget_policy(payload)
+    plan = await enforcer.resolve_plan(tenant_context.store_id)
+    policy_result = apply_widget_policy(payload, widget_policy_from_plan(plan))
     if policy_result.clamped:
         logger.warning(
             "Widget chat controls clamped by server policy (store=%s widget=%s): %s",
@@ -109,8 +114,24 @@ async def widget_chat(
         language=payload.language,
         knowledge_scope=policy_result.knowledge_scope,
         stream=False,
+        fallback_providers=list(plan.allowed_providers),
     )
-    result = await rag_service.answer(rag_request)
+
+    async def execute():
+        result = await rag_service.answer(rag_request)
+        return result, result.usage
+
+    result, _usage = await enforcer.run(
+        store_id=tenant_context.store_id,
+        organization_id=tenant_context.organization_id,
+        session_id=getattr(request.state, "widget_session_id", ""),
+        conversation_id=payload.conversation_id or "",
+        echo_text=payload.message,
+        model=policy_result.model,
+        max_output_tokens=policy_result.max_tokens,
+        request_metadata={"widget_id": getattr(request.state, "widget_id", ""), "path": "widget.chat"},
+        execute=execute,
+    )
 
     return WidgetChatResponseSchema(
         response=result.response,
@@ -120,7 +141,7 @@ async def widget_chat(
         latency_ms=result.latency_ms,
         model=result.model,
         provider=result.provider,
-        usage=result.usage.model_dump(),
+        usage=result.usage.model_dump() if result.usage else UsageDTO().model_dump(),
         business_summary_version=result.business_summary_version,
         conversation_id=result.conversation_id,
     )
@@ -137,11 +158,27 @@ async def widget_recommendations(
     request: Request,
     tenant_context: TenantContext = Depends(get_widget_tenant_context),
     recommendation_service: RecommendationService = Depends(get_recommendation_service),
+    enforcer: QuotaEnforcer = Depends(get_quota_enforcer),
 ) -> WidgetRecommendationResponseSchema:
-    result = await recommendation_service.recommend(
-        query=payload.message,
+    plan = await enforcer.resolve_plan(tenant_context.store_id)
+
+    async def execute():
+        result = await recommendation_service.recommend(
+            query=payload.message,
+            store_id=tenant_context.store_id,
+            customer_id=payload.customer_id,
+        )
+        return result, None
+
+    result, _usage = await enforcer.run(
         store_id=tenant_context.store_id,
-        customer_id=payload.customer_id,
+        organization_id=tenant_context.organization_id,
+        session_id=getattr(request.state, "widget_session_id", ""),
+        conversation_id="",
+        echo_text=payload.message,
+        model=plan.fallback_model,
+        request_metadata={"widget_id": getattr(request.state, "widget_id", ""), "path": "widget.recommendations"},
+        execute=execute,
     )
 
     return WidgetRecommendationResponseSchema(

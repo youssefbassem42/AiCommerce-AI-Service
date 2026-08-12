@@ -19,6 +19,7 @@ from app.core.ai_exceptions import AIException, ProviderUnavailableException, Ra
 from app.core.ai_settings import ai_settings
 from app.core.model_registry import ModelRegistry
 from app.core.request_context import get_request_id
+from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
 from app.utils.token_utils import calculate_cost, calculate_tokens
 
@@ -41,10 +42,14 @@ class ChatService:
         provider_factory: LLMProviderFactory,
         conversation_service: ConversationService | None = None,
         orchestration_service: OrchestrationService | None = None,
+        provider_override: BaseLLMProvider | None = None,
     ):
         self.provider_factory = provider_factory
         self.conversation_service = conversation_service
         self.orchestration_service = orchestration_service
+        # Optional quota-run failover facade; only active while a quota run is
+        # in progress, so non-enforced paths keep their existing behaviour.
+        self.provider_override = provider_override
 
     def _generate_correlation_id(self) -> str:
         return str(uuid.uuid4())
@@ -112,6 +117,38 @@ class ChatService:
             if history:
                 # Merge history messages before current messages
                 request.messages = history + request.messages
+
+        from app.application.quota.run_context import get_quota_run
+
+        if self.provider_override is not None and get_quota_run() is not None:
+            try:
+                start_time = time.perf_counter()
+                response = await self.provider_override.chat(request)
+                latency = (time.perf_counter() - start_time) * 1000
+                response.latency_ms = latency
+                self._log_metrics(corr_id, response.provider, request.model, latency, response.usage, "chat")
+                if conversation_id and self.conversation_service:
+                    user_msg = [m for m in request.messages if m.role == "user"][-1]
+                    await self.conversation_service.save_interaction(
+                        conversation_id=conversation_id,
+                        user_message=user_msg,
+                        assistant_message=response.message,
+                        usage=response.usage,
+                        latency_ms=latency,
+                        store_id=store_id,
+                    )
+                return response
+            except Exception as exc:
+                self._log_metrics(
+                    corr_id,
+                    "quota-run",
+                    request.model,
+                    0.0,
+                    UsageDTO(),
+                    "chat",
+                    error=str(exc),
+                )
+                raise
 
         model_info = ModelRegistry.get_model_info(request.model)
         primary_provider = model_info.provider if model_info else ai_settings.DEFAULT_PROVIDER

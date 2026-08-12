@@ -39,6 +39,7 @@ class RAGRequest(BaseModel):
     language: str | None = None
     knowledge_scope: str | None = None
     stream: bool = False
+    fallback_providers: list[str] = Field(default_factory=list, description="Plan-allowed failover providers")
 
 
 class RAGStreamingChunk(BaseModel):

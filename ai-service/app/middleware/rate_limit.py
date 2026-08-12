@@ -14,6 +14,11 @@ logger = logging.getLogger("ai_service")
 WIDGET_BOOTSTRAP_PATH = "/api/v1/widget/bootstrap"
 WIDGET_PREFIX = "/api/v1/widget/"
 
+# Public static widget artifacts (embed script + demo page). No
+# authentication is involved and they are cheap static files; whitelisting
+# avoids charging the visitor's IP against API rate limits.
+PUBLIC_STATIC_PATHS = ("/widget.js", "/demo", "/demo/")
+
 # Cost-heavy routes: LLM generation per request. These share a tighter tier than
 # the default, keyed by the same identity (store when authenticated, else IP).
 LLM_PATHS = (
@@ -53,7 +58,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self,
         app,
         limit_per_minute: int = 100,
-        whitelist_paths: tuple[str, ...] = ("/health/", "/health"),
+        whitelist_paths: tuple[str, ...] | None = None,
         llm_limit_per_minute: int | None = None,
         widget_bootstrap_limit_per_minute: int | None = None,
         widget_session_limit_per_minute: int | None = None,
@@ -61,7 +66,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     ):
         super().__init__(app)
         self.limit_per_minute = limit_per_minute
-        self.whitelist_paths = whitelist_paths
+        self.whitelist_paths = whitelist_paths if whitelist_paths is not None else ("/health/", "/health")
         self.llm_limit_per_minute = (
             llm_limit_per_minute if llm_limit_per_minute is not None else settings.RATE_LIMIT_LLM_PER_MINUTE
         )
@@ -186,7 +191,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return self._is_rate_limited_memory(rate_limit_key, limit_per_minute)
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        if request.url.path in self.whitelist_paths:
+        if request.url.path in self.whitelist_paths or request.url.path in PUBLIC_STATIC_PATHS:
             return await call_next(request)
 
         checks = self._resolve_checks(request)

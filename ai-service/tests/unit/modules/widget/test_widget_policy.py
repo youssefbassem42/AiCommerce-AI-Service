@@ -149,7 +149,12 @@ class TestWidgetChatRouterPolicy:
 
     @pytest.fixture(autouse=True)
     def deps(self):
+        from datetime import UTC, datetime, timedelta
+        from types import SimpleNamespace
+
+        from app.api.quota.dependencies import get_quota_enforcer
         from app.api.rag.dependencies import get_rag_service
+        from app.domain.analytics.entities.plan_policy import PlanPolicy
         from app.main import app
 
         self.rag = MagicMock()
@@ -167,7 +172,32 @@ class TestWidgetChatRouterPolicy:
                 conversation_id=None,
             )
         )
+
+        now = datetime.now(UTC)
+        fake_plan = PlanPolicy(
+            id="store-1:bp",
+            store_id="store-1",
+            organization_id="org-1",
+            subscription_status="Active",
+            token_limit=1_000_000,
+            allowed_models=(ai_settings.DEFAULT_MODEL,),
+            allowed_providers=("openai",),
+            billing_period="bp-1",
+            period_start=now,
+            period_end=now + timedelta(days=30),
+            consumer_daily_message_limit_max=15,
+            billing_period_days=30,
+        )
+
+        async def fake_run(**kw):
+            return await kw["execute"]()
+
+        fake_enforcer = SimpleNamespace(
+            resolve_plan=AsyncMock(return_value=fake_plan),
+            run=fake_run,
+        )
         app.dependency_overrides[get_rag_service] = lambda: self.rag
+        app.dependency_overrides[get_quota_enforcer] = lambda: fake_enforcer
         yield
         app.dependency_overrides.clear()
 

@@ -21,14 +21,16 @@ from dataclasses import dataclass, field
 
 from app.api.widget.schemas import WidgetChatRequestSchema
 from app.core.ai_settings import ai_settings
+from app.domain.analytics.entities.plan_policy import PlanPolicy
 
 
 @dataclass(frozen=True)
 class WidgetServerPolicy:
     """Bounds applied to widget chat AI-execution controls.
 
-    All fields are server-side defaults; per-store policy overrides are future
-    work (nothing here reads client input).
+    All fields are server-side defaults; per-store policy overrides come from
+    the plan policy (``widget_policy_from_plan``) — nothing here reads client
+    input.
     """
 
     allowed_models: tuple[str, ...] = ()
@@ -42,6 +44,18 @@ class WidgetServerPolicy:
     mmr_allowed: bool = False
     rerank_allowed: bool = False
     allowed_knowledge_scopes: tuple[str, ...] = field(default_factory=tuple)
+
+
+def widget_policy_from_plan(plan: PlanPolicy) -> WidgetServerPolicy:
+    """Build the server-side widget AI policy from the trusted plan policy.
+
+    Only plan-allowed models can pass; the plan fallback model replaces any
+    client-supplied model (spec §19-20, §44).
+    """
+    return WidgetServerPolicy(
+        allowed_models=tuple(plan.allowed_models) or (),
+        fallback_model=plan.fallback_model or ai_settings.DEFAULT_MODEL,
+    )
 
 
 @dataclass(frozen=True)

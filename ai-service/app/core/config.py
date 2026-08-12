@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     RATE_LIMIT_WIDGET_BOOTSTRAP_PER_MINUTE: int = 30
     RATE_LIMIT_WIDGET_SESSION_PER_MINUTE: int = 60
 
+    # AI usage quota defaults (enforcement works even before .NET provisions a
+    # plan for the store; the trusted plan claims override once provisioned).
+    QUOTA_DEFAULT_TOKEN_LIMIT: int = 1_000_000
+    QUOTA_BUDGET_HEADROOM: float = 2.0
+    QUOTA_MAX_OUTPUT_TOKENS: int = 1024
+    CONSUMER_DAILY_LIMIT_DEFAULT_MAX: int = 15
+    QUOTA_PERIOD_DAYS: int = 30
+    QUOTA_REDIS_TTL_DAYS: int = 90
+    QUOTA_FAIL_OPEN: bool = False
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=True)
 
     def validate_required(self) -> list[str]:

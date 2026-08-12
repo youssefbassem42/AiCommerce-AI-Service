@@ -19,3 +19,13 @@ class AIRuntimeLog(AggregateRoot[str]):
     details: dict[str, Any] = Field(default_factory=dict, description="Structured parameters/execution context")
     prompt_histories: list[PromptHistory] = Field(default_factory=list, description="LLM interactions during this step")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    # --- AI usage accounting (spec §14) -------------------------------------
+    store_id: str = Field(default="", description="Tenant store")
+    organization_id: str = Field(default="", description="Tenant organization")
+    billing_period: str = Field(default="", description="Subscription billing period identity")
+    provider: str = Field(default="", description="Provider that executed the request")
+    completion_tokens: int = Field(default=0, ge=0)
+    total_tokens: int = Field(default=0, ge=0)
+    cost: float = Field(default=0.0, ge=0.0)
+    session_id: str = Field(default="", description="Consumer session identity (widget session token)")

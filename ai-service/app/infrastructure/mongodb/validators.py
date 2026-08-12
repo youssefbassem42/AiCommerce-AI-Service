@@ -140,6 +140,16 @@ RUNTIME_LOG_SCHEMA: dict[str, Any] = {
             "message": {"bsonType": "string"},
             "details": {"bsonType": "object"},
             "timestamp": {"bsonType": "date"},
+            "store_id": {"bsonType": "string"},
+            "organization_id": {"bsonType": "string"},
+            "billing_period": {"bsonType": "string"},
+            "provider": {"bsonType": "string"},
+            "completion_tokens": {"bsonType": "int"},
+            "total_tokens": {"bsonType": "int"},
+            "cost": {"bsonType": "double"},
+            "session_id": {"bsonType": "string"},
+            "created_at": {"bsonType": "date"},
+            "updated_at": {"bsonType": "date"},
         },
     }
 }
