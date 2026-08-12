@@ -108,17 +108,18 @@ class PaginationIterator:
                 if not isinstance(key, str):
                     continue
                 key_lower = key.lower()
-                if page_param is None and key_lower in ("pagenumber", "page_num", "page"):
-                    if isinstance(value, (int, float)) and not isinstance(value, bool):
-                        page_param = key
-                        current_page = int(value)
-                elif size_param is None and key_lower in ("pagesize", "page_size", "size", "limit", "per_page"):
-                    if isinstance(value, (int, float)) and not isinstance(value, bool):
-                        size_param = key
-                        page_size = int(value)
-                elif total is None and key_lower in ("totalcount", "total_items", "totalitems", "total", "count"):
-                    if isinstance(value, (int, float)) and not isinstance(value, bool):
-                        total = int(value)
+                is_numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
+                is_page = key_lower in ("pagenumber", "page_num", "page")
+                is_size = key_lower in ("pagesize", "page_size", "size", "limit", "per_page")
+                is_total = key_lower in ("totalcount", "total_items", "totalitems", "total", "count")
+                if page_param is None and is_page and is_numeric:
+                    page_param = key
+                    current_page = int(value)
+                elif size_param is None and is_size and is_numeric:
+                    size_param = key
+                    page_size = int(value)
+                elif total is None and is_total and is_numeric:
+                    total = int(value)
 
         if page_param is None or current_page is None or page_size is None or total is None:
             return None

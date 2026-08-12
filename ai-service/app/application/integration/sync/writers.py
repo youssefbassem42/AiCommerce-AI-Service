@@ -156,7 +156,9 @@ class ProductWriter(EntityWriter):
         category = await collection.find_one({"store_id": store_id, "name": name})
         if category is None:
             escaped = re.escape(name)
-            category = await collection.find_one({"store_id": store_id, "name": {"$regex": f"^{escaped}$", "$options": "i"}})
+            category = await collection.find_one(
+                {"store_id": store_id, "name": {"$regex": f"^{escaped}$", "$options": "i"}}
+            )
         if category is None:
             return None
         return str(category.get("external_id") or category.get("_id"))
