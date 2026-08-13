@@ -74,6 +74,8 @@ class ConversationRepository:
             "avg_latency_ms": 0.0,
             "interaction_count": 0,
             "metadata": metadata or {},
+            "customer_id": None,
+            "status": "active",
             "created_at": datetime.datetime.now(datetime.UTC),
             "updated_at": datetime.datetime.now(datetime.UTC),
         }
