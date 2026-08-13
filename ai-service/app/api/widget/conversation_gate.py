@@ -29,8 +29,7 @@ class GateDecision:
 
 
 SCOPE_REPLY = (
-    "I can help with questions about this store, its products, orders, policies, and support. "
-    "What can I help you with?"
+    "I can help with questions about this store, its products, orders, policies, and support. What can I help you with?"
 )
 
 SAFE_REPLY = "I can help with this store's products, orders, policies, and support."
