@@ -355,23 +355,34 @@ async def widget_chat(
 ) -> WidgetChatResponseSchema:
     try:
         return await _widget_chat_impl(
-            payload, request, tenant_context, orchestration_service, retriever_service,
-            summary_repository, conversation_service, enforcer, provider_name,
+            payload,
+            request,
+            tenant_context,
+            orchestration_service,
+            retriever_service,
+            summary_repository,
+            conversation_service,
+            enforcer,
+            provider_name,
         )
     except Exception as exc:
         import datetime as _dt
         import traceback as _tb
+
         try:
             from app.infrastructure.mongodb import get_mongodb
-            await get_mongodb()["widget_debug"].insert_one({
-                "at": _dt.datetime.now(_dt.UTC),
-                "tag": "widget_chat_exception",
-                "store_id": getattr(tenant_context, "store_id", ""),
-                "conversation_id": payload.conversation_id,
-                "message": payload.message[:200],
-                "exc": type(exc).__name__,
-                "tb": _tb.format_exc()[-3000:],
-            })
+
+            await get_mongodb()["widget_debug"].insert_one(
+                {
+                    "at": _dt.datetime.now(_dt.UTC),
+                    "tag": "widget_chat_exception",
+                    "store_id": getattr(tenant_context, "store_id", ""),
+                    "conversation_id": payload.conversation_id,
+                    "message": payload.message[:200],
+                    "exc": type(exc).__name__,
+                    "tb": _tb.format_exc()[-3000:],
+                }
+            )
         except Exception:
             pass
         raise
