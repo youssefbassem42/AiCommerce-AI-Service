@@ -59,6 +59,42 @@ class TestPlanClaimsSync:
         assert policy.billing_period == "bp-42"
         assert policy.store_id == "store_a"
 
+    async def test_claimless_token_keeps_existing_policy(self):
+        """A token with no plan claims must not overwrite a real entitlement."""
+        existing = make_plan(token_limit=1_000_000, billing_period="bp-live")
+        repo = stub_repo(existing)
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.sync_from_claims({}, "store_a", "org_a")
+        assert policy is existing
+        repo.upsert.assert_not_awaited()
+
+    async def test_claimless_token_without_existing_uses_default(self):
+        repo = stub_repo(None)
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.sync_from_claims({}, "store_a", "org_a")
+        assert policy.token_limit > 0
+        assert policy.subscription_active is True
+
+    async def test_resolve_ignores_claimless_stored_policy(self):
+        """Legacy empty policies (status '', zero limit) resolve to the usable default."""
+        junk = make_plan()
+        junk.subscription_status = ""
+        junk.plan_name = ""
+        junk.token_limit = 0
+        junk.allowed_models = ()
+        junk.allowed_providers = ()
+        junk.billing_period = ""
+        junk.renewal_date = ""
+        junk.consumer_daily_message_limit_max = 0
+        repo = stub_repo(junk)
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.resolve("store_a")
+        assert policy.token_limit > 0
+        assert policy.subscription_active is True
+
     async def test_upgrade_keeps_active_billing_period_and_usage_key(self):
         """Starter 1M with 800K used → upgrade to Pro 5M keeps same period key."""
         now = datetime.now(UTC)

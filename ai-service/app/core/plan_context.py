@@ -57,6 +57,20 @@ class PlanContext:
     def is_active(self) -> bool:
         return self.subscription_status.strip().lower() not in {"", "canceled", "cancelled", "expired", "past_due"}
 
+    @property
+    def has_plan_claims(self) -> bool:
+        """True when the token actually carried plan entitlement data."""
+        return bool(
+            self.subscription_status
+            or self.plan_name
+            or self.billing_period
+            or self.renewal_date
+            or self.token_limit > 0
+            or self.allowed_models
+            or self.allowed_providers
+            or self.consumer_daily_message_limit_max > 0
+        )
+
 
 def _resolve_model_alias(entry: str) -> str | None:
     """Map a raw `aiModels` entry to a concrete registry model name.

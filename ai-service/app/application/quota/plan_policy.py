@@ -18,7 +18,18 @@ from datetime import UTC, datetime, timedelta
 from app.core.ai_settings import ai_settings
 from app.core.config import settings
 from app.core.model_registry import ModelRegistry
-from app.core.plan_context import PlanContext, parse_plan_context, plan_is_usable
+from app.core.plan_context import (
+    AI_MODELS_CLAIM,
+    BILLING_PERIOD_CLAIM,
+    CONSUMER_LIMIT_MAX_CLAIM,
+    PLAN_NAME_CLAIM,
+    RENEWAL_DATE_CLAIM,
+    SUBSCRIPTION_STATUS_CLAIM,
+    TOKEN_LIMIT_CLAIM,
+    PlanContext,
+    parse_plan_context,
+    plan_is_usable,
+)
 from app.domain.analytics.entities.plan_policy import PlanPolicy
 from app.domain.analytics.repositories.plan_policy_repository import PlanPolicyRepository
 from app.infrastructure.redis.client import RedisClient
@@ -49,8 +60,22 @@ class PlanPolicyService:
         """Persist the plan entitlement carried by a validated .NET token."""
         context = parse_plan_context(claims, store_id, organization_id)
 
-        now = datetime.now(UTC)
         existing = await self._repository.get_by_store(store_id)
+
+        if not _claims_carry_plan(claims):
+            # The token carries no plan data (the .NET service does not emit
+            # the claims yet). Keep the existing entitlement — or fall back to
+            # the usable default — instead of overwriting it with an empty,
+            # unusable policy. Explicit cancel/expired statuses are never
+            # produced here (they require claims to be present).
+            logger.warning(
+                "Login token for store %s carries no plan claims; keeping %s policy",
+                store_id,
+                "existing" if existing is not None else "default",
+            )
+            return existing if existing is not None else self._default_policy(store_id)
+
+        now = datetime.now(UTC)
 
         period_id = context.billing_period
         period_start = now
@@ -96,6 +121,15 @@ class PlanPolicyService:
             return cached
 
         stored = await self._repository.get_by_store(store_id)
+        if stored is not None and not stored.has_plan_claims:
+            # Legacy policy persisted from a claim-less token (or from a
+            # pre-claim deployment): not a real entitlement. Fall back to
+            # the usable default instead of enforcing an empty shell.
+            logger.warning(
+                "Stored policy for store %s has no plan claims; using default entitlement",
+                store_id,
+            )
+            stored = None
         if stored is not None:
             if stored.period_expired():
                 stored = await self._roll_period(stored)
@@ -209,6 +243,20 @@ class ConsumerLimitOutOfRangeError(ValueError):
         super().__init__(f"consumer_daily_message_limit must satisfy 0 <= {requested} <= {hard_max}")
         self.requested = requested
         self.hard_max = hard_max
+
+
+def _claims_carry_plan(claims: dict) -> bool:
+    """True when the token payload actually includes plan entitlement data."""
+    keys = (
+        SUBSCRIPTION_STATUS_CLAIM,
+        TOKEN_LIMIT_CLAIM,
+        AI_MODELS_CLAIM,
+        PLAN_NAME_CLAIM,
+        BILLING_PERIOD_CLAIM,
+        RENEWAL_DATE_CLAIM,
+        CONSUMER_LIMIT_MAX_CLAIM,
+    )
+    return any(bool(str(claims.get(key, "") or "")) for key in keys)
 
 
 def derived_period_id(store_id: str, start: datetime) -> str:

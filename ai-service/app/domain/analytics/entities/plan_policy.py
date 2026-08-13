@@ -70,6 +70,25 @@ class PlanPolicy(AggregateRoot[str]):
             return self.allowed_models[0]
         return ""
 
+    @property
+    def has_plan_claims(self) -> bool:
+        """True when the policy carries real entitlement data.
+
+        Policies synced from tokens without plan claims are empty shells
+        (``subscription_status``/``plan_name`` empty, zero token limit, no
+        models); they are not entitlements and must not be enforced.
+        """
+        return bool(
+            self.subscription_status
+            or self.plan_name
+            or self.billing_period
+            or self.renewal_date
+            or self.token_limit > 0
+            or self.allowed_models
+            or self.allowed_providers
+            or self.consumer_daily_message_limit_max > 0
+        )
+
     def period_expired(self, now: datetime | None = None) -> bool:
         now = ensure_aware_utc(now or datetime.now(UTC))
         return now >= ensure_aware_utc(self.period_end)
