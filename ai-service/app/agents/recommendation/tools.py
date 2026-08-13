@@ -160,14 +160,19 @@ async def filter_inventory(
     for candidate in candidates:
         try:
             product = await product_repo.find_by_id(candidate.product_id)
-            variants_in_stock = _product_in_stock(product)
-
-            candidate.in_stock = variants_in_stock
-            if variants_in_stock:
-                filtered.append(candidate)
         except Exception:
-            logger.warning("Failed to check inventory for product %s", candidate.product_id)
+            product = None
+
+        if product is None:
+            # No catalog record (store products served from knowledge chunks):
+            # keep the payload-derived candidate; stock is unknown from the catalog.
+            filtered.append(candidate)
             continue
+
+        variants_in_stock = _product_in_stock(product)
+        candidate.in_stock = variants_in_stock
+        if variants_in_stock:
+            filtered.append(candidate)
 
     return filtered
 
@@ -184,18 +189,22 @@ async def apply_budget_filter(
     for candidate in candidates:
         try:
             product = await product_repo.find_by_id(candidate.product_id)
-            if product is None:
-                continue
-            prices = _product_prices(product)
-            if prices:
-                min_price = min(prices)
-                if min_price <= max_budget:
-                    candidate.price = min_price
-                    filtered.append(candidate)
         except Exception:
-            logger.warning("Failed to check price for product %s", candidate.product_id)
+            product = None
+
+        if product is None:
+            # No catalog record: fall back to the payload-derived candidate price.
+            price = float(candidate.price) if candidate.price and candidate.price > 0 else None
+            if max_budget is None or price is None or price <= max_budget:
+                filtered.append(candidate)
             continue
 
+        prices = _product_prices(product)
+        if prices:
+            min_price = min(prices)
+            if min_price <= max_budget:
+                candidate.price = min_price
+                filtered.append(candidate)
     return filtered
 
 
