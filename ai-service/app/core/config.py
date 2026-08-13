@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     QUOTA_REDIS_TTL_DAYS: int = 90
     QUOTA_FAIL_OPEN: bool = False
 
+    # .NET backend (plan/subscription authority) integration.
+    NET_BACKEND_BASE_URL: str = "https://aisales123.runasp.net"
+    NET_BACKEND_TIMEOUT_SECONDS: float = 8.0
+    NET_BACKEND_MAX_RETRIES: int = 2
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=True)
 
     def validate_required(self) -> list[str]:

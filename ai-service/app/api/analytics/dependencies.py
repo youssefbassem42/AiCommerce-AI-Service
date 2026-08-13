@@ -3,10 +3,29 @@ import logging
 from fastapi import HTTPException, Request, status
 
 from app.application.analytics.sentiment_analytics_service import SentimentAnalyticsService
+from app.infrastructure.net.backend_client import NetBackendClient
 
 logger = logging.getLogger(__name__)
 
 ADMIN_ROLES = {"admin", "store_admin"}
+
+_net_backend_client: NetBackendClient | None = None
+
+
+def get_net_backend_client() -> NetBackendClient:
+    """Shared .NET backend client (created once; httpx connections reused)."""
+    global _net_backend_client  # noqa: PLW0603
+    if _net_backend_client is None:
+        _net_backend_client = NetBackendClient()
+    return _net_backend_client
+
+
+def get_bearer_token(request: Request) -> str:
+    """Extract the raw Bearer token so it can be forwarded to .NET."""
+    header = request.headers.get("authorization", "")
+    if header.lower().startswith("bearer "):
+        return header[7:].strip()
+    return ""
 
 
 async def require_admin_role(request: Request) -> None:

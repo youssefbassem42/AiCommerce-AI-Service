@@ -32,6 +32,12 @@ from app.core.plan_context import (
 )
 from app.domain.analytics.entities.plan_policy import PlanPolicy
 from app.domain.analytics.repositories.plan_policy_repository import PlanPolicyRepository
+from app.infrastructure.net.backend_client import (
+    NetBackendClient,
+    NetDailyAllowedMessage,
+    NetSubscriptionPlan,
+    normalize_provider_names,
+)
 from app.infrastructure.redis.client import RedisClient
 
 logger = logging.getLogger(__name__)
@@ -75,6 +81,57 @@ class PlanPolicyService:
             )
             return existing if existing is not None else self._default_policy(store_id)
 
+        return await self._upsert_from_context(context, store_id, organization_id, existing)
+
+    async def sync_from_net(
+        self,
+        plan_data: NetSubscriptionPlan,
+        store_id: str,
+        organization_id: str = "",
+        daily_msg: NetDailyAllowedMessage | None = None,
+    ) -> PlanPolicy:
+        """Upsert the entitlement fetched from the .NET backend API.
+
+        The subscription endpoint is the authoritative source for the plan;
+        the daily-allowed-message endpoint supplies the consumer limit (plan
+        max + store override) when available.
+        """
+        existing = await self._repository.get_by_store(store_id)
+
+        claims: dict = {
+            SUBSCRIPTION_STATUS_CLAIM: plan_data.subscription_status,
+            TOKEN_LIMIT_CLAIM: plan_data.num_of_tokens,
+            AI_MODELS_CLAIM: plan_data.ai_models,
+            RENEWAL_DATE_CLAIM: plan_data.renewal_date,
+            PLAN_NAME_CLAIM: plan_data.plan_name,
+        }
+        if daily_msg is not None:
+            claims[CONSUMER_LIMIT_MAX_CLAIM] = daily_msg.plan_daily_allowed_message
+
+        if not _claims_carry_plan(claims):
+            logger.warning(
+                "Net subscription plan for store %s carries no entitlement data; keeping %s policy",
+                store_id,
+                "existing" if existing is not None else "default",
+            )
+            return existing if existing is not None else self._default_policy(store_id)
+
+        context = parse_plan_context(claims, store_id, organization_id)
+        context = _apply_net_provider_allowlist(context, plan_data.allowed_providers)
+
+        policy = await self._upsert_from_context(context, store_id, organization_id, existing)
+
+        if daily_msg is not None:
+            policy = await self._apply_net_daily_override(policy, daily_msg)
+        return policy
+
+    async def _upsert_from_context(
+        self,
+        context: PlanContext,
+        store_id: str,
+        organization_id: str,
+        existing: PlanPolicy | None,
+    ) -> PlanPolicy:
         now = datetime.now(UTC)
 
         period_id = context.billing_period
@@ -114,6 +171,28 @@ class PlanPolicyService:
         await self._invalidate_cache(store_id)
         return policy
 
+    async def _apply_net_daily_override(
+        self,
+        policy: PlanPolicy,
+        daily_msg: NetDailyAllowedMessage,
+    ) -> PlanPolicy:
+        """Overlay the store daily-message override reported by .NET.
+
+        ``planDailyAllowedMessage`` is the plan hard maximum; ``storeOverride``
+        is the store owner's override (null when never set). An absent override
+        keeps the locally persisted one so a .NET field not yet synced never
+        silently resets the store owner's choice.
+        """
+        policy.consumer_daily_message_limit_max = max(
+            policy.consumer_daily_message_limit_max,
+            daily_msg.plan_daily_allowed_message or 0,
+        )
+        if daily_msg.store_override is not None:
+            policy.consumer_daily_message_limit = daily_msg.store_override
+        await self._repository.upsert(policy)
+        await self._invalidate_cache(policy.store_id)
+        return policy
+
     async def resolve(self, store_id: str) -> PlanPolicy:
         """Resolve the active policy for a store (cache → DB → defaults)."""
         cached = await self._read_cache(store_id)
@@ -140,15 +219,30 @@ class PlanPolicyService:
         await self._write_cache(store_id, policy)
         return policy
 
-    async def set_consumer_daily_limit(self, store_id: str, limit: int) -> PlanPolicy:
+    async def set_consumer_daily_limit(
+        self,
+        store_id: str,
+        limit: int,
+        net_client: NetBackendClient | None = None,
+        token: str = "",
+    ) -> PlanPolicy:
         """Apply the store owner's consumer daily message limit.
 
         Validation: ``0 <= limit <= plan.consumer_daily_message_limit_max``.
+
+        When a ``net_client`` and the caller's Bearer ``token`` are supplied,
+        the override is first written through to the .NET backend (the source
+        of truth); the local policy is only updated after .NET confirms. A
+        .NET failure raises ``NetBackendError`` (fail closed) so the local
+        store never diverges from the authoritative override.
         """
         policy = await self.resolve(store_id)
         hard_max = policy.consumer_daily_message_limit_max or settings.CONSUMER_DAILY_LIMIT_DEFAULT_MAX
         if not 0 <= limit <= hard_max:
             raise ConsumerLimitOutOfRangeError(limit, hard_max)
+
+        if net_client is not None and token:
+            await net_client.update_daily_allowed_message(store_id, limit, token)
 
         updated = await self._repository.update_consumer_limit(store_id, limit)
         if updated is None:
@@ -257,6 +351,43 @@ def _claims_carry_plan(claims: dict) -> bool:
         CONSUMER_LIMIT_MAX_CLAIM,
     )
     return any(bool(str(claims.get(key, "") or "")) for key in keys)
+
+
+def _apply_net_provider_allowlist(context: PlanContext, allowed_providers: list[str]) -> PlanContext:
+    """Restrict the plan's models to the providers allowed by the .NET plan.
+
+    ``allowedProviders`` from the subscription endpoint is authoritative; a
+    model whose provider is not allowed is dropped from the entitlement.
+    """
+    if not allowed_providers:
+        return context
+    allowed = set(normalize_provider_names(allowed_providers))
+    allowed_models = [m for m in context.allowed_models if ModelRegistry.get_model_info(m) is not None]
+    filtered_models = [
+        m
+        for m in allowed_models
+        if (ModelRegistry.get_model_info(m) is not None and ModelRegistry.get_model_info(m).provider in allowed)
+    ]
+    if not filtered_models:
+        return context
+    providers = []
+    for m in filtered_models:
+        info = ModelRegistry.get_model_info(m)
+        if info is not None and info.provider not in providers:
+            providers.append(info.provider)
+    return PlanContext(
+        store_id=context.store_id,
+        organization_id=context.organization_id,
+        subscription_status=context.subscription_status,
+        token_limit=context.token_limit,
+        allowed_models=tuple(filtered_models),
+        allowed_providers=tuple(providers),
+        billing_period=context.billing_period,
+        renewal_date=context.renewal_date,
+        consumer_daily_message_limit_max=context.consumer_daily_message_limit_max,
+        billing_period_days=context.billing_period_days,
+        plan_name=context.plan_name,
+    )
 
 
 def derived_period_id(store_id: str, start: datetime) -> str:

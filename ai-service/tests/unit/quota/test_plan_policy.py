@@ -10,6 +10,11 @@ from app.application.quota.plan_policy import (
     require_usable_plan,
 )
 from app.domain.analytics.entities.plan_policy import PlanPolicy
+from app.infrastructure.net.backend_client import (
+    NetBackendError,
+    NetDailyAllowedMessage,
+    NetSubscriptionPlan,
+)
 
 from .conftest import make_plan
 
@@ -20,6 +25,12 @@ def stub_repo(policy: PlanPolicy | None = None):
     repo.upsert = AsyncMock(side_effect=lambda p: p)
     repo.update_consumer_limit = AsyncMock(return_value=None)
     return repo
+
+
+def stub_net_client():
+    net = MagicMock()
+    net.update_daily_allowed_message = AsyncMock()
+    return net
 
 
 class TestPlanPolicyResolution:
@@ -198,3 +209,136 @@ class TestConsumerLimit:
         policy = make_plan(consumer_max=15)
         policy.consumer_daily_message_limit = 99
         assert policy.effective_consumer_daily_limit == 15
+
+
+class TestConsumerLimitNetWriteThrough:
+    async def test_writes_through_to_net_before_local_persist(self):
+        repo = stub_repo(make_plan(consumer_max=15))
+        net = stub_net_client()
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.set_consumer_daily_limit("store_a", 10, net_client=net, token="tok")
+        net.update_daily_allowed_message.assert_awaited_once_with("store_a", 10, "tok")
+        assert policy.effective_consumer_daily_limit == 10
+
+    async def test_no_net_write_when_no_token(self):
+        repo = stub_repo(make_plan(consumer_max=15))
+        net = stub_net_client()
+        service = PlanPolicyService(repo, redis_client=None)
+
+        await service.set_consumer_daily_limit("store_a", 10, net_client=net, token="")
+        net.update_daily_allowed_message.assert_not_awaited()
+
+    async def test_net_failure_fails_closed_no_local_change(self):
+        repo = stub_repo(make_plan(consumer_max=15))
+        net = stub_net_client()
+        net.update_daily_allowed_message = AsyncMock(side_effect=NetBackendError("down", status_code=502))
+        service = PlanPolicyService(repo, redis_client=None)
+
+        with pytest.raises(NetBackendError):
+            await service.set_consumer_daily_limit("store_a", 10, net_client=net, token="tok")
+        repo.update_consumer_limit.assert_not_awaited()
+        repo.upsert.assert_not_awaited()
+
+    async def test_range_validation_happens_before_net_call(self):
+        repo = stub_repo(make_plan(consumer_max=15))
+        net = stub_net_client()
+        service = PlanPolicyService(repo, redis_client=None)
+
+        with pytest.raises(ConsumerLimitOutOfRangeError):
+            await service.set_consumer_daily_limit("store_a", 16, net_client=net, token="tok")
+        net.update_daily_allowed_message.assert_not_awaited()
+
+
+class TestPlanNetSync:
+    def _plan(self) -> NetSubscriptionPlan:
+        return NetSubscriptionPlan(
+            subscription_status="Active",
+            num_of_tokens=5_000_000,
+            renewal_date="2026-09-01",
+            ai_models=["gpt-4o-mini", "claude-3-5-sonnet-latest", "bogus-model"],
+            allowed_providers=["openai", "anthropic"],
+        )
+
+    async def test_upserts_policy_from_net_plan(self):
+        repo = stub_repo(None)
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.sync_from_net(self._plan(), "store_a", "org_a")
+        assert policy.token_limit == 5_000_000
+        assert policy.subscription_status == "Active"
+        assert policy.renewal_date == "2026-09-01"
+        assert policy.plan_name == ""
+        repo.upsert.assert_awaited_once()
+
+    async def test_provider_allowlist_filters_models(self):
+        repo = stub_repo(None)
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.sync_from_net(self._plan(), "store_a", "org_a")
+        assert "gpt-4o-mini" in policy.allowed_models
+        assert "claude-3-5-sonnet-latest" in policy.allowed_models
+        assert "bogus-model" not in policy.allowed_models
+        assert set(policy.allowed_providers) == {"openai", "claude"}
+
+    async def test_empty_provider_allowlist_keeps_models(self):
+        plan = self._plan()
+        plan = NetSubscriptionPlan(
+            subscription_status=plan.subscription_status,
+            num_of_tokens=plan.num_of_tokens,
+            renewal_date=plan.renewal_date,
+            ai_models=plan.ai_models,
+            allowed_providers=[],
+        )
+        repo = stub_repo(None)
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.sync_from_net(plan, "store_a", "org_a")
+        assert "gpt-4o-mini" in policy.allowed_models
+        assert "claude-3-5-sonnet-latest" in policy.allowed_models
+
+    async def test_daily_msg_applies_override_and_plan_max(self):
+        repo = stub_repo(None)
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.sync_from_net(
+            self._plan(),
+            "store_a",
+            "org_a",
+            daily_msg=NetDailyAllowedMessage(
+                daily_allowed_message=12,
+                plan_daily_allowed_message=50,
+                store_override=12,
+            ),
+        )
+        assert policy.consumer_daily_message_limit == 12
+        assert policy.consumer_daily_message_limit_max == 50
+
+    async def test_daily_msg_without_override_keeps_local_override(self):
+        existing = make_plan(consumer_max=15)
+        existing.consumer_daily_message_limit = 8
+        repo = stub_repo(existing)
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.sync_from_net(
+            self._plan(),
+            "store_a",
+            "org_a",
+            daily_msg=NetDailyAllowedMessage(
+                daily_allowed_message=10,
+                plan_daily_allowed_message=15,
+                store_override=None,
+            ),
+        )
+        assert policy.consumer_daily_message_limit == 8
+
+    async def test_empty_plan_keeps_existing_policy(self):
+        repo = stub_repo(make_plan(token_limit=1_000_000))
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.sync_from_net(
+            NetSubscriptionPlan(subscription_status="", num_of_tokens=0, ai_models=[], allowed_providers=[]),
+            "store_a",
+            "org_a",
+        )
+        assert policy.token_limit == 1_000_000
