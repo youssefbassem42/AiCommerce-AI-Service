@@ -353,52 +353,6 @@ async def widget_chat(
     enforcer: QuotaEnforcer = Depends(get_quota_enforcer),
     provider_name: str | None = Query(default=None, description="Deprecated provider override (server-controlled)"),
 ) -> WidgetChatResponseSchema:
-    try:
-        return await _widget_chat_impl(
-            payload,
-            request,
-            tenant_context,
-            orchestration_service,
-            retriever_service,
-            summary_repository,
-            conversation_service,
-            enforcer,
-            provider_name,
-        )
-    except Exception as exc:
-        import datetime as _dt
-        import traceback as _tb
-
-        try:
-            from app.infrastructure.mongodb import get_mongodb
-
-            await get_mongodb()["widget_debug"].insert_one(
-                {
-                    "at": _dt.datetime.now(_dt.UTC),
-                    "tag": "widget_chat_exception",
-                    "store_id": getattr(tenant_context, "store_id", ""),
-                    "conversation_id": payload.conversation_id,
-                    "message": payload.message[:200],
-                    "exc": type(exc).__name__,
-                    "tb": _tb.format_exc()[-3000:],
-                }
-            )
-        except Exception:
-            pass
-        raise
-
-
-async def _widget_chat_impl(
-    payload: WidgetChatRequestSchema,
-    request: Request,
-    tenant_context: TenantContext = Depends(get_widget_tenant_context),
-    orchestration_service: OrchestrationService = Depends(get_orchestration_service),
-    retriever_service: RetrieverService = Depends(get_retriever_service),
-    summary_repository: BusinessSummaryRepository = Depends(get_summary_repository),
-    conversation_service: ConversationService = Depends(get_conversation_service),
-    enforcer: QuotaEnforcer = Depends(get_quota_enforcer),
-    provider_name: str | None = Query(default=None, description="Deprecated provider override (server-controlled)"),
-) -> WidgetChatResponseSchema:
     if payload.conversation_id:
         owned = await conversation_service.conversation_owned_by_store(
             payload.conversation_id,
@@ -420,14 +374,13 @@ async def _widget_chat_impl(
     widget_id = getattr(request.state, "widget_id", "")
 
     conversation_id = payload.conversation_id or str(uuid.uuid4())
-    if not payload.conversation_id:
-        await conversation_service.get_or_create_conversation(
-            conversation_id,
-            provider="orchestration",
-            model=policy_result.model,
-            metadata={"widget_id": widget_id, "path": "widget.chat"},
-            store_id=tenant_context.store_id,
-        )
+    await conversation_service.get_or_create_conversation(
+        conversation_id,
+        provider="orchestration",
+        model=policy_result.model,
+        metadata={"widget_id": widget_id, "path": "widget.chat"},
+        store_id=tenant_context.store_id,
+    )
 
     gate = classify_widget_message(payload.message)
     widget_session_id = getattr(request.state, "widget_session_id", "")
@@ -680,26 +633,6 @@ async def _widget_chat_impl(
     sub_agent = (result.metadata or {}).get("sub_agent")
     structured_result = (result.metadata or {}).get("result") or {}
     answer_text = result.message.content if isinstance(result.message.content, str) else str(result.message.content)
-
-    try:
-        import datetime as _dt
-
-        from app.infrastructure.mongodb import get_mongodb
-
-        await get_mongodb()["widget_debug"].insert_one(
-            {
-                "at": _dt.datetime.now(_dt.UTC),
-                "store_id": tenant_context.store_id,
-                "message": payload.message[:120],
-                "intent": intent,
-                "sub_agent": sub_agent,
-                "metadata_keys": sorted((result.metadata or {}).keys()),
-                "result_keys": sorted(structured_result.keys()),
-                "result": {k: str(v)[:200] for k, v in structured_result.items()},
-            }
-        )
-    except Exception as _exc:
-        logger.warning("widget debug write failed: %s", _exc)
 
     response_type: str = "text"
     products: list[dict] = []

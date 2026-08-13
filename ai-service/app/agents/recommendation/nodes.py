@@ -78,28 +78,6 @@ async def format_response_node(state: RecommendationState) -> dict[str, Any]:
     store_id = state.get("store_id", "")
     customer_id = state.get("customer_id")
 
-    try:
-        import datetime as _dt
-
-        from app.infrastructure.mongodb import get_mongodb
-
-        intent = state.get("intent")
-        await get_mongodb()["widget_debug"].insert_one(
-            {
-                "at": _dt.datetime.now(_dt.UTC),
-                "tag": "recommendation_agent",
-                "store_id": store_id,
-                "query": query[:120],
-                "error": state.get("error"),
-                "intent": intent.model_dump() if intent else None,
-                "candidates": len(state.get("candidates") or []),
-                "filtered": len(filtered),
-                "cards": len(build_product_cards(filtered[:10])),
-            }
-        )
-    except Exception as _exc:
-        logger.warning("widget debug write failed: %s", _exc)
-
     product_cards = build_product_cards(filtered[:10])
 
     total_count = len(product_cards)
