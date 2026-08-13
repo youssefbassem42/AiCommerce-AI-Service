@@ -638,9 +638,9 @@ async def widget_chat(
     try:
         import datetime as _dt
 
-        from app.infrastructure.mongodb import get_database
+        from app.infrastructure.mongodb import get_mongodb
 
-        await get_database()["widget_debug"].insert_one(
+        await get_mongodb()["widget_debug"].insert_one(
             {
                 "at": _dt.datetime.now(_dt.UTC),
                 "store_id": tenant_context.store_id,
