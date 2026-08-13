@@ -187,6 +187,7 @@ class TestWidgetChatRouterPolicy:
         self.summary_repo = MagicMock()
         self.summary_repo.find_by_document_id = AsyncMock(return_value=[])
         self.conversation_service = MagicMock()
+        self.conversation_service.get_or_create_conversation = AsyncMock()
         self.conversation_service.save_interaction = AsyncMock()
 
         now = datetime.now(UTC)

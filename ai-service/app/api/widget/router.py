@@ -167,7 +167,17 @@ async def widget_chat(
             ", ".join(policy_result.clamped),
         )
 
+    widget_id = getattr(request.state, "widget_id", "")
+
     conversation_id = payload.conversation_id or str(uuid.uuid4())
+    if not payload.conversation_id:
+        await conversation_service.get_or_create_conversation(
+            conversation_id,
+            provider="orchestration",
+            model=policy_result.model,
+            metadata={"widget_id": widget_id, "path": "widget.chat"},
+            store_id=tenant_context.store_id,
+        )
 
     retrieval = await retriever_service.search(
         query=payload.message,
@@ -226,7 +236,6 @@ async def widget_chat(
     if context_message:
         history = [context_message] + history
 
-    widget_id = getattr(request.state, "widget_id", "")
     widget_session_id = getattr(request.state, "widget_session_id", "")
 
     async def execute():
