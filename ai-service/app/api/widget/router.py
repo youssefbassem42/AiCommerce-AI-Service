@@ -353,6 +353,41 @@ async def widget_chat(
     enforcer: QuotaEnforcer = Depends(get_quota_enforcer),
     provider_name: str | None = Query(default=None, description="Deprecated provider override (server-controlled)"),
 ) -> WidgetChatResponseSchema:
+    try:
+        return await _widget_chat_impl(
+            payload, request, tenant_context, orchestration_service, retriever_service,
+            summary_repository, conversation_service, enforcer, provider_name,
+        )
+    except Exception as exc:
+        import datetime as _dt
+        import traceback as _tb
+        try:
+            from app.infrastructure.mongodb import get_mongodb
+            await get_mongodb()["widget_debug"].insert_one({
+                "at": _dt.datetime.now(_dt.UTC),
+                "tag": "widget_chat_exception",
+                "store_id": getattr(tenant_context, "store_id", ""),
+                "conversation_id": payload.conversation_id,
+                "message": payload.message[:200],
+                "exc": type(exc).__name__,
+                "tb": _tb.format_exc()[-3000:],
+            })
+        except Exception:
+            pass
+        raise
+
+
+async def _widget_chat_impl(
+    payload: WidgetChatRequestSchema,
+    request: Request,
+    tenant_context: TenantContext = Depends(get_widget_tenant_context),
+    orchestration_service: OrchestrationService = Depends(get_orchestration_service),
+    retriever_service: RetrieverService = Depends(get_retriever_service),
+    summary_repository: BusinessSummaryRepository = Depends(get_summary_repository),
+    conversation_service: ConversationService = Depends(get_conversation_service),
+    enforcer: QuotaEnforcer = Depends(get_quota_enforcer),
+    provider_name: str | None = Query(default=None, description="Deprecated provider override (server-controlled)"),
+) -> WidgetChatResponseSchema:
     if payload.conversation_id:
         owned = await conversation_service.conversation_owned_by_store(
             payload.conversation_id,
