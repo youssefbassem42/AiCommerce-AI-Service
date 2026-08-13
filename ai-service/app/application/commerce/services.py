@@ -137,12 +137,27 @@ class ProductService:
                     setattr(entity, field, value)
         entity.updated_at = datetime.now(UTC)
         updated = await self.repository.update(entity)
+        from app.application.integration.sync.hooks import enqueue_sync_record
+        from app.application.integration.sync.records import product_to_record
+
+        enqueue_sync_record(
+            store_id=updated.store_id,
+            organization_id=updated.organization_id,
+            entity_type="product",
+            record=product_to_record(updated),
+        )
         return self._to_dto(updated)
 
     async def delete(self, product_id: str) -> bool:
+        entity = await self.repository.find_by_id(product_id)
+        if entity is None:
+            raise ProductNotFoundException(f"Product '{product_id}' was not found.")
         deleted = await self.repository.delete(product_id)
         if not deleted:
             raise ProductNotFoundException(f"Product '{product_id}' was not found.")
+        from app.application.integration.sync.hooks import enqueue_delete_record
+
+        enqueue_delete_record(store_id=entity.store_id, entity_type="product", entity_key=entity.id)
         return deleted
 
     @staticmethod
@@ -202,6 +217,15 @@ class CategoryService:
             product_count=data.product_count,
         )
         created = await self.repository.create(entity)
+        from app.application.integration.sync.hooks import enqueue_sync_record
+        from app.application.integration.sync.records import category_to_record
+
+        enqueue_sync_record(
+            store_id=created.store_id,
+            organization_id=created.organization_id,
+            entity_type="category",
+            record=category_to_record(created),
+        )
         return self._to_dto(created)
 
     async def get_by_id(self, category_id: str) -> CategoryDTO:
@@ -234,12 +258,27 @@ class CategoryService:
                 setattr(entity, field, value)
         entity.audit.updated_at = datetime.now(UTC)
         updated = await self.repository.update(entity)
+        from app.application.integration.sync.hooks import enqueue_sync_record
+        from app.application.integration.sync.records import category_to_record
+
+        enqueue_sync_record(
+            store_id=updated.store_id,
+            organization_id=updated.organization_id,
+            entity_type="category",
+            record=category_to_record(updated),
+        )
         return self._to_dto(updated)
 
     async def delete(self, category_id: str) -> bool:
+        entity = await self.repository.find_by_id(category_id)
+        if entity is None:
+            raise CategoryNotFoundException(f"Category '{category_id}' was not found.")
         deleted = await self.repository.delete(category_id)
         if not deleted:
             raise CategoryNotFoundException(f"Category '{category_id}' was not found.")
+        from app.application.integration.sync.hooks import enqueue_delete_record
+
+        enqueue_delete_record(store_id=entity.store_id, entity_type="category", entity_key=entity.id)
         return deleted
 
     async def get_children(self, parent_id: str) -> list[CategoryDTO]:
@@ -301,6 +340,15 @@ class OrderService:
             metadata=data.metadata,
         )
         created = await self.repository.create(entity)
+        from app.application.integration.sync.hooks import enqueue_sync_record
+        from app.application.integration.sync.records import order_to_record
+
+        enqueue_sync_record(
+            store_id=created.store_id,
+            organization_id=created.organization_id,
+            entity_type="order",
+            record=order_to_record(created),
+        )
         return self._to_dto(created)
 
     async def get_by_id(self, order_id: str) -> OrderDTO:
@@ -335,12 +383,27 @@ class OrderService:
                 setattr(entity, field, value)
         entity.audit.updated_at = datetime.now(UTC)
         updated = await self.repository.update(entity)
+        from app.application.integration.sync.hooks import enqueue_sync_record
+        from app.application.integration.sync.records import order_to_record
+
+        enqueue_sync_record(
+            store_id=updated.store_id,
+            organization_id=updated.organization_id,
+            entity_type="order",
+            record=order_to_record(updated),
+        )
         return self._to_dto(updated)
 
     async def delete(self, order_id: str) -> bool:
+        entity = await self.repository.find_by_id(order_id)
+        if entity is None:
+            raise OrderNotFoundException(f"Order '{order_id}' was not found.")
         deleted = await self.repository.delete(order_id)
         if not deleted:
             raise OrderNotFoundException(f"Order '{order_id}' was not found.")
+        from app.application.integration.sync.hooks import enqueue_delete_record
+
+        enqueue_delete_record(store_id=entity.store_id, entity_type="order", entity_key=entity.id)
         return deleted
 
     @staticmethod

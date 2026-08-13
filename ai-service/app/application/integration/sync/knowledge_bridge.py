@@ -12,6 +12,7 @@ from app.infrastructure.vectorstore.base import VectorRecord
 logger = logging.getLogger(__name__)
 
 EMBEDDING_MODEL = "gemini-embedding-001"
+EMBEDDING_DIMENSIONS = 768
 BATCH_SIZE = 50
 SUPPORTED_ENTITY_TYPES: set[str] | None = None  # None means all types are accepted
 
@@ -97,7 +98,7 @@ class CommerceKnowledgeBridge:
 
         try:
             if not await self._vector_store.collection_exists(collection):
-                await self._vector_store.create_collection(collection, vector_size=768)
+                await self._vector_store.create_collection(collection, vector_size=EMBEDDING_DIMENSIONS)
         except Exception as e:
             logger.warning("Failed to ensure collection '%s': %s", collection, e)
 
@@ -125,23 +126,21 @@ class CommerceKnowledgeBridge:
                 response = await self._llm_provider.embeddings(request)
                 for j, emb in enumerate(response.embeddings):
                     rec_idx = i + j
-                    ext_id = str(batch_records[rec_idx].get("external_id", ""))
+                    rec = batch_records[rec_idx]
+                    entity_key = _entity_key(rec)
                     all_points.append(
                         VectorRecord(
-                            id=f"{store_id}:{entity_type}:{ext_id}:{rec_idx}",
+                            id=f"{store_id}:{entity_type}:{entity_key}:{rec_idx}",
                             vector=emb,
-                            payload={
-                                "organization_id": organization_id,
-                                "store_id": store_id,
-                                "entity_type": entity_type,
-                                "external_id": ext_id,
-                                "source_type": "integration_sync",
-                                "document_id": ext_id,
-                                "document_title": f"{entity_type}:{ext_id}",
-                                "document_status": "active",
-                                "chunk_index": rec_idx,
-                                "content": batch[j],
-                            },
+                            payload=self._build_payload(
+                                organization_id=organization_id,
+                                store_id=store_id,
+                                entity_type=entity_type,
+                                entity_key=entity_key,
+                                record=rec,
+                                content=batch[j],
+                                rec_idx=rec_idx,
+                            ),
                         )
                     )
                 result.total_embedded += len(response.embeddings)
@@ -165,6 +164,67 @@ class CommerceKnowledgeBridge:
 
         return result
 
+    async def sync_record(
+        self,
+        store_id: str,
+        organization_id: str,
+        entity_type: str,
+        record: dict[str, Any],
+    ) -> EntityVectorSyncResult:
+        """Embed and upsert a single record (incremental CRUD path)."""
+        return await self.sync_entity(store_id, organization_id, entity_type, [record])
+
+    async def delete_record(
+        self,
+        store_id: str,
+        entity_type: str,
+        entity_key: str,
+    ) -> int:
+        """Remove all vector points belonging to a single record."""
+        await self._ensure_providers()
+        collection = f"kb_{store_id}"
+        exists = await self._vector_store.collection_exists(collection)
+        if not exists:
+            return 0
+        return await self._vector_store.delete_by_filter(
+            collection,
+            must=[
+                {"key": "store_id", "match": {"value": store_id}},
+                {"key": "entity_type", "match": {"value": entity_type}},
+                {"key": "document_id", "match": {"value": entity_key}},
+            ],
+            must_not=None,
+        )
+
+    def _build_payload(
+        self,
+        organization_id: str,
+        store_id: str,
+        entity_type: str,
+        entity_key: str,
+        record: dict[str, Any],
+        content: str,
+        rec_idx: int,
+    ) -> dict[str, Any]:
+        title = record.get("title") or record.get("name") or f"{entity_type}:{entity_key}"
+        payload: dict[str, Any] = {
+            "organization_id": organization_id,
+            "store_id": store_id,
+            "entity_type": entity_type,
+            "entity_id": entity_key,
+            "external_id": str(record.get("external_id") or ""),
+            "source_type": "integration_sync",
+            "document_id": entity_key,
+            "document_title": title,
+            "document_status": "active",
+            "chunk_index": rec_idx,
+            "content": content,
+        }
+        if entity_type == "product":
+            payload["product_id"] = entity_key
+            payload["product_title"] = title
+        return payload
+
     async def _delete_stale_vectors(
         self,
         collection: str,
@@ -187,3 +247,9 @@ class CommerceKnowledgeBridge:
         except Exception as e:
             logger.warning("Could not delete stale vectors: %s", e)
             raise
+
+
+def _entity_key(record: dict[str, Any]) -> str:
+    """Stable tenant-scoped identity for a record: Mongo _id first, then external id."""
+    key = record.get("_id") or record.get("external_id") or record.get("id") or ""
+    return str(key)

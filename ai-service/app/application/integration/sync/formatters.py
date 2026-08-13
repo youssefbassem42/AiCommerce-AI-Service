@@ -56,18 +56,18 @@ def format_order(data: dict) -> str:
         lines.append(f"Customer email: {_val(data, 'email') or _val(data, 'customer_email')}")
     if data.get("customer_id"):
         lines.append(f"Customer ID: {_val(data, 'customer_id')}")
-    if data.get("subtotal") is not None:
-        lines.append(f"Subtotal: {_val(data, 'subtotal')}")
-    if data.get("total") is not None:
-        lines.append(f"Total: {_val(data, 'total')}")
+    if data.get("subtotal") is not None or data.get("subtotal_price") is not None:
+        lines.append(f"Subtotal: {_val(data, 'subtotal') or _val(data, 'subtotal_price')}")
+    if data.get("total") is not None or data.get("total_price") is not None:
+        lines.append(f"Total: {_val(data, 'total') or _val(data, 'total_price')}")
     if data.get("currency"):
         lines.append(f"Currency: {_val(data, 'currency')}")
     if data.get("shipping_price") is not None:
         lines.append(f"Shipping: {_val(data, 'shipping_price')}")
-    if data.get("tax") is not None:
-        lines.append(f"Tax: {_val(data, 'tax')}")
-    if data.get("discount") is not None:
-        lines.append(f"Discount: {_val(data, 'discount')}")
+    if data.get("tax") is not None or data.get("total_tax") is not None:
+        lines.append(f"Tax: {_val(data, 'tax') or _val(data, 'total_tax')}")
+    if data.get("discount") is not None or data.get("total_discount") is not None:
+        lines.append(f"Discount: {_val(data, 'discount') or _val(data, 'total_discount')}")
     if data.get("notes"):
         lines.append(f"Notes: {_val(data, 'notes')}")
     if data.get("tags"):

@@ -247,6 +247,32 @@ async def create_vector_sync_job(
     )
 
 
+@router.post("/reindex", response_model=JobCreateResponseSchema, status_code=status.HTTP_201_CREATED)
+async def create_store_reindex_job(
+    triggered_by: AuthenticatedUser = Depends(get_current_user),
+    store_id: str = Depends(get_current_store_id),
+    dispatcher: JobDispatcher = Depends(get_job_dispatcher),
+) -> JobCreateResponseSchema:
+    """Index all real commerce data (products, categories, orders) and knowledge
+    documents for the authenticated store into its RAG vector collection."""
+    from app.workers.embedding.tasks import backfill_store_vectors_task
+
+    job = await dispatcher.dispatch(
+        job_type=JobType.STORE_REINDEX,
+        payload={"store_id": store_id},
+        enqueue=lambda job_id: backfill_store_vectors_task.delay(store_id=store_id, job_id=job_id),
+        store_id=store_id,
+        organization_id=None,
+        triggered_by=str(triggered_by.user_id),
+    )
+    return JobCreateResponseSchema(
+        job_id=job.id,
+        job_type=JobType.STORE_REINDEX.value,
+        status=JobStatus.PENDING.value,
+        message=f"Store reindex job enqueued for {store_id}",
+    )
+
+
 @router.get("/{job_id}", response_model=JobResponseSchema)
 async def get_job_status(
     job_id: str,

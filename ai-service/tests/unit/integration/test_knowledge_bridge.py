@@ -289,3 +289,91 @@ class TestCommerceKnowledgeBridge:
         assert d["total_embedded"] == 8
         assert d["total_synced"] == 8
         assert len(d["errors"]) == 1
+
+
+class TestBridgePayloadAndRecordOps:
+    @pytest.fixture
+    def mock_vector_store(self):
+        vs = AsyncMock()
+        vs.collection_exists = AsyncMock(return_value=True)
+        vs.delete_by_filter = AsyncMock()
+        vs.upsert = AsyncMock()
+        return vs
+
+    @pytest.fixture
+    def mock_llm(self):
+        llm = AsyncMock()
+        llm.embeddings = AsyncMock(
+            return_value=MagicMock(embeddings=[[0.1, 0.2, 0.3]], model="gemini-embedding-001")
+        )
+        return llm
+
+    @pytest.mark.asyncio
+    async def test_product_payload_has_recommendation_fields(self, mock_vector_store, mock_llm):
+        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm)
+        await bridge.sync_entity(
+            store_id="s1",
+            organization_id="o1",
+            entity_type="product",
+            records=[{"_id": "mongo-id-1", "title": "Retro Sunglasses", "price": 15, "external_id": "23"}],
+        )
+        point = mock_vector_store.upsert.await_args.args[1][0]
+        assert point.id == "s1:product:mongo-id-1:0"
+        assert point.payload["product_id"] == "mongo-id-1"
+        assert point.payload["product_title"] == "Retro Sunglasses"
+        assert point.payload["entity_id"] == "mongo-id-1"
+        assert point.payload["document_id"] == "mongo-id-1"
+        assert point.payload["store_id"] == "s1"
+
+    @pytest.mark.asyncio
+    async def test_non_product_entity_no_product_fields(self, mock_vector_store, mock_llm):
+        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm)
+        await bridge.sync_entity(
+            store_id="s1",
+            organization_id="o1",
+            entity_type="category",
+            records=[{"external_id": "c1", "name": "Electronics"}],
+        )
+        point = mock_vector_store.upsert.await_args.args[1][0]
+        assert "product_id" not in point.payload
+        assert point.payload["document_title"] == "Electronics"
+
+    @pytest.mark.asyncio
+    async def test_create_collection_uses_embedding_dimensions(self, mock_vector_store, mock_llm):
+        mock_vector_store.collection_exists = AsyncMock(return_value=False)
+        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm)
+        await bridge.sync_entity(
+            store_id="s1",
+            organization_id="o1",
+            entity_type="product",
+            records=[{"external_id": "p1", "title": "A"}],
+        )
+        assert mock_vector_store.create_collection.await_args.kwargs["vector_size"] == 768
+
+    @pytest.mark.asyncio
+    async def test_sync_record_single(self, mock_vector_store, mock_llm):
+        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm)
+        result = await bridge.sync_record(
+            store_id="s1",
+            organization_id="o1",
+            entity_type="product",
+            record={"_id": "m1", "title": "A", "external_id": "p1"},
+        )
+        assert result.total_records == 1
+        assert result.total_synced == 1
+
+    @pytest.mark.asyncio
+    async def test_delete_record_filters_by_entity_key(self, mock_vector_store, mock_llm):
+        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm)
+        await bridge.delete_record(store_id="s1", entity_type="product", entity_key="m1")
+        must = mock_vector_store.delete_by_filter.await_args.kwargs["must"]
+        assert {"key": "entity_type", "match": {"value": "product"}} in must
+        assert {"key": "document_id", "match": {"value": "m1"}} in must
+
+    @pytest.mark.asyncio
+    async def test_delete_record_missing_collection(self, mock_vector_store, mock_llm):
+        mock_vector_store.collection_exists = AsyncMock(return_value=False)
+        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm)
+        deleted = await bridge.delete_record(store_id="s1", entity_type="product", entity_key="m1")
+        assert deleted == 0
+        mock_vector_store.delete_by_filter.assert_not_awaited()

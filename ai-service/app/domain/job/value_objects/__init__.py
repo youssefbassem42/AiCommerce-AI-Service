@@ -7,6 +7,7 @@ class JobType(StrEnum):
     SUMMARY_GENERATION = "summary_generation"
     EMBEDDING_GENERATION = "embedding_generation"
     VECTOR_SYNC = "vector_sync"
+    STORE_REINDEX = "store_reindex"
 
 
 class JobStatus(StrEnum):

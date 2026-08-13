@@ -182,6 +182,64 @@ def _build_processor(repo: KnowledgeRepository) -> DocumentProcessor:
     )
 
 
+async def _dispatch_vector_chain(store_id: str, chunks: list) -> None:
+    """Chained job records: EMBEDDING_GENERATION then VECTOR_SYNC for freshly chunked text.
+
+    Failures here never fail the chunking task itself; the jobs are visible in the
+    knowledge jobs list and can be requeued from there.
+    """
+    if not chunks:
+        return
+    try:
+        from app.application.jobs.job_dispatcher import JobDispatcher
+        from app.domain.job.value_objects import JobType
+        from app.workers.embedding.tasks import generate_embeddings_task, sync_vectors_task
+
+        dispatcher = JobDispatcher()
+        chunk_ids = [c.id for c in chunks]
+        model = "gemini-embedding-001"
+        collection_name = f"kb_{store_id}"
+        org_id = None
+
+        embed_job = await dispatcher.dispatch(
+            job_type=JobType.EMBEDDING_GENERATION,
+            payload={"document_id": chunks[0].document_id, "chunk_count": len(chunk_ids), "model": model},
+            enqueue=lambda job_id: generate_embeddings_task.delay(chunk_ids=chunk_ids, model=model, job_id=job_id),
+            store_id=store_id,
+            organization_id=org_id,
+            triggered_by="system:chunk_chain",
+        )
+        sync_job = await dispatcher.dispatch(
+            job_type=JobType.VECTOR_SYNC,
+            payload={
+                "document_id": chunks[0].document_id,
+                "chunk_count": len(chunk_ids),
+                "collection": collection_name,
+                "model": model,
+            },
+            enqueue=lambda job_id: sync_vectors_task.delay(
+                chunk_ids=chunk_ids,
+                collection_name=collection_name,
+                model=model,
+                job_id=job_id,
+                store_id=store_id,
+                document_id=chunks[0].document_id,
+            ),
+            store_id=store_id,
+            organization_id=org_id,
+            triggered_by="system:chunk_chain",
+        )
+        logger.info(
+            "Auto-chained embed job %s and vector sync job %s for %d chunks (store=%s)",
+            embed_job.id,
+            sync_job.id,
+            len(chunk_ids),
+            store_id,
+        )
+    except Exception:
+        logger.exception("Failed to enqueue vector chain for store '%s'", store_id)
+
+
 @celery_app.task(
     name="knowledge.generate_chunks",
     bind=True,
@@ -215,6 +273,8 @@ def generate_chunks_task(
 
             config = ChunkingConfig(strategy=strategy, chunk_size=chunk_size, overlap=overlap)
             result = await service.chunk_document(doc, config)
+
+            await _dispatch_vector_chain(doc.store_id, result.chunks)
 
             if job_id:
                 await update_job_progress(job_id, 1.0)

@@ -12,9 +12,10 @@ class TestJobType:
         assert JobType.SUMMARY_GENERATION == "summary_generation"
         assert JobType.EMBEDDING_GENERATION == "embedding_generation"
         assert JobType.VECTOR_SYNC == "vector_sync"
+        assert JobType.STORE_REINDEX == "store_reindex"
 
     def test_members(self):
-        assert len(JobType) == 5
+        assert len(JobType) == 6
 
 
 class TestJobStatus:

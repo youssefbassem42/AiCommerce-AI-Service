@@ -291,6 +291,7 @@ KNOWLEDGE_JOB_SCHEMA: dict[str, Any] = {
                     "summary_generation",
                     "embedding_generation",
                     "vector_sync",
+                    "store_reindex",
                 ],
             },
             "status": {

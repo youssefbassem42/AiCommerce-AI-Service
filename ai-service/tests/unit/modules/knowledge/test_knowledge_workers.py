@@ -157,6 +157,7 @@ class TestProcessDocumentTask:
 
 
 class TestGenerateChunksTask:
+    @patch("app.application.jobs.job_dispatcher.JobDispatcher")
     @patch("app.workers.ingestion.tasks.ChunkRepository")
     @patch("app.workers.ingestion.tasks.KnowledgeRepository")
     @patch("app.workers.ingestion.tasks.ChunkingService")
@@ -169,11 +170,13 @@ class TestGenerateChunksTask:
         mock_svc_cls,
         mock_knowledge_repo_cls,
         mock_chunk_repo_cls,
+        mock_dispatcher_cls,
     ):
         from app.workers.ingestion.tasks import generate_chunks_task
 
         mock_doc = MagicMock()
         mock_doc.id = "doc-1"
+        mock_doc.store_id = "store-1"
 
         mock_knowledge_repo = MagicMock()
         mock_knowledge_repo.find_by_id = AsyncMock(return_value=mock_doc)
@@ -183,17 +186,25 @@ class TestGenerateChunksTask:
         mock_result.document_id = "doc-1"
         mock_result.strategy = "recursive_character"
         mock_result.chunk_count = 5
-        mock_result.chunks = [MagicMock(id="chunk-1"), MagicMock(id="chunk-2")]
+        mock_result.chunks = [
+            MagicMock(id="chunk-1", document_id="doc-1"),
+            MagicMock(id="chunk-2", document_id="doc-1"),
+        ]
 
         mock_svc = MagicMock()
         mock_svc.chunk_document = AsyncMock(return_value=mock_result)
         mock_svc_cls.return_value = mock_svc
+
+        mock_dispatcher = AsyncMock()
+        mock_dispatcher.dispatch = AsyncMock(side_effect=[MagicMock(id="embed-job-1"), MagicMock(id="sync-job-1")])
+        mock_dispatcher_cls.return_value = mock_dispatcher
 
         result = generate_chunks_task.run("doc-1", "recursive_character", 1000, 200, "job-1")
 
         assert result["document_id"] == "doc-1"
         assert result["chunk_count"] == 5
         assert len(result["chunk_ids"]) == 2
+        assert mock_dispatcher.dispatch.await_count == 2
 
     @patch("app.workers.ingestion.tasks.ChunkRepository")
     @patch("app.workers.ingestion.tasks.update_job_progress", new_callable=AsyncMock)
