@@ -81,7 +81,6 @@ class PlanPolicy(AggregateRoot[str]):
         return bool(
             self.subscription_status
             or self.plan_name
-            or self.billing_period
             or self.renewal_date
             or self.token_limit > 0
             or self.allowed_models
