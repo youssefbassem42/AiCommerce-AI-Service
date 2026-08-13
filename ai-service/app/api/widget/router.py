@@ -635,14 +635,25 @@ async def widget_chat(
     structured_result = (result.metadata or {}).get("result") or {}
     answer_text = result.message.content if isinstance(result.message.content, str) else str(result.message.content)
 
-    logger.info(
-        "Widget chat debug: intent=%s sub_agent=%s metadata_keys=%s result_keys=%s result=%s",
-        intent,
-        sub_agent,
-        sorted((result.metadata or {}).keys()),
-        sorted(structured_result.keys()),
-        str(structured_result)[:300],
-    )
+    try:
+        import datetime as _dt
+
+        from app.infrastructure.mongodb import get_database
+
+        await get_database()["widget_debug"].insert_one(
+            {
+                "at": _dt.datetime.now(_dt.UTC),
+                "store_id": tenant_context.store_id,
+                "message": payload.message[:120],
+                "intent": intent,
+                "sub_agent": sub_agent,
+                "metadata_keys": sorted((result.metadata or {}).keys()),
+                "result_keys": sorted(structured_result.keys()),
+                "result": {k: str(v)[:200] for k, v in structured_result.items()},
+            }
+        )
+    except Exception as _exc:
+        logger.warning("widget debug write failed: %s", _exc)
 
     response_type: str = "text"
     products: list[dict] = []
