@@ -106,7 +106,7 @@ async def create_document_processing_job(
 @router.post("/chunk-generation", response_model=JobCreateResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_chunk_generation_job(
     document_id: str = Query(...),
-    strategy: str = Query(default="recursive_character"),
+    strategy: str = Query(default="recursive"),
     chunk_size: int = Query(default=1000, ge=100, le=5000),
     overlap: int = Query(default=200, ge=0, le=1000),
     triggered_by: AuthenticatedUser = Depends(get_current_user),

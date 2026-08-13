@@ -9,7 +9,7 @@ class ProcessDocumentRequestSchema(BaseModel):
     )
     mime_type: str | None = Field(default=None)
     also_chunk: bool = Field(default=True, description="Automatically chunk after processing")
-    strategy: str = Field(default="recursive_character")
+    strategy: str = Field(default="recursive")
     chunk_size: int = Field(default=1000, ge=100, le=5000)
     overlap: int = Field(default=200, ge=0, le=1000)
     store_id: str | None = None
@@ -19,7 +19,7 @@ class ProcessDocumentRequestSchema(BaseModel):
 
 class ChunkDocumentRequestSchema(BaseModel):
     document_id: str
-    strategy: str = Field(default="recursive_character")
+    strategy: str = Field(default="recursive")
     chunk_size: int = Field(default=1000, ge=100, le=5000)
     overlap: int = Field(default=200, ge=0, le=1000)
     store_id: str | None = None

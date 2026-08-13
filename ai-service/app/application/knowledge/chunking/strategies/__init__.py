@@ -13,12 +13,15 @@ STRATEGY_MAP: dict[str, type[BaseChunker]] = {
     "token": TokenChunker,
 }
 
+STRATEGY_ALIASES: dict[str, str] = {
+    "recursive_character": "recursive",
+}
+
 
 def get_chunker(strategy: str) -> BaseChunker:
+    strategy = STRATEGY_ALIASES.get(strategy, strategy)
     cls = STRATEGY_MAP.get(strategy)
     if cls is None:
         msg = f"Unknown chunking strategy '{strategy}'. Available: {list(STRATEGY_MAP.keys())}"
         raise ValueError(msg)
-    if strategy == "token":
-        return cls()
     return cls()

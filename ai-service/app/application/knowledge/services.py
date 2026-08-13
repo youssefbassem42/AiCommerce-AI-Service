@@ -552,7 +552,7 @@ class DocumentUploadService:
             )
             generate_chunks_task.delay(
                 document_id=upload.document_id,
-                strategy="recursive_character",
+                strategy="recursive",
                 chunk_size=1000,
                 overlap=200,
                 job_id=None,

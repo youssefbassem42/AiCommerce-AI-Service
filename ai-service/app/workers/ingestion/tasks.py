@@ -192,7 +192,7 @@ def _build_processor(repo: KnowledgeRepository) -> DocumentProcessor:
 def generate_chunks_task(
     self,
     document_id: str,
-    strategy: str = "recursive_character",
+    strategy: str = "recursive",
     chunk_size: int = 1000,
     overlap: int = 200,
     job_id: str | None = None,
