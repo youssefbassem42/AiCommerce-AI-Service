@@ -68,9 +68,34 @@ class TestProductRecordMapper:
         entity.handle = None
         entity.images = []
         entity.variants = []
+        entity.price = None
+        entity.inventory_quantity = 0
         rec = product_to_record(entity)
         assert rec["price"] is None
         assert rec["inventory_quantity"] == 0
+
+    def test_no_variants_flat_schema_fallback(self):
+        entity = MagicMock()
+        entity.id = "prod-3"
+        entity.organization_id = "org-1"
+        entity.external_id = "flat-1"
+        entity.title = "Flat Product"
+        entity.description = None
+        entity.status = "active"
+        entity.product_type = None
+        entity.vendor = None
+        entity.tags = []
+        entity.category_id = None
+        entity.handle = None
+        entity.images = []
+        entity.variants = []
+        entity.price = _money(30.0)
+        entity.inventory_quantity = 7
+        entity.image_url = None
+        rec = product_to_record(entity)
+        assert rec["price"] == 30.0
+        assert rec["inventory_quantity"] == 7
+        assert rec["image_url"] is None
 
 
 class TestCategoryAndOrderRecordMappers:

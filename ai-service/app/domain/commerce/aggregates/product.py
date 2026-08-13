@@ -40,6 +40,8 @@ class Product(AggregateRoot[str]):
     images: list[Image] = Field(default_factory=list)
     variants: list[Variant] = Field(default_factory=list)
     options: list[ProductOption] = Field(default_factory=list)
+    price: Money | None = Field(default=None, description="Flat-schema fallback price (stores without variants)")
+    inventory_quantity: int = Field(default=0, description="Flat-schema fallback stock (stores without variants)")
     seo: SEO = Field(default_factory=SEO)
     category_id: str | None = None
     audit: AuditInfo = Field(default_factory=AuditInfo)

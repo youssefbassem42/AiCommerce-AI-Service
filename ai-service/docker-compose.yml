@@ -12,6 +12,7 @@ x-shared-env: &shared-env
   OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
   DEFAULT_PROVIDER: ${DEFAULT_PROVIDER:-openai}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-gemini}
   DEFAULT_MODEL: ${DEFAULT_MODEL:-gpt-4o-mini}
   REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-120}
 
@@ -32,7 +33,7 @@ services:
         condition: service_started
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health/',timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -42,7 +43,7 @@ services:
     build:
       context: ..
       dockerfile: ai-service/Dockerfile
-    command: celery -A app.core.celery_app worker --loglevel=info
+    command: celery -A app.core.celery_app worker --concurrency=1 -Q default,ingestion,embedding,summarization,scheduler,cleanup -l INFO
     environment: *shared-env
     depends_on:
       ai-service:
@@ -62,8 +63,6 @@ services:
 
   mongodb:
     image: mongo:7
-    ports:
-      - "${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo_data:/data/db
     restart: unless-stopped
@@ -75,8 +74,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -95,7 +92,7 @@ services:
       - qdrant_storage:/qdrant/storage
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333'"]
       interval: 30s
       timeout: 5s
       retries: 3

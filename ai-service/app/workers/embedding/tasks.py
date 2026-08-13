@@ -222,9 +222,9 @@ def sync_vectors_task(
                 await qdrant.delete_by_filter(
                     collection_name,
                     must=[
-                        {"key": "store_id", "match": {"value": filters_store_id}},
-                        {"key": "document_id", "match": {"value": document_id}},
-                        {"key": "source_type", "match": {"value": "knowledge_document"}},
+                        {"key": "store_id", "value": filters_store_id},
+                        {"key": "document_id", "value": document_id},
+                        {"key": "source_type", "value": "knowledge_document"},
                     ],
                     must_not=None,
                 )
@@ -247,7 +247,6 @@ def sync_vectors_task(
 
                     points = []
                     for chunk, embedding in zip(chunks, response.embeddings, strict=False):
-                        doc = await chunk_repo.find_by_id(chunk.document_id) if hasattr(chunk, "document_id") else None
                         payload = {
                             "chunk_id": chunk.id,
                             "document_id": chunk.document_id,
@@ -256,11 +255,19 @@ def sync_vectors_task(
                             "language": chunk.metadata.get("language"),
                             "source_type": "knowledge_document",
                             "document_status": "active",
-                            "store_id": chunk.metadata.get("store_id") or filters_store_id,
-                            "organization_id": chunk.metadata.get("organization_id"),
-                            "document_title": doc.title if doc else chunk.metadata.get("parent_title", ""),
+                            "store_id": (
+                                getattr(chunk, "store_id", None)
+                                or chunk.metadata.get("store_id")
+                                or filters_store_id
+                            ),
+                            "organization_id": (
+                                getattr(chunk, "organization_id", None)
+                                or chunk.metadata.get("organization_id")
+                            ),
+                            "document_title": chunk.metadata.get("parent_title", ""),
                             "knowledge_scope": chunk.metadata.get("knowledge_scope"),
                             "business_version": chunk.metadata.get("business_version"),
+                            "knowledge_version": chunk.metadata.get("knowledge_version", 1),
                         }
                         points.append(VectorRecord(id=chunk.id, vector=embedding, payload=payload))
 

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest.mock import AsyncMock
 
 import pytest
@@ -9,6 +10,8 @@ from app.application.recommendation.dto.recommendation_dto import (
     RecommendationResponse,
     ScoredProduct,
 )
+from app.domain.commerce.aggregates.product import Variant
+from app.domain.commerce.value_objects.money import Money
 
 
 @pytest.fixture
@@ -114,3 +117,58 @@ class TestRecommendationAgent:
             "error": None,
         }
         assert route_after_search(state) == "filter_inventory"
+
+    async def test_run_applies_intent_budget_and_price(self, agent, product_repo):
+        from app.domain.commerce.aggregates.product import Product
+
+        product_repo.find_by_id.return_value = Product(
+            id="p1",
+            store_id="s1",
+            organization_id="o1",
+            title="Laptop",
+            variants=[Variant(id="v1", sku="S1", title="V1", price=Money(amount=Decimal("1200")))],
+        )
+        product_repo.find_by_id.return_value.variants[0].inventory_quantity = 3
+
+        from app.agents.recommendation.nodes import filter_inventory_node
+
+        state: RecommendationState = {
+            "user_query": "gaming laptop",
+            "store_id": "s1",
+            "customer_id": None,
+            "intent": RecommendationIntent(product_type="laptop", max_budget=1500.0),
+            "candidates": [ScoredProduct(product_id="p1", title="Laptop", store_id="s1")],
+            "filtered": [],
+            "response": None,
+            "error": None,
+        }
+        out = await filter_inventory_node(state, product_repo)
+        assert len(out["filtered"]) == 1
+        assert out["filtered"][0].price == 1200.0
+
+    async def test_run_drops_above_budget(self, agent, product_repo):
+        from app.domain.commerce.aggregates.product import Product
+
+        product_repo.find_by_id.return_value = Product(
+            id="p1",
+            store_id="s1",
+            organization_id="o1",
+            title="Laptop",
+            variants=[Variant(id="v1", sku="S1", title="V1", price=Money(amount=Decimal("2000")))],
+        )
+        product_repo.find_by_id.return_value.variants[0].inventory_quantity = 3
+
+        from app.agents.recommendation.nodes import filter_inventory_node
+
+        state: RecommendationState = {
+            "user_query": "gaming laptop",
+            "store_id": "s1",
+            "customer_id": None,
+            "intent": RecommendationIntent(product_type="laptop", max_budget=1500.0),
+            "candidates": [ScoredProduct(product_id="p1", title="Laptop", store_id="s1")],
+            "filtered": [],
+            "response": None,
+            "error": None,
+        }
+        out = await filter_inventory_node(state, product_repo)
+        assert out["filtered"] == []

@@ -324,6 +324,7 @@ class TestBridgePayloadAndRecordOps:
         assert point.payload["entity_id"] == "mongo-id-1"
         assert point.payload["document_id"] == "mongo-id-1"
         assert point.payload["store_id"] == "s1"
+        assert point.payload["knowledge_version"] == 1
 
     @pytest.mark.asyncio
     async def test_non_product_entity_no_product_fields(self, mock_vector_store, mock_llm):
@@ -367,8 +368,8 @@ class TestBridgePayloadAndRecordOps:
         bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm)
         await bridge.delete_record(store_id="s1", entity_type="product", entity_key="m1")
         must = mock_vector_store.delete_by_filter.await_args.kwargs["must"]
-        assert {"key": "entity_type", "match": {"value": "product"}} in must
-        assert {"key": "document_id", "match": {"value": "m1"}} in must
+        assert {"key": "entity_type", "value": "product"} in must
+        assert {"key": "document_id", "value": "m1"} in must
 
     @pytest.mark.asyncio
     async def test_delete_record_missing_collection(self, mock_vector_store, mock_llm):

@@ -132,6 +132,8 @@ class ProductDocument(BaseMongoDocument):
     images: list[ImageModel] = Field(default_factory=list)
     variants: list[VariantModel] = Field(default_factory=list)
     options: list[ProductOptionModel] = Field(default_factory=list)
+    price: MoneyModel | None = Field(default=None, description="Flat-schema fallback price (stores without variants)")
+    inventory_quantity: int = Field(default=0, description="Flat-schema fallback stock (stores without variants)")
     seo: SEOModel = Field(default_factory=SEOModel)
     category_id: str | None = None
     audit: AuditInfoModel = Field(default_factory=AuditInfoModel)
@@ -160,6 +162,8 @@ class ProductDocument(BaseMongoDocument):
             images=[img.to_vo() for img in self.images],
             variants=[v.to_entity() for v in self.variants],
             options=[o.to_entity() for o in self.options],
+            price=self.price.to_vo() if self.price else None,
+            inventory_quantity=self.inventory_quantity,
             seo=self.seo.to_vo(),
             category_id=self.category_id,
             audit=self.audit.to_vo(),
@@ -189,6 +193,8 @@ class ProductDocument(BaseMongoDocument):
             images=[ImageModel.from_vo(img) for img in entity.images],
             variants=[VariantModel.from_entity(v) for v in entity.variants],
             options=[ProductOptionModel.from_entity(o) for o in entity.options],
+            price=MoneyModel.from_vo(entity.price) if entity.price is not None else None,
+            inventory_quantity=entity.inventory_quantity,
             seo=SEOModel.from_vo(entity.seo),
             category_id=entity.category_id,
             audit=AuditInfoModel.from_vo(entity.audit),

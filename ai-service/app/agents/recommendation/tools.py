@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any
 
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
@@ -17,7 +18,13 @@ logger = logging.getLogger(__name__)
 
 
 def _get_llm() -> BaseLLMProvider:
-    return LLMProviderFactory().get_provider("openai")
+    from app.core.ai_settings import ai_settings
+
+    provider_name = ai_settings.DEFAULT_PROVIDER
+    try:
+        return LLMProviderFactory().get_provider(provider_name)
+    except Exception:
+        return LLMProviderFactory().get_provider("openai")
 
 
 INTENT_EXTRACTION_PROMPT = """You are a product recommendation intent parser.
@@ -99,6 +106,35 @@ async def search_spec_vectors(
     return products[:top_k]
 
 
+def _product_in_stock(product: Any) -> bool:
+    if product is None:
+        return False
+    variants = list(product.variants or [])
+    if variants:
+        return any(v.inventory_quantity > 0 for v in variants)
+    return int(getattr(product, "inventory_quantity", 0) or 0) > 0
+
+
+def _product_prices(product: Any) -> list[float]:
+    """Min candidate prices from variants, falling back to the flat-schema price."""
+    if product is None:
+        return []
+    variants = list(product.variants or [])
+    prices = [float(v.price.amount) for v in variants if v.price is not None]
+    if prices:
+        return prices
+    flat = getattr(product, "price", None)
+    if flat is not None:
+        try:
+            return [float(flat.amount)]
+        except (AttributeError, TypeError, ValueError):
+            try:
+                return [float(flat)]
+            except (TypeError, ValueError):
+                return []
+    return []
+
+
 async def filter_inventory(
     candidates: list[ScoredProduct],
     product_repo: ProductRepository,
@@ -110,7 +146,7 @@ async def filter_inventory(
     for candidate in candidates:
         try:
             product = await product_repo.find_by_id(candidate.product_id)
-            variants_in_stock = False if product is None else any(v.inventory_quantity > 0 for v in product.variants)
+            variants_in_stock = _product_in_stock(product)
 
             candidate.in_stock = variants_in_stock
             if variants_in_stock:
@@ -136,11 +172,11 @@ async def apply_budget_filter(
             product = await product_repo.find_by_id(candidate.product_id)
             if product is None:
                 continue
-            variant_prices = [v.price.amount for v in product.variants if hasattr(v, "price")]
-            if variant_prices:
-                min_price = float(min(variant_prices))
+            prices = _product_prices(product)
+            if prices:
+                min_price = min(prices)
                 if min_price <= max_budget:
-                    candidate.price = min(variant_prices)
+                    candidate.price = min_price
                     filtered.append(candidate)
         except Exception:
             logger.warning("Failed to check price for product %s", candidate.product_id)

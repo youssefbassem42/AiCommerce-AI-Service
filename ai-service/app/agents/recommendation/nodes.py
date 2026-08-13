@@ -59,9 +59,11 @@ async def filter_inventory_node(
 
     try:
         in_stock = await filter_inventory(candidates, product_repo)
+        intent = state.get("intent")
+        max_budget = intent.max_budget if intent is not None else None
         within_budget = await apply_budget_filter(
             in_stock,
-            state.get("intent.max_budget") if state.get("intent") else None,
+            max_budget,
             product_repo,
         )
         return {"filtered": within_budget}

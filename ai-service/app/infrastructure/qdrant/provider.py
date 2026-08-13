@@ -80,6 +80,8 @@ def _parse_conditions(filters: list[dict[str, Any]]) -> list[models.Condition]:
         key = f.get("key")
         op = f.get("op", "eq")
         value = f.get("value")
+        if value is None and isinstance(f.get("match"), dict) and "value" in f["match"]:
+            value = f["match"]["value"]
 
         if key is None:
             continue

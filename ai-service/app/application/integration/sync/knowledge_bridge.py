@@ -189,9 +189,9 @@ class CommerceKnowledgeBridge:
         return await self._vector_store.delete_by_filter(
             collection,
             must=[
-                {"key": "store_id", "match": {"value": store_id}},
-                {"key": "entity_type", "match": {"value": entity_type}},
-                {"key": "document_id", "match": {"value": entity_key}},
+                {"key": "store_id", "value": store_id},
+                {"key": "entity_type", "value": entity_type},
+                {"key": "document_id", "value": entity_key},
             ],
             must_not=None,
         )
@@ -219,6 +219,7 @@ class CommerceKnowledgeBridge:
             "document_status": "active",
             "chunk_index": rec_idx,
             "content": content,
+            "knowledge_version": 1,
         }
         if entity_type == "product":
             payload["product_id"] = entity_key
@@ -238,9 +239,9 @@ class CommerceKnowledgeBridge:
             await self._vector_store.delete_by_filter(
                 collection,
                 must=[
-                    {"key": "store_id", "match": {"value": store_id}},
-                    {"key": "entity_type", "match": {"value": entity_type}},
-                    {"key": "source_type", "match": {"value": "integration_sync"}},
+                    {"key": "store_id", "value": store_id},
+                    {"key": "entity_type", "value": entity_type},
+                    {"key": "source_type", "value": "integration_sync"},
                 ],
                 must_not=None,
             )
