@@ -635,6 +635,15 @@ async def widget_chat(
     structured_result = (result.metadata or {}).get("result") or {}
     answer_text = result.message.content if isinstance(result.message.content, str) else str(result.message.content)
 
+    logger.info(
+        "Widget chat debug: intent=%s sub_agent=%s metadata_keys=%s result_keys=%s result=%s",
+        intent,
+        sub_agent,
+        sorted((result.metadata or {}).keys()),
+        sorted(structured_result.keys()),
+        str(structured_result)[:300],
+    )
+
     response_type: str = "text"
     products: list[dict] = []
     product: dict | None = None

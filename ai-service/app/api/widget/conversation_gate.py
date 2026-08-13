@@ -105,7 +105,13 @@ _FOLLOW_UP_PATTERNS: tuple[str, ...] = (
 
 _UNSAFE_PATTERNS: tuple[str, ...] = (
     r"\b(hack|crack|steal|scam|fraud|launder|forge|impersonate)\b",
+    r"\bbuild\s+(a\s+)?(bomb|explosive)\b|\b(make|create)\s+(a\s+)?(bomb|explosive|poison)\b",
+    r"\b(bomb|explosive|explosives|terrorist|terrorism|kidnap|hijack)\b",
+    r"\b(shoot|stab|kill|murder|poison)\s+(someone|people|a\s+person|them|him|her|my\s+enemy)\b",
+    r"\b(buy|order|purchase|how\s+to\s+get)\s+(a\s+)?(gun|weapon|firearm|rifle|knife)\b",
+    r"\b(meth|heroin|cocaine|synthesize\s+drugs?|make\s+drugs?)\b",
     r"\b(يخترق|سرقة|احتيال|تزوير|انتحال)\b",
+    r"\b(قنبلة|متفجرات|إرهاب|خطف|اختطاف|قتل|سلاح|مسدس)\b",
 )
 
 _INJECTION_RE = [re.compile(p, re.IGNORECASE) for p in _INJECTION_PATTERNS]
