@@ -75,16 +75,17 @@ class PlanPolicy(AggregateRoot[str]):
         """True when the policy carries real entitlement data.
 
         Policies synced from tokens without plan claims are empty shells
-        (``subscription_status``/``plan_name`` empty, zero token limit, no
-        models); they are not entitlements and must not be enforced.
+        (``subscription_status``/``plan_name`` empty, zero token limit); they
+        are not entitlements and must not be enforced. ``allowed_models``/
+        ``allowed_providers`` are intentionally excluded — they are auto-filled
+        from service defaults when the token carries no model list, so they do
+        not prove a real entitlement.
         """
         return bool(
             self.subscription_status
             or self.plan_name
             or self.renewal_date
             or self.token_limit > 0
-            or self.allowed_models
-            or self.allowed_providers
             or self.consumer_daily_message_limit_max > 0
         )
 

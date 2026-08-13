@@ -61,16 +61,15 @@ class PlanContext:
     def has_plan_claims(self) -> bool:
         """True when the token actually carried plan entitlement data.
 
-        ``billing_period`` is excluded: the AI service derives it when .NET
-        does not supply one, so it must not signal a real entitlement.
+        ``billing_period`` is excluded (the AI service derives it when .NET
+        does not supply one) and ``allowed_models``/``allowed_providers`` are
+        excluded (they are auto-filled from service defaults).
         """
         return bool(
             self.subscription_status
             or self.plan_name
             or self.renewal_date
             or self.token_limit > 0
-            or self.allowed_models
-            or self.allowed_providers
             or self.consumer_daily_message_limit_max > 0
         )
 
