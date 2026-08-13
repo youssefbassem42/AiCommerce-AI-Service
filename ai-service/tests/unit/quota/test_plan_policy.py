@@ -95,6 +95,27 @@ class TestPlanClaimsSync:
         assert policy.token_limit > 0
         assert policy.subscription_active is True
 
+    async def test_resolve_ignores_claimless_cached_policy(self):
+        """A claim-less policy cached by an older deployment must not win."""
+        junk = make_plan()
+        junk.subscription_status = ""
+        junk.plan_name = ""
+        junk.token_limit = 0
+        junk.allowed_models = ()
+        junk.allowed_providers = ()
+        junk.billing_period = ""
+        junk.renewal_date = ""
+        junk.consumer_daily_message_limit_max = 0
+
+        redis = MagicMock()
+        redis.get = AsyncMock(return_value=junk.model_dump_json())
+        repo = stub_repo(None)
+        service = PlanPolicyService(repo, redis_client=redis)
+
+        policy = await service.resolve("store_a")
+        assert policy.token_limit > 0
+        assert policy.subscription_active is True
+
     async def test_upgrade_keeps_active_billing_period_and_usage_key(self):
         """Starter 1M with 800K used → upgrade to Pro 5M keeps same period key."""
         now = datetime.now(UTC)

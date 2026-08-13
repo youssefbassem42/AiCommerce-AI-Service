@@ -117,7 +117,7 @@ class PlanPolicyService:
     async def resolve(self, store_id: str) -> PlanPolicy:
         """Resolve the active policy for a store (cache → DB → defaults)."""
         cached = await self._read_cache(store_id)
-        if cached is not None:
+        if cached is not None and cached.has_plan_claims:
             return cached
 
         stored = await self._repository.get_by_store(store_id)
