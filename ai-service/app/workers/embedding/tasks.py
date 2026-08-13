@@ -256,13 +256,10 @@ def sync_vectors_task(
                             "source_type": "knowledge_document",
                             "document_status": "active",
                             "store_id": (
-                                getattr(chunk, "store_id", None)
-                                or chunk.metadata.get("store_id")
-                                or filters_store_id
+                                getattr(chunk, "store_id", None) or chunk.metadata.get("store_id") or filters_store_id
                             ),
                             "organization_id": (
-                                getattr(chunk, "organization_id", None)
-                                or chunk.metadata.get("organization_id")
+                                getattr(chunk, "organization_id", None) or chunk.metadata.get("organization_id")
                             ),
                             "document_title": chunk.metadata.get("parent_title", ""),
                             "knowledge_scope": chunk.metadata.get("knowledge_scope"),

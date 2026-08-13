@@ -303,9 +303,7 @@ class TestBridgePayloadAndRecordOps:
     @pytest.fixture
     def mock_llm(self):
         llm = AsyncMock()
-        llm.embeddings = AsyncMock(
-            return_value=MagicMock(embeddings=[[0.1, 0.2, 0.3]], model="gemini-embedding-001")
-        )
+        llm.embeddings = AsyncMock(return_value=MagicMock(embeddings=[[0.1, 0.2, 0.3]], model="gemini-embedding-001"))
         return llm
 
     @pytest.mark.asyncio
