@@ -189,6 +189,8 @@ class TestWidgetChatRouterPolicy:
         self.conversation_service = MagicMock()
         self.conversation_service.get_or_create_conversation = AsyncMock()
         self.conversation_service.save_interaction = AsyncMock()
+        self.conversation_service.update_conversation_context = AsyncMock()
+        self.conversation_service.get_conversation_context = AsyncMock(return_value={})
 
         now = datetime.now(UTC)
         fake_plan = PlanPolicy(
@@ -234,7 +236,7 @@ class TestWidgetChatRouterPolicy:
         return token
 
     def _post(self, client, **payload):
-        body = {"message": "Hello"}
+        body = {"message": "Do you have sunglasses in stock?"}
         body.update(payload)
         return client.post(
             "/api/v1/widget/chat",

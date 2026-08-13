@@ -131,6 +131,7 @@ async def execute_sub_agent_node(
                 "sub_agent": sub_agent,
                 "needs_clarification": False,
                 "citations": [],
+                "result": _serialize_sub_agent_result(result),
             },
             "error": None,
         }
@@ -195,4 +196,92 @@ async def format_response_node(state: CoordinatorState) -> dict[str, Any]:
             "citations": [],
         },
         "error": None,
+    }
+
+
+def _serialize_product_card(product: Any) -> dict[str, Any] | None:
+    """Consumer-safe product card from a sub-agent result DTO."""
+    product_id = getattr(product, "product_id", None)
+    title = getattr(product, "title", None)
+    if not product_id and not title:
+        return None
+    specs = []
+    for spec in getattr(product, "specs", None) or []:
+        specs.append(
+            {
+                "name": getattr(spec, "name", None),
+                "value": getattr(spec, "value", None),
+            }
+        )
+    return {
+        "product_id": str(product_id or ""),
+        "title": title,
+        "price": str(getattr(product, "price", "") or ""),
+        "currency": getattr(product, "currency", "USD") or "USD",
+        "image_url": getattr(product, "image_url", None),
+        "product_url": getattr(product, "product_url", None),
+        "specs": [s for s in specs if s.get("name") or s.get("value")][:12],
+        "match_reasons": list(getattr(product, "match_reasons", None) or [])[:6],
+    }
+
+
+def _serialize_sub_agent_result(result: Any) -> dict[str, Any] | None:
+    """Structured, consumer-safe snapshot of a sub-agent result.
+
+    Only whitelisted fields are propagated; internal IDs and labels are never
+    included here.
+    """
+    data: dict[str, Any] = {}
+
+    products = getattr(result, "products", None)
+    if isinstance(products, list) and products:
+        cards = [c for c in (_serialize_product_card(p) for p in products) if c]
+        if cards:
+            data["products"] = cards
+
+    bundles = getattr(result, "bundles", None)
+    if isinstance(bundles, list) and bundles:
+        bundle = _serialize_bundle(bundles)
+        if bundle:
+            data["bundle"] = bundle
+
+    if getattr(result, "escalation_needed", False) or getattr(result, "ticket_id", None):
+        data["ticket_created"] = bool(getattr(result, "ticket_id", None))
+        data["escalation_needed"] = bool(getattr(result, "escalation_needed", False))
+
+    if getattr(result, "clarifying_question", None):
+        data["clarifying_question"] = str(result.clarifying_question)[:300]
+
+    return data or None
+
+
+def _serialize_bundle(bundles: list[Any]) -> dict[str, Any] | None:
+    """First within-budget bundle candidate (or the first candidate) as a safe card."""
+    candidates = [b for b in bundles if getattr(b, "within_budget", True)] or list(bundles)
+    if not candidates:
+        return None
+    candidate = candidates[0]
+
+    items = []
+    for product in getattr(candidate, "products", None) or []:
+        items.append(
+            {
+                "product_id": str(getattr(product, "product_id", "") or ""),
+                "title": getattr(product, "product_title", None),
+                "original_price": str(getattr(product, "original_price", "") or ""),
+                "discount_pct": float(getattr(product, "discount_pct", 0.0) or 0.0),
+                "price_after_discount": str(getattr(product, "price_after_discount", "") or ""),
+            }
+        )
+
+    total_original = str(getattr(candidate, "total_original", "") or "")
+    total_discount = str(getattr(candidate, "total_discount", "") or "")
+    promo_code = getattr(candidate, "promo_code", None)
+
+    return {
+        "items": items,
+        "total_original": total_original,
+        "total_discount": total_discount,
+        "promo_code": promo_code,
+        "within_budget": bool(getattr(candidate, "within_budget", True)),
     }

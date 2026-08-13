@@ -130,3 +130,16 @@ class ConversationRepository:
                 await self.collection.update_one(
                     {"conversation_id": conversation_id}, {"$set": {"avg_latency_ms": new_avg}}
                 )
+
+    async def update_context(
+        self,
+        conversation_id: str,
+        context: dict[str, Any],
+        store_id: str | None = None,
+    ) -> bool:
+        """Merge structured conversation context (tenant-scoped)."""
+        query: dict[str, Any] = {"conversation_id": conversation_id}
+        if store_id is not None:
+            query["store_id"] = store_id
+        result = await self.collection.update_one(query, {"$set": {"context": context}})
+        return result.modified_count > 0

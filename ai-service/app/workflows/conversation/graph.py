@@ -126,6 +126,7 @@ class ConversationWorkflow:
                 "intent": response.get("intent"),
                 "sub_agent": response.get("sub_agent"),
                 "needs_clarification": response.get("needs_clarification", False),
+                "result": response.get("result"),
                 "trace": result.get("agent_trace", []),
             },
         )

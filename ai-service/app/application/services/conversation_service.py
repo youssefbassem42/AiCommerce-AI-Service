@@ -71,6 +71,26 @@ class ConversationService:
             return True
         return owner == store_id
 
+    async def get_conversation_context(
+        self,
+        conversation_id: str,
+        store_id: str,
+    ) -> dict[str, Any]:
+        """Structured conversation context (last recommendation, active entities, ...)."""
+        conv = await self.repository.get_conversation(conversation_id, store_id=store_id)
+        if not conv:
+            return {}
+        return conv.get("context") or {}
+
+    async def update_conversation_context(
+        self,
+        conversation_id: str,
+        context: dict[str, Any],
+        store_id: str,
+    ) -> None:
+        """Merge structured context into the conversation document (tenant-scoped)."""
+        await self.repository.update_context(conversation_id, context, store_id=store_id)
+
     async def save_interaction(
         self,
         conversation_id: str,

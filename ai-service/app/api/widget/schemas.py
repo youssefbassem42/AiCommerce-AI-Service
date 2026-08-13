@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -48,11 +49,17 @@ class WidgetChatResponseSchema(BaseModel):
     usage: UsageSchema = Field(default_factory=UsageSchema)
     business_summary_version: int | None = None
     conversation_id: str | None = None
+    type: Literal["text", "products", "product_detail", "bundle", "ticket_created", "escalation", "error"] = "text"
+    products: list[dict] = Field(default_factory=list)
+    product: dict | None = None
+    bundle: dict | None = None
+    reference: str | None = None
 
 
 class WidgetRecommendationRequestSchema(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     customer_id: str | None = None
+    conversation_id: str | None = None
 
 
 class WidgetRecommendationResponseSchema(BaseModel):
