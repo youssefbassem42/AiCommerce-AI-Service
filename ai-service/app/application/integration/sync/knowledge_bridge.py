@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import suppress
 from typing import Any
 
 from app.application.dto.ai_dto import EmbeddingRequest
@@ -224,6 +225,29 @@ class CommerceKnowledgeBridge:
         if entity_type == "product":
             payload["product_id"] = entity_key
             payload["product_title"] = title
+            price = record.get("price")
+            if isinstance(price, dict):
+                price = price.get("amount")
+            if price is not None:
+                with suppress(TypeError, ValueError):
+                    payload["price"] = float(price)
+            currency = record.get("currency") or (
+                record.get("price", {}).get("currency") if isinstance(record.get("price"), dict) else None
+            )
+            if currency:
+                payload["currency"] = str(currency)
+            if record.get("image_url"):
+                payload["image_url"] = str(record["image_url"])
+            if record.get("url") or record.get("handle"):
+                payload["product_url"] = str(record.get("url") or record.get("handle"))
+            specs = []
+            for spec_name in ("sku", "vendor", "product_type", "inventory_quantity", "compare_at_price", "category_id"):
+                if record.get(spec_name) is not None:
+                    specs.append({"name": spec_name, "value": str(record.get(spec_name))})
+            if record.get("tags"):
+                specs.append({"name": "tags", "value": ", ".join(str(t) for t in record["tags"])})
+            if specs:
+                payload["specs"] = specs
         return payload
 
     async def _delete_stale_vectors(

@@ -37,6 +37,11 @@ def product_to_record(entity: Any) -> dict[str, Any]:
         "status": entity.status,
         "sku": variants[0].sku if variants else getattr(entity, "sku", None),
         "price": min(prices) if prices else flat_price,
+        "currency": (
+            (variants[0].price.currency if variants and variants[0].price is not None else None)
+            or (getattr(entity.price, "currency", None) if getattr(entity, "price", None) is not None else None)
+            or None
+        ),
         "compare_at_price": (
             _money_amount(variants[0].compare_at_price)
             if variants and variants[0].compare_at_price is not None

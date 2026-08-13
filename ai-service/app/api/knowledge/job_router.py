@@ -130,6 +130,7 @@ async def create_chunk_generation_job(
             chunk_size=chunk_size,
             overlap=overlap,
             job_id=job_id,
+            organization_id=organization_id,
         ),
         store_id=store_id,
         organization_id=organization_id,

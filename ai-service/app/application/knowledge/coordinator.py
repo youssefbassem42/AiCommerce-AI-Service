@@ -231,7 +231,7 @@ class KnowledgeSyncCoordinator:
             chunk_repository=chunk_repo,
             knowledge_repository=repo,
         )
-        return await service.chunk_document(doc, config)
+        return await service.chunk_document(doc, config, organization_id=self.tenant.organization_id)
 
     async def _generate_embeddings_and_sync(self, docs: list[KnowledgeDocument]) -> None:
         if not self.llm_provider or not self.vector_store:

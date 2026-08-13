@@ -1,5 +1,6 @@
 import json
 import logging
+from decimal import Decimal
 from typing import Any
 
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
@@ -7,6 +8,7 @@ from app.application.knowledge.retrieval.config import RetrievalConfig, Retrieva
 from app.application.knowledge.retrieval.service import RetrieverService
 from app.application.recommendation.dto.recommendation_dto import (
     ProductCard,
+    ProductSpecValue,
     RecommendationIntent,
     ScoredProduct,
 )
@@ -90,12 +92,24 @@ async def search_spec_vectors(
     products = []
     for chunk in result.results:
         payload = chunk.metadata or {}
+        price = payload.get("price")
+        price_decimal = Decimal(str(price)) if isinstance(price, (int, float)) else Decimal("0")
+        specs = [
+            ProductSpecValue(name=str(s.get("name", "")), value=str(s.get("value", "")))
+            for s in (payload.get("specs") or [])
+            if isinstance(s, dict)
+        ]
         products.append(
             ScoredProduct(
                 product_id=payload.get("product_id", chunk.chunk_id),
                 store_id=store_id,
                 title=payload.get("product_title", payload.get("document_title", "Unknown Product")),
                 description=payload.get("content", "")[:200],
+                price=price_decimal,
+                currency=payload.get("currency", "USD"),
+                image_url=payload.get("image_url"),
+                product_url=payload.get("product_url"),
+                specs=specs,
                 match_score=chunk.score,
                 match_reasons=[f"Spec match: {chunk.score:.2f}"],
                 score=chunk.score,

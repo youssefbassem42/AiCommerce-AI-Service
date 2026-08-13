@@ -38,6 +38,7 @@ class ChunkingService:
         self,
         document: KnowledgeDocument,
         config: ChunkingConfig | None = None,
+        organization_id: str | None = None,
     ) -> ChunkingResult:
         config = config or ChunkingConfig()
 
@@ -51,7 +52,7 @@ class ChunkingService:
         if not raw_chunks:
             raise ChunkingException(f"Chunking produced zero chunks for document '{document.id}'")
 
-        chunks = await self._delete_and_recreate(document, raw_chunks, config, chunker.strategy_name)
+        chunks = await self._delete_and_recreate(document, raw_chunks, config, chunker.strategy_name, organization_id)
 
         document.status = "active"
         document.chunking_strategy = config.strategy
@@ -82,6 +83,7 @@ class ChunkingService:
         raw_chunks: list[str],
         config: ChunkingConfig,
         strategy_name: str,
+        organization_id: str | None = None,
     ) -> list[KnowledgeChunk]:
         existing = await self.chunk_repository.find_by_document_id(
             document.id, version_number=document.current_version, limit=10_000
@@ -89,7 +91,7 @@ class ChunkingService:
         for old in existing:
             await self.chunk_repository.delete(old.id)
 
-        entities = self._build_chunks(document, raw_chunks, config, strategy_name)
+        entities = self._build_chunks(document, raw_chunks, config, strategy_name, organization_id)
 
         inserted = await self.chunk_repository.bulk_insert(entities)
         if inserted != len(entities):
@@ -107,6 +109,7 @@ class ChunkingService:
         raw_chunks: list[str],
         config: ChunkingConfig,
         strategy_name: str,
+        organization_id: str | None = None,
     ) -> list[KnowledgeChunk]:
         entities = []
         for idx, text in enumerate(raw_chunks):
@@ -129,6 +132,7 @@ class ChunkingService:
                     "parent_title": document.title,
                     "chunk_number": idx + 1,
                     "store_id": document.store_id,
+                    "organization_id": organization_id,
                     "source_type": "knowledge_document",
                     "document_status": "active",
                 },

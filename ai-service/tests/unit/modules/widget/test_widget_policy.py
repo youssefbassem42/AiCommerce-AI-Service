@@ -152,26 +152,42 @@ class TestWidgetChatRouterPolicy:
         from datetime import UTC, datetime, timedelta
         from types import SimpleNamespace
 
+        from app.api.ai.dependencies import get_conversation_service, get_orchestration_service
+        from app.api.knowledge.retrieval_dependencies import get_retriever_service
         from app.api.quota.dependencies import get_quota_enforcer
-        from app.api.rag.dependencies import get_rag_service
+        from app.api.rag.dependencies import get_summary_repository
+        from app.application.dto.ai_dto import ChatResponse, MessageDTO, UsageDTO
+        from app.application.knowledge.retrieval.dto import UnifiedRetrievalResult
         from app.domain.analytics.entities.plan_policy import PlanPolicy
         from app.main import app
 
-        self.rag = MagicMock()
-        self.rag.answer = AsyncMock(
-            return_value=MagicMock(
-                response="hi",
-                citations=[],
-                chunk_references=[],
-                confidence_score=0.9,
-                latency_ms=1.0,
-                model="default-model",
+        self.orchestration = MagicMock()
+        self.orchestration.chat = AsyncMock(
+            return_value=ChatResponse(
+                id="chat-1",
+                model=ai_settings.DEFAULT_MODEL,
                 provider="openai",
-                usage=MagicMock(model_dump=lambda: {}),
-                business_summary_version=1,
-                conversation_id=None,
+                message=MessageDTO(role="assistant", content="hi"),
+                usage=UsageDTO(),
+                latency_ms=1.0,
+                metadata={"intent": "general"},
             )
         )
+        self.retriever = MagicMock()
+        self.retriever.search = AsyncMock(
+            return_value=UnifiedRetrievalResult(
+                query="Hello",
+                results=[],
+                total_count=0,
+                strategy="semantic",
+                latency_ms=0.0,
+                filters_applied={},
+            )
+        )
+        self.summary_repo = MagicMock()
+        self.summary_repo.find_by_document_id = AsyncMock(return_value=[])
+        self.conversation_service = MagicMock()
+        self.conversation_service.save_interaction = AsyncMock()
 
         now = datetime.now(UTC)
         fake_plan = PlanPolicy(
@@ -196,7 +212,10 @@ class TestWidgetChatRouterPolicy:
             resolve_plan=AsyncMock(return_value=fake_plan),
             run=fake_run,
         )
-        app.dependency_overrides[get_rag_service] = lambda: self.rag
+        app.dependency_overrides[get_orchestration_service] = lambda: self.orchestration
+        app.dependency_overrides[get_retriever_service] = lambda: self.retriever
+        app.dependency_overrides[get_summary_repository] = lambda: self.summary_repo
+        app.dependency_overrides[get_conversation_service] = lambda: self.conversation_service
         app.dependency_overrides[get_quota_enforcer] = lambda: fake_enforcer
         yield
         app.dependency_overrides.clear()
@@ -235,22 +254,20 @@ class TestWidgetChatRouterPolicy:
             knowledge_scope="internal",
         )
         assert resp.status_code == 200
-        request = self.rag.answer.await_args.args[0]
-        assert request.model == ai_settings.DEFAULT_MODEL
-        assert request.temperature == 1.0
-        assert request.max_tokens == 1024
-        assert request.top_k == 10
-        assert (request.use_hybrid, request.use_mmr, request.rerank) == (False, False, False)
-        assert request.knowledge_scope is None
+        config = self.retriever.search.await_args.kwargs["config"]
+        assert config.top_k == 10
+        assert config.score_threshold == 0.0
+        assert (config.use_hybrid, config.use_mmr, config.rerank) == (False, False, False)
+        filters = self.retriever.search.await_args.kwargs["filters"]
+        assert filters.knowledge_scope is None
 
     def test_compliant_request_passes_unchanged(self, client):
         resp = self._post(client, temperature=0.3, max_tokens=256, top_k=5)
         assert resp.status_code == 200
-        request = self.rag.answer.await_args.args[0]
-        assert request.temperature == 0.3
-        assert request.max_tokens == 256
-        assert request.top_k == 5
-        assert request.model == ai_settings.DEFAULT_MODEL
+        config = self.retriever.search.await_args.kwargs["config"]
+        assert config.top_k == 5
+        assert self.orchestration.chat.await_args.kwargs["store_id"] == "store-1"
+        assert self.orchestration.chat.await_args.kwargs["conversation_id"] is not None
 
     def test_clamping_is_logged_with_store_and_widget(self, client, caplog):
         with caplog.at_level("WARNING", logger="app.api.widget.router"):

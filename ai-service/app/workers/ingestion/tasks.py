@@ -138,7 +138,7 @@ def chunk_document_task(self, doc_id: str, config_dict: dict, org_id: str, store
         config = ChunkingConfig(**config_dict)
         chunk_repo = ChunkRepository()
         service = ChunkingService(chunk_repository=chunk_repo, knowledge_repository=repo)
-        result = await service.chunk_document(doc, config)
+        result = await service.chunk_document(doc, config, organization_id=org_id or None)
         logger.info("Chunked doc '%s': %d chunks", doc_id, result.chunk_count)
         return result.chunk_count
 
@@ -182,7 +182,31 @@ def _build_processor(repo: KnowledgeRepository) -> DocumentProcessor:
     )
 
 
-async def _dispatch_vector_chain(store_id: str, chunks: list) -> None:
+async def _resolve_store_organization_id(store_id: str) -> str | None:
+    """Best-effort store -> organization resolution for chunk tenant stamping.
+
+    The entities collection is the storefront sync source of truth for the
+    store's owning organization. Unknown/legacy stores resolve to None; their
+    chunks stay invisible to org-scoped retrieval (fail-closed) until the store
+    is re-synced.
+    """
+    if not store_id:
+        return None
+    try:
+        from app.infrastructure.mongodb.collections import get_entities_collection
+
+        col = get_entities_collection()
+        row = await col.find_one(
+            {"store_id": store_id, "organization_id": {"$ne": None}},
+            {"organization_id": 1},
+        )
+        return row.get("organization_id") if row else None
+    except Exception:
+        logger.warning("Could not resolve organization for store '%s'", store_id, exc_info=True)
+        return None
+
+
+async def _dispatch_vector_chain(store_id: str, chunks: list, organization_id: str | None = None) -> None:
     """Chained job records: EMBEDDING_GENERATION then VECTOR_SYNC for freshly chunked text.
 
     Failures here never fail the chunking task itself; the jobs are visible in the
@@ -199,7 +223,7 @@ async def _dispatch_vector_chain(store_id: str, chunks: list) -> None:
         chunk_ids = [c.id for c in chunks]
         model = "gemini-embedding-001"
         collection_name = f"kb_{store_id}"
-        org_id = None
+        org_id = organization_id
 
         embed_job = await dispatcher.dispatch(
             job_type=JobType.EMBEDDING_GENERATION,
@@ -254,6 +278,7 @@ def generate_chunks_task(
     chunk_size: int = 1000,
     overlap: int = 200,
     job_id: str | None = None,
+    organization_id: str | None = None,
 ) -> dict:
     def _run():
         async def _async_run():
@@ -268,13 +293,17 @@ def generate_chunks_task(
             if not doc:
                 raise ValueError(f"Document '{document_id}' not found")
 
+            resolved_organization_id = organization_id
+            if not resolved_organization_id:
+                resolved_organization_id = await _resolve_store_organization_id(doc.store_id)
+
             if job_id:
                 await update_job_progress(job_id, 0.3)
 
             config = ChunkingConfig(strategy=strategy, chunk_size=chunk_size, overlap=overlap)
-            result = await service.chunk_document(doc, config)
+            result = await service.chunk_document(doc, config, organization_id=resolved_organization_id)
 
-            await _dispatch_vector_chain(doc.store_id, result.chunks)
+            await _dispatch_vector_chain(doc.store_id, result.chunks, organization_id=resolved_organization_id)
 
             if job_id:
                 await update_job_progress(job_id, 1.0)
