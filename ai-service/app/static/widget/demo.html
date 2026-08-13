@@ -255,7 +255,7 @@ curl -i -X POST https://<ai-service>/api/v1/admin/widget-installations \
           '<script\n' +
           '  src="' + origin + '/widget.js"\n' +
           '  data-widget-key="' + key + '"\n' +
-          (apiBase !== origin ? '  data-api-base="' + apiBase + '"\n' : "") +
+          '  data-api-base-url="' + apiBase + '"\n' +
           '>\n' +
           '<\/script>';
       }
@@ -279,8 +279,7 @@ curl -i -X POST https://<ai-service>/api/v1/admin/widget-installations \
         scriptEl = document.createElement("script");
         scriptEl.src = origin + "/widget.js";
         scriptEl.setAttribute("data-widget-key", key);
-        scriptEl.setAttribute("data-api-base", apiBase);
-        scriptEl.setAttribute("data-launcher-text", "Ask AI");
+        scriptEl.setAttribute("data-api-base-url", apiBase);
         document.body.appendChild(scriptEl);
 
         selectedKey = key;

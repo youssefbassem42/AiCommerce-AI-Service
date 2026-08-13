@@ -1,8 +1,15 @@
 from datetime import UTC, datetime
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_validator
 
 from app.shared.kernel.aggregate_root import AggregateRoot
+
+
+def ensure_aware_utc(value: datetime) -> datetime:
+    """Treat legacy offset-naive UTC datetimes as aware UTC."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
 
 
 class PlanPolicy(AggregateRoot[str]):
@@ -33,6 +40,18 @@ class PlanPolicy(AggregateRoot[str]):
     billing_period_days: int = Field(default=30, ge=1)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
+    @field_validator("period_start", "period_end", "updated_at", mode="before")
+    @classmethod
+    def _coerce_naive_utc(cls, value):
+        """Legacy persisted policies store offset-naive UTC datetimes.
+
+        Comparisons against aware ``now`` raised ``TypeError``; naive values
+        are treated as UTC on load so every downstream use is consistent.
+        """
+        if isinstance(value, datetime) and value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def subscription_active(self) -> bool:
@@ -52,5 +71,5 @@ class PlanPolicy(AggregateRoot[str]):
         return ""
 
     def period_expired(self, now: datetime | None = None) -> bool:
-        now = now or datetime.now(UTC)
-        return now >= self.period_end
+        now = ensure_aware_utc(now or datetime.now(UTC))
+        return now >= ensure_aware_utc(self.period_end)

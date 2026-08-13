@@ -96,6 +96,33 @@ class TestPlanClaimsSync:
         assert policy.period_end > now
 
 
+class TestPeriodComparison:
+    async def test_legacy_naive_period_end_does_not_raise(self):
+        """Stored policies from older code paths carry naive UTC datetimes;
+        period comparison must treat them as UTC instead of raising."""
+        now = datetime.now(UTC)
+        legacy = make_plan()
+        legacy.period_start = (now - timedelta(days=5)).replace(tzinfo=None)
+        legacy.period_end = (now + timedelta(days=25)).replace(tzinfo=None)
+        repo = stub_repo(legacy)
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.resolve("store_a")
+        assert policy.period_expired() is False
+
+    async def test_legacy_naive_expired_period_rolls(self):
+        now = datetime.now(UTC)
+        legacy = make_plan(billing_period="bp-naive-old")
+        legacy.period_start = (now - timedelta(days=40)).replace(tzinfo=None)
+        legacy.period_end = (now - timedelta(days=10)).replace(tzinfo=None)
+        repo = stub_repo(legacy)
+        service = PlanPolicyService(repo, redis_client=None)
+
+        policy = await service.resolve("store_a")
+        assert policy.billing_period != "bp-naive-old"
+        assert policy.period_end > now
+
+
 class TestConsumerLimit:
     async def test_store_owner_limit_within_plan_max(self):
         repo = stub_repo(make_plan(consumer_max=15))
