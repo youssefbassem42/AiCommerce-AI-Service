@@ -4,6 +4,7 @@ from typing import Any
 from app.agents.bundle.state import BundleState
 from app.agents.bundle.tools import (
     build_bundle_response,
+    expand_use_case,
     find_candidates,
     get_or_create_promo,
     knapsack_bundles,
@@ -19,10 +20,13 @@ logger = logging.getLogger(__name__)
 
 async def parse_budget_node(state: BundleState, llm: BaseLLMProvider) -> dict[str, Any]:
     try:
-        budget, desired_items = await parse_budget(state["user_query"], llm=llm)
+        budget, desired_items, use_case = await parse_budget(state["user_query"], llm=llm)
+        if not desired_items and use_case:
+            desired_items = expand_use_case(use_case)
         return {
             "budget": budget,
             "desired_items": desired_items,
+            "use_case": use_case,
             "budget_parsed": True,
             "error": None,
         }
@@ -31,6 +35,7 @@ async def parse_budget_node(state: BundleState, llm: BaseLLMProvider) -> dict[st
         return {
             "budget": None,
             "desired_items": [],
+            "use_case": None,
             "budget_parsed": False,
             "error": f"Failed to parse budget: {exc}",
         }
@@ -59,7 +64,7 @@ async def compute_bundles_node(state: BundleState) -> dict[str, Any]:
     candidates = state.get("candidates_by_type", {})
     budget = state.get("budget")
 
-    if not candidates or budget is None or budget <= 0:
+    if not candidates:
         return {"bundles": []}
 
     try:
@@ -91,6 +96,14 @@ async def handle_promo_node(
     if not selected:
         return {"promo_code": None}
 
+    best = selected[0]
+    if best.total_original <= 0 or best.total_discount <= 0:
+        logger.info(
+            "Bundle %s fits the budget at normal price; no promo code needed.",
+            state["store_id"],
+        )
+        return {"promo_code": None}
+
     product_ids: list[str] = []
     for bundle in selected:
         for p in bundle.products:
@@ -114,12 +127,11 @@ async def handle_promo_node(
 
 
 async def format_bundle_response_node(state: BundleState) -> dict[str, Any]:
-    budget = state.get("budget") or 0.0
     response = build_bundle_response(
         query=state.get("user_query", ""),
         store_id=state.get("store_id", ""),
         customer_id=state.get("customer_id"),
-        budget=budget,
+        budget=state.get("budget"),
         selected=state.get("selected", []),
         promo_code=state.get("promo_code"),
     )

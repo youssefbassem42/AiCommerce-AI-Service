@@ -153,8 +153,9 @@ async def list_documents(
 async def get_document(
     document_id: str,
     service: KnowledgeDocumentService = Depends(get_knowledge_document_service),
+    store_id: str = Depends(get_current_store_id),
 ) -> KnowledgeDocumentResponseSchema:
-    result = await service.get_by_id(document_id)
+    result = await service.get_by_id(document_id, owner_store_id=store_id)
     return KnowledgeDocumentResponseSchema(**result.model_dump())
 
 

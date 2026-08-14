@@ -137,6 +137,7 @@ class BundleSuggestionAgent:
             "customer_id": customer_id,
             "budget": None,
             "desired_items": [],
+            "use_case": None,
             "budget_parsed": False,
             "candidates_by_type": {},
             "bundles": [],

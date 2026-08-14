@@ -58,6 +58,7 @@ markers = [
     "unit: Unit tests (fast, no external dependencies)",
     "integration: Integration tests (require MongoDB/Redis)",
     "e2e: End-to-end tests (full system)",
+    "eval: AI evaluation scenarios against a real LLM (Phase 10)",
     "slow: Tests that take more than 5 seconds",
 ]
 timeout = 60

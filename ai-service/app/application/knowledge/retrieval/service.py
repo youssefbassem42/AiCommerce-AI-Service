@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from typing import Any, Optional
 
@@ -14,6 +15,32 @@ from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.vectorstore.base import SearchResult, VectorStore
 
 logger = logging.getLogger(__name__)
+
+_KEYWORD_STOPWORDS = frozenset(
+    {
+        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+        "do", "does", "did", "will", "would", "can", "could", "should",
+        "what", "which", "who", "whom", "whose", "when", "where", "why", "how",
+        "of", "to", "in", "on", "at", "by", "for", "with", "about", "from",
+        "and", "or", "but", "if", "then", "than", "so", "as", "i", "you", "he",
+        "she", "it", "we", "they", "me", "him", "her", "us", "them", "my",
+        "your", "his", "its", "our", "their", "this", "that", "these", "those",
+        "please", "want", "like", "need", "get", "tell", "know", "give", "show",
+        "there", "here", "has", "have", "had", "not", "no", "yes",
+    }
+)
+_KEYWORD_MAX_TERMS = 8
+
+
+def _keyword_terms(query_text: str) -> list[str]:
+    """Tokenize a query into keyword terms for full-text matching.
+
+    Stopwords are dropped so "what is your return policy?" reduces to
+    ['return', 'policy'] — the terms that actually identify the document.
+    """
+    tokens = re.findall(r"[a-z0-9]+", query_text.lower())
+    terms = [t for t in tokens if len(t) >= 2 and t not in _KEYWORD_STOPWORDS]
+    return terms[:_KEYWORD_MAX_TERMS]
 
 
 class RetrieverService:
@@ -171,7 +198,7 @@ class RetrieverService:
             vector=query_embedding,
             limit=limit,
             must=must,
-            score_threshold=0.0,
+            score_threshold=cfg.score_threshold if cfg.score_threshold > 0 else None,
         )
         semantic_dtos = self._to_dtos(semantic_raw)
         for dto in semantic_dtos:
@@ -201,16 +228,26 @@ class RetrieverService:
             logger.warning("Keyword search requires QdrantProvider, falling back to semantic")
             return []
 
+        terms = _keyword_terms(query_text)
+        if not terms:
+            return []
+
         client = self._vector_store._client
         if client is None:
             return []
 
+        # Full-text match on the content field: a document matches when ANY
+        # query term appears (OR semantics via `should`). Matching the raw
+        # query as one phrase would miss "return policy" documents for
+        # "what is your return policy?" — term-level matching fixes recall.
         scroll_filter = qdrant_models.Filter(
-            must=[
+            must=[],
+            should=[
                 qdrant_models.FieldCondition(
                     key="content",
-                    match=qdrant_models.MatchText(text=query_text),
-                ),
+                    match=qdrant_models.MatchText(text=term),
+                )
+                for term in terms
             ],
         )
         if must:
@@ -219,6 +256,8 @@ class RetrieverService:
             parsed = _build_filter(must=must)
             if parsed and parsed.must:
                 scroll_filter.must.extend(parsed.must)
+        if not scroll_filter.must:
+            scroll_filter.must = None
 
         try:
             points, _ = client.scroll(
@@ -327,6 +366,10 @@ class RetrieverService:
             conditions.append({"key": "organization_id", "op": "eq", "value": filters.organization_id})
         if filters.store_id:
             conditions.append({"key": "store_id", "op": "eq", "value": filters.store_id})
+        if filters.entity_type:
+            conditions.append({"key": "entity_type", "op": "eq", "value": filters.entity_type})
+        if filters.entity_types:
+            conditions.append({"key": "entity_type", "op": "any", "value": filters.entity_types})
         if filters.language:
             conditions.append({"key": "language", "op": "eq", "value": filters.language})
         if filters.document_type:

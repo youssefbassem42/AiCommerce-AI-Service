@@ -73,3 +73,61 @@ class TestRecommendationService:
             store_id="store_1",
         )
         assert result.total_count == 0
+
+    async def test_recommend_passes_shopping_state_from_context(self, service, retriever, llm):
+        """The coordinator's context must carry the recalled state to the search (Fix 3.5)."""
+        llm.structured_output.return_value.message.content = (
+            '{"product_type": null, "use_case": null, "required_specs": [], '
+            '"max_budget": null, "min_quality": null, "hidden_needs": []}'
+        )
+        await service.recommend(
+            query="Programming",
+            store_id="store_1",
+            context={
+                "conversation": {
+                    "shopping_state": {
+                        "intent": "product_recommendation",
+                        "category": "laptop",
+                        "budget": 800,
+                        "currency": "USD",
+                        "color": None,
+                        "size": None,
+                        "brand": None,
+                        "use_case": "programming",
+                    }
+                },
+                "memory": {},
+            },
+        )
+
+        search_query = retriever.search.await_args.kwargs["query"]
+        assert "laptop" in search_query
+        assert "programming" in search_query
+
+    async def test_recommend_reads_state_from_recalled_memory_entries(self, service, retriever, llm):
+        llm.structured_output.return_value.message.content = (
+            '{"product_type": null, "use_case": null, "required_specs": [], '
+            '"max_budget": null, "min_quality": null, "hidden_needs": []}'
+        )
+        await service.recommend(
+            query="Programming",
+            store_id="store_1",
+            context={
+                "conversation": {},
+                "memory": {
+                    "recall_source": "merged",
+                    "entries": {
+                        "shopping_state": {
+                            "intent": "product_recommendation",
+                            "category": "laptop",
+                            "budget": 800,
+                            "use_case": "programming",
+                        }
+                    },
+                },
+            },
+        )
+
+        search_query = retriever.search.await_args.kwargs["query"]
+        assert "laptop" in search_query
+        assert "programming" in search_query

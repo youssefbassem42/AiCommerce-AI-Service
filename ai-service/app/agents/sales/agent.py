@@ -121,6 +121,7 @@ class SalesAgent:
         history: list[dict[str, Any]] | None = None,
         conversation_id: str | None = None,
         store_capabilities: dict[str, bool] | None = None,
+        context: dict[str, Any] | None = None,
     ) -> SalesResponse:
         start = time.perf_counter()
 
@@ -139,6 +140,7 @@ class SalesAgent:
             "checkout_note": None,
             "clarifying_question": None,
             "store_capabilities": store_capabilities or {},
+            "context": context or {},
             "response": None,
             "error": None,
         }

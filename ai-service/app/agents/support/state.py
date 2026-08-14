@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from app.application.ticket.dto.support_dto import SupportResponse
 
@@ -12,6 +12,10 @@ class SupportState(TypedDict):
     verified: bool
     customer: object | None
     issue_category: str | None
+    topic: NotRequired[str | None]
+    verified_facts: NotRequired[list[dict[str, Any]]]
+    product: NotRequired[dict[str, Any] | None]
+    product_matches: NotRequired[list[dict[str, Any]]]
     order: object | None
     order_matches: list[object]
     resolution_steps: list[str]
@@ -25,3 +29,6 @@ class SupportState(TypedDict):
     satisfaction_question: str | None
     response: SupportResponse | None
     error: str | None
+    memory: NotRequired[dict[str, Any]]
+    customer_profile: NotRequired[dict[str, Any] | None]
+    context: NotRequired[dict[str, Any] | None]

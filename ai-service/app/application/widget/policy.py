@@ -39,10 +39,10 @@ class WidgetServerPolicy:
     temperature_max: float = 1.0
     max_tokens_max: int = 1024
     top_k_max: int = 10
-    score_threshold_min: float = 0.0
-    hybrid_allowed: bool = False
-    mmr_allowed: bool = False
-    rerank_allowed: bool = False
+    score_threshold_min: float = 0.25
+    hybrid_allowed: bool = True
+    mmr_allowed: bool = True
+    rerank_allowed: bool = True
     allowed_knowledge_scopes: tuple[str, ...] = field(default_factory=tuple)
 
 

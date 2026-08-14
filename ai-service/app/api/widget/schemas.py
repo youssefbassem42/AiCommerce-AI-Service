@@ -30,12 +30,13 @@ class WidgetChatRequestSchema(BaseModel):
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     max_tokens: int | None = Field(default=None, ge=64, le=8192)
     top_k: int = Field(default=5, ge=1, le=50)
-    score_threshold: float = Field(default=0.0, ge=0.0, le=1.0)
+    score_threshold: float = Field(default=0.25, ge=0.0, le=1.0)
     use_hybrid: bool = False
     use_mmr: bool = False
     rerank: bool = False
     language: str | None = None
     knowledge_scope: str | None = None
+    message_id: str | None = None
 
 
 class WidgetChatResponseSchema(BaseModel):
@@ -53,6 +54,8 @@ class WidgetChatResponseSchema(BaseModel):
     products: list[dict] = Field(default_factory=list)
     product: dict | None = None
     bundle: dict | None = None
+    message_id: str | None = None
+    request_id: str | None = None
     reference: str | None = None
 
 
@@ -69,6 +72,28 @@ class WidgetRecommendationResponseSchema(BaseModel):
     total_count: int = 0
     latency_ms: float = 0.0
     customer_id: str | None = None
+    type: str = "recommendation"
+    budget: float | None = None
+    discount_available: bool = False
+    discount: float = 0.0
+    final_price: float | None = None
+
+
+class WidgetBundleEventRequestSchema(BaseModel):
+    """Bundle funnel analytics event from the widget (Fix 5.6)."""
+
+    event: Literal["bundle_clicked", "promo_copied", "promo_applied"]
+    bundle_key: str | None = None
+    product_ids: list[str] = Field(default_factory=list)
+    promo_code: str | None = None
+    discount_pct: float | None = None
+    conversation_id: str | None = None
+    customer_id: str | None = None
+
+
+class WidgetBundleEventResponseSchema(BaseModel):
+    event: str
+    recorded: bool
 
 
 class WidgetInstallationCreateRequestSchema(BaseModel):

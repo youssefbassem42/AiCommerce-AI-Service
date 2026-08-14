@@ -16,6 +16,7 @@ from app.application.dto.ai_dto import (
     ToolCallDTO,
     UsageDTO,
 )
+from app.core.ai_exceptions import ProviderCredentialsError
 from app.core.ai_settings import ai_settings
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.security.key_manager import KeyManager
@@ -35,8 +36,17 @@ class AzureOpenAIProvider(BaseLLMProvider):
     def __init__(
         self, api_key: str | None = None, azure_endpoint: str | None = None, azure_deployment: str | None = None
     ):
-        self.api_key = api_key or KeyManager().get_provider_api_key("azure", env_var="AZURE_OPENAI_KEY") or "mock-key"
-        self.endpoint = azure_endpoint or ai_settings.AZURE_ENDPOINT or "https://mock-endpoint.openai.azure.com/"
+        key_manager = KeyManager()
+        self.api_key = api_key or key_manager.require_provider_api_key(
+            "azure", env_var="AZURE_OPENAI_KEY", extra_hint="AZURE_ENDPOINT and AZURE_DEPLOYMENT must also be set."
+        )
+        self.endpoint = azure_endpoint or ai_settings.AZURE_ENDPOINT or ""
+        if not self.endpoint or "mock-endpoint" in self.endpoint:
+            raise ProviderCredentialsError(
+                "azure",
+                "AZURE_ENDPOINT",
+                extra_hint="Set AZURE_ENDPOINT to the real Azure OpenAI resource URL.",
+            )
         self.deployment = azure_deployment or ai_settings.AZURE_DEPLOYMENT
 
         # Initialize the AsyncAzureOpenAI client

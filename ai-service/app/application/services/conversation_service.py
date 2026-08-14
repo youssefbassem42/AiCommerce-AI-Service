@@ -23,8 +23,12 @@ class ConversationService:
     ) -> dict[str, Any]:
         """
         Retrieves or creates a conversation.
+
+        When `store_id` is provided, an existing store-tagged conversation is
+        only reused when it belongs to that store; otherwise a new one is created
+        (Phase 9: no cross-store conversation reuse).
         """
-        conv = await self.repository.get_conversation(conversation_id)
+        conv = await self.repository.get_conversation(conversation_id, store_id=store_id)
         if not conv:
             conv = await self.repository.create_conversation(
                 conversation_id, provider, model, metadata, store_id=store_id

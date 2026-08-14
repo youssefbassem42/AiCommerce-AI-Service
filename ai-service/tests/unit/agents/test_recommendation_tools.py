@@ -1,4 +1,5 @@
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from app.agents.recommendation.tools import (
@@ -30,7 +31,8 @@ class TestParseIntent:
         assert intent.product_type == "laptop"
         assert intent.use_case == "gaming"
         assert intent.max_budget == 1500.0
-        assert intent.required_specs == [{"ram": ">= 16GB"}]
+        assert intent.required_specs == [{"name": "ram", "value": ">= 16GB"}]
+        assert intent.attributes == {"ram": ">= 16GB"}
         assert intent.hidden_needs == ["high refresh rate", "dedicated GPU"]
 
     async def test_parse_intent_minimal(self, mock_provider):
@@ -62,6 +64,45 @@ class TestSearchSpecVectors:
 
         results = await search_spec_vectors(intent, retriever, "store_1")
         assert results == []
+
+    async def test_search_requests_entity_type_product(self):
+        intent = RecommendationIntent(product_type="laptop")
+        retriever = AsyncMock()
+        retriever.search.return_value.results = []
+
+        await search_spec_vectors(intent, retriever, "store_1")
+
+        kwargs = retriever.search.call_args.kwargs
+        filters = kwargs["filters"]
+        assert filters.store_id == "store_1"
+        assert filters.entity_type == "product"
+
+    async def test_search_skips_non_product_payloads(self):
+        intent = RecommendationIntent(product_type="laptop")
+        retriever = AsyncMock()
+        retriever.search.return_value.results = [
+            SimpleNamespace(
+                chunk_id="faq-1",
+                score=0.9,
+                metadata={"entity_type": "knowledge", "content": "What is a laptop?"},
+            ),
+            SimpleNamespace(
+                chunk_id="prod-1",
+                score=0.8,
+                metadata={
+                    "entity_type": "product",
+                    "product_id": "prod-1",
+                    "product_title": "Laptop X",
+                    "price": 499.0,
+                    "content": "Laptop X specs",
+                },
+            ),
+        ]
+
+        results = await search_spec_vectors(intent, retriever, "store_1")
+
+        assert len(results) == 1
+        assert results[0].product_id == "prod-1"
 
 
 class TestFilterInventory:
@@ -100,6 +141,65 @@ class TestFilterInventory:
         assert len(filtered) == 1
         assert filtered[0].product_id == "p2"
 
+    async def test_discards_candidate_without_catalog_product(self):
+        repo = AsyncMock()
+        repo.find_by_id.return_value = None
+        candidates = [
+            ScoredProduct(product_id="ghost-1", title="FAQ chunk", store_id="s1", price=Decimal("0")),
+        ]
+
+        filtered = await filter_inventory(candidates, repo)
+
+        assert filtered == []
+
+    async def test_discards_candidate_when_lookup_fails(self):
+        repo = AsyncMock()
+        repo.find_by_id.side_effect = RuntimeError("db down")
+        candidates = [ScoredProduct(product_id="p1", title="P1", store_id="s1")]
+
+        filtered = await filter_inventory(candidates, repo)
+
+        assert filtered == []
+
+    async def test_discards_product_without_real_price(self):
+        repo = AsyncMock()
+        repo.find_by_id.return_value = Product(
+            id="p1",
+            store_id="s1",
+            organization_id="o1",
+            title="No price",
+            variants=[],
+        )
+        candidates = [
+            ScoredProduct(product_id="p1", title="No price", store_id="s1", price=Decimal("0")),
+        ]
+
+        filtered = await filter_inventory(candidates, repo)
+
+        assert filtered == []
+
+    async def test_enriches_price_from_catalog(self):
+        repo = AsyncMock()
+        repo.find_by_id.return_value = Product(
+            id="p1",
+            store_id="s1",
+            organization_id="o1",
+            title="Laptop",
+            variants=[
+                Variant(id="v1", sku="S1", title="V1", price=Money(amount=Decimal("499"), currency="USD")),
+            ],
+        )
+        repo.find_by_id.return_value.variants[0].inventory_quantity = 3
+        candidates = [
+            ScoredProduct(product_id="p1", title="Stale payload title", store_id="s1", price=Decimal("0")),
+        ]
+
+        filtered = await filter_inventory(candidates, repo)
+
+        assert len(filtered) == 1
+        assert filtered[0].price == Decimal("499")
+        assert filtered[0].title == "Laptop"
+
 
 class TestApplyBudgetFilter:
     async def test_no_budget_returns_all(self):
@@ -134,6 +234,34 @@ class TestApplyBudgetFilter:
         result = await apply_budget_filter(candidates, 500.0, repo)
         assert len(result) == 1
         assert result[0].product_id == "p2"
+
+    async def test_budget_uses_catalog_price_not_payload_price(self):
+        repo = AsyncMock()
+        repo.find_by_id.return_value = Product(
+            id="p1",
+            store_id="s1",
+            organization_id="o1",
+            title="P1",
+            variants=[Variant(id="v1", sku="S1", title="V1", price=Money(amount=Decimal("600")))],
+        )
+        candidates = [
+            ScoredProduct(product_id="p1", title="P1", store_id="s1", price=Decimal("10")),
+        ]
+
+        result = await apply_budget_filter(candidates, 500.0, repo)
+
+        assert result == []
+
+    async def test_discards_zero_price_candidate(self):
+        repo = AsyncMock()
+        repo.find_by_id.return_value = None
+        candidates = [
+            ScoredProduct(product_id="ghost-1", title="P1", store_id="s1", price=Decimal("0")),
+        ]
+
+        result = await apply_budget_filter(candidates, 500.0, repo)
+
+        assert result == []
 
 
 class TestBuildProductCards:

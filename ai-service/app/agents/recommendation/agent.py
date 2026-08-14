@@ -8,6 +8,7 @@ from app.agents.recommendation.nodes import (
     filter_inventory_node,
     format_response_node,
     parse_intent_node,
+    rank_candidates_node,
     search_candidates_node,
 )
 from app.agents.recommendation.state import RecommendationState
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def route_after_intent(state: RecommendationState) -> str:
-    if state.get("error") or state.get("intent") is None:
+    if state.get("error") or state.get("intent") is None or state.get("clarifying_question"):
         return "format_response"
     return "search_candidates"
 
@@ -32,6 +33,12 @@ def route_after_search(state: RecommendationState) -> str:
 
 
 def route_after_filter(state: RecommendationState) -> str:
+    if not state.get("filtered"):
+        return "format_response"
+    return "rank_candidates"
+
+
+def route_after_rank(state: RecommendationState) -> str:
     return "format_response"
 
 
@@ -53,6 +60,7 @@ class RecommendationAgent:
         workflow.add_node("parse_intent", self._wrap(parse_intent_node))
         workflow.add_node("search_candidates", self._wrap(search_candidates_node))
         workflow.add_node("filter_inventory", self._wrap(filter_inventory_node))
+        workflow.add_node("rank_candidates", self._wrap(rank_candidates_node))
         workflow.add_node("format_response", self._wrap(format_response_node))
 
         workflow.set_entry_point("parse_intent")
@@ -70,6 +78,11 @@ class RecommendationAgent:
         workflow.add_conditional_edges(
             "filter_inventory",
             route_after_filter,
+            {"rank_candidates": "rank_candidates", "format_response": "format_response"},
+        )
+        workflow.add_conditional_edges(
+            "rank_candidates",
+            route_after_rank,
             {"format_response": "format_response"},
         )
         workflow.add_edge("format_response", END)
@@ -83,8 +96,11 @@ class RecommendationAgent:
                 extra["llm"] = self._llm
             elif node_fn == search_candidates_node:
                 extra["retriever_service"] = self._retriever_service
+                extra["product_repo"] = self._product_repo
             elif node_fn == filter_inventory_node:
                 extra["product_repo"] = self._product_repo
+            elif node_fn == format_response_node:
+                extra["llm"] = self._llm
             return await node_fn(state, **extra)
 
         return wrapped
@@ -94,6 +110,7 @@ class RecommendationAgent:
         query: str,
         store_id: str,
         customer_id: str | None = None,
+        shopping_state: dict[str, Any] | None = None,
     ) -> RecommendationResponse:
         start = time.perf_counter()
 
@@ -101,9 +118,12 @@ class RecommendationAgent:
             "user_query": query,
             "store_id": store_id,
             "customer_id": customer_id,
+            "shopping_state": shopping_state,
             "intent": None,
             "candidates": [],
             "filtered": [],
+            "ranked": [],
+            "clarifying_question": None,
             "response": None,
             "error": None,
         }

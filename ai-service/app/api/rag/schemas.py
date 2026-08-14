@@ -37,9 +37,9 @@ class RAGChatRequestSchema(BaseModel):
     max_tokens: int | None = Field(default=None, ge=64, le=8192)
 
     top_k: int = Field(default=5, ge=1, le=50)
-    score_threshold: float = Field(default=0.0, ge=0.0, le=1.0)
-    use_hybrid: bool = False
-    use_mmr: bool = False
+    score_threshold: float = Field(default=0.25, ge=0.0, le=1.0)
+    use_hybrid: bool = True
+    use_mmr: bool = True
     rerank: bool = False
     language: str | None = None
     knowledge_scope: str | None = None

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from app.application.dto.ai_dto import ChatRequest as AIChatRequest
 from app.application.dto.ai_dto import MessageDTO, UsageDTO
+from app.application.escalation.decision import detect_human_request
 from app.application.knowledge.retrieval import RetrieverService
 from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
 from app.application.rag.dedup import deduplicate_chunks
@@ -322,29 +323,7 @@ class RagOrchestrationService:
         if response.confidence_score >= ESCALATION_CONFIDENCE_THRESHOLD:
             return
 
-        user_requested_human = any(
-            keyword in request.message.lower()
-            for keyword in [
-                "talk to a human",
-                "talk to human",
-                "speak to human",
-                "speak to a human",
-                "human support",
-                "real person",
-                "talk to support",
-                "contact support",
-                "create a ticket",
-                "create ticket",
-                "open a ticket",
-                "open ticket",
-                "raise a ticket",
-                "raise ticket",
-                "escalate",
-                "i want to speak",
-                "connect me to",
-                "transfer me",
-            ]
-        )
+        user_requested_human = detect_human_request(request.message)
 
         if not user_requested_human:
             logger.info(

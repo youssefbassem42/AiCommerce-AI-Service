@@ -46,6 +46,8 @@ class OrchestrationService:
         ticket_service: TicketService | None = None,
         notification_service: TicketNotificationService | None = None,
         promo_service: PromoCodeService | None = None,
+        retriever_service: Any | None = None,
+        product_repo: Any | None = None,
     ):
         self._provider_factory = provider_factory
         self._conversation_service = conversation_service
@@ -57,6 +59,8 @@ class OrchestrationService:
         self._ticket_service = ticket_service
         self._notification_service = notification_service
         self._promo_service = promo_service
+        self._retriever_service = retriever_service
+        self._product_repo = product_repo
         self._llm = llm or LLMProviderFactory().get_provider("openrouter")
         self._workflow: ConversationWorkflow | None = None
 
@@ -106,6 +110,8 @@ class OrchestrationService:
             order_repo=self._order_repo,
             ticket_service=self._ticket_service,
             escalation_agent=escalation_agent,
+            retriever_service=self._retriever_service,
+            product_repo=self._product_repo,
         )
         sub_agents["support"] = support_agent.run
         sub_agents["escalation"] = escalation_agent.run
@@ -126,6 +132,7 @@ class OrchestrationService:
             llm=self._llm,
             sub_agents=sub_agents,
             memory_agent=memory_agent,
+            escalation_agent=escalation_agent,
         )
 
     async def chat(
@@ -136,6 +143,7 @@ class OrchestrationService:
         conversation_id: str | None = None,
         history: list[dict[str, Any]] | None = None,
         metadata: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
     ) -> ChatResponse:
         """Run a chat turn through the coordinator + conversation workflow."""
         return await self.workflow.run(
@@ -145,4 +153,5 @@ class OrchestrationService:
             conversation_id=conversation_id,
             history=history,
             metadata=metadata,
+            context=context,
         )

@@ -6,7 +6,7 @@ from app.application.knowledge.retrieval.config import RetrievalConfig, Retrieva
 from app.application.knowledge.retrieval.dto import RetrievedChunkDTO, UnifiedRetrievalResult
 from app.application.knowledge.retrieval.mmr import _cosine_similarity, mmr_rerank
 from app.application.knowledge.retrieval.reranker import LLMCrossEncoderReRanker
-from app.application.knowledge.retrieval.service import RetrieverService
+from app.application.knowledge.retrieval.service import RetrieverService, _keyword_terms
 from app.infrastructure.vectorstore.base import SearchResult
 
 # ---------- DTO tests ----------
@@ -16,7 +16,7 @@ class TestRetrievalConfig:
     def test_defaults(self):
         cfg = RetrievalConfig()
         assert cfg.top_k == 10
-        assert cfg.score_threshold == 0.0
+        assert cfg.score_threshold == 0.25
         assert cfg.use_hybrid is False
         assert cfg.use_mmr is False
         assert cfg.mmr_lambda == 0.7
@@ -38,6 +38,7 @@ class TestRetrievalFilters:
         f = RetrievalFilters()
         assert f.organization_id is None
         assert f.store_id is None
+        assert f.entity_type is None
         assert f.language is None
         assert f.document_type is None
         assert f.knowledge_scope is None
@@ -48,6 +49,7 @@ class TestRetrievalFilters:
         f = RetrievalFilters(
             organization_id="org-1",
             store_id="store-1",
+            entity_type="product",
             language="en",
             document_type="pdf",
             knowledge_scope="legal",
@@ -55,6 +57,7 @@ class TestRetrievalFilters:
             chunk_ids=["chunk-1", "chunk-2"],
         )
         assert f.organization_id == "org-1"
+        assert f.entity_type == "product"
 
 
 class TestRetrievedChunkDTO:
@@ -376,6 +379,7 @@ class TestRetrieverServiceFilters:
         filters = RetrievalFilters(
             organization_id="org-1",
             store_id="store-1",
+            entity_type="product",
             language="en",
             document_type="pdf",
             knowledge_scope="legal",
@@ -386,6 +390,20 @@ class TestRetrieverServiceFilters:
 
         assert result.filters_applied["organization_id"] == "org-1"
         assert result.filters_applied["store_id"] == "store-1"
+        must = mock_vector_store.search.call_args.kwargs["must"]
+        assert {"key": "entity_type", "op": "eq", "value": "product"} in must
+
+    @pytest.mark.asyncio
+    async def test_build_filter_conditions_entity_type_omitted_when_not_set(
+        self, retriever, mock_vector_store, mock_llm_provider
+    ):
+        mock_llm_provider.embeddings.return_value = MagicMock(embeddings=[[0.1]])
+        mock_vector_store.search.return_value = []
+
+        await retriever.search(query="test", filters=RetrievalFilters(store_id="store-1"))
+
+        must = mock_vector_store.search.call_args.kwargs["must"]
+        assert all(c.get("key") != "entity_type" for c in must)
 
 
 class TestRetrieverServiceHybrid:
@@ -418,6 +436,47 @@ class TestRetrieverServiceHybrid:
 
             assert len(result.results) >= 1
             assert result.strategy == "hybrid"
+
+    @pytest.mark.asyncio
+    async def test_hybrid_semantic_search_uses_config_score_threshold(self, retriever, mock_vector_store, mock_llm_provider):
+        mock_llm_provider.embeddings.return_value = MagicMock(embeddings=[[0.1, 0.2]])
+        mock_vector_store.search.return_value = [make_search_result("c1", 0.9)]
+
+        with patch.object(retriever, "_keyword_search", AsyncMock(return_value=[])):
+            await retriever.search(
+                query="test",
+                config=RetrievalConfig(top_k=5, use_hybrid=True, score_threshold=0.42),
+            )
+
+        search_kwargs = mock_vector_store.search.await_args.kwargs
+        assert search_kwargs["score_threshold"] == 0.42
+
+    @pytest.mark.asyncio
+    async def test_hybrid_semantic_search_never_uses_zero_threshold_when_configured(
+        self, retriever, mock_vector_store, mock_llm_provider
+    ):
+        mock_llm_provider.embeddings.return_value = MagicMock(embeddings=[[0.1, 0.2]])
+        mock_vector_store.search.return_value = [make_search_result("c1", 0.9)]
+
+        with patch.object(retriever, "_keyword_search", AsyncMock(return_value=[])):
+            await retriever.search(query="test", config=RetrievalConfig(top_k=5, use_hybrid=True))
+
+        search_kwargs = mock_vector_store.search.await_args.kwargs
+        assert search_kwargs["score_threshold"] == 0.25
+
+
+class TestKeywordTerms:
+    def test_drops_stopwords(self):
+        assert _keyword_terms("What is your return policy?") == ["return", "policy"]
+
+    def test_keeps_product_terms(self):
+        assert _keyword_terms("I want a laptop with 16GB RAM") == ["laptop", "16gb", "ram"]
+
+    def test_empty_query(self):
+        assert _keyword_terms("what is the") == []
+
+    def test_caps_term_count(self):
+        assert len(_keyword_terms("one two three four five six seven eight nine ten")) == 8
 
 
 class TestRetrieverServiceMMR:

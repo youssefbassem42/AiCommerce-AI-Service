@@ -32,7 +32,8 @@ class OpenAIProvider(BaseLLMProvider):
     """
 
     def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or KeyManager().get_provider_api_key("openai") or "mock-key"
+        key_manager = KeyManager()
+        self.api_key = api_key or key_manager.require_provider_api_key("openai")
         # Async OpenAI client
         self.client = AsyncOpenAI(
             api_key=self.api_key,

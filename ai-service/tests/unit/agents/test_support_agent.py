@@ -132,7 +132,9 @@ class TestSupportAgent:
         assert response.verified is True
         assert response.issue_category is not None
 
-    async def test_run_unverified_customer_escalates(self, llm, order_repo, ticket_service, escalation_agent):
+    async def test_run_unverified_customer_gets_resolution_attempt_not_escalation(
+        self, llm, order_repo, ticket_service, escalation_agent
+    ):
         customer_repo = AsyncMock()
         customer_repo.find_by_id.return_value = None
         agent = SupportAgent(
@@ -147,9 +149,31 @@ class TestSupportAgent:
             store_id="store_1",
             customer_id="cust_1",
         )
-        assert response.escalation_needed is True
         assert response.verified is False
-        assert escalation_agent.run.await_count >= 0
+        assert response.escalation_needed is False
+        assert response.rationale is not None
+
+    async def test_run_anonymous_customer_does_not_escalate(self, llm, order_repo, ticket_service, escalation_agent):
+        customer_repo = AsyncMock()
+        customer_repo.find_by_id.return_value = None
+        agent = SupportAgent(
+            llm=llm,
+            customer_repo=customer_repo,
+            order_repo=order_repo,
+            ticket_service=ticket_service,
+            escalation_agent=escalation_agent,
+        )
+        response = await agent.run(
+            query="What's your return policy?",
+            store_id="store_1",
+            customer_id=None,
+            context={
+                "knowledge_context": [
+                    {"document_title": "Return Policy", "content": "Returns are accepted within 14 days.", "metadata": {}}
+                ]
+            },
+        )
+        assert response.escalation_needed is False
 
     async def test_run_order_status_resolved_without_escalation(self, agent):
         response = await agent.run(

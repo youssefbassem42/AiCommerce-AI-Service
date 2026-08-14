@@ -81,6 +81,7 @@ class EscalationAgent:
         customer_id: str | None = None,
         history: list[dict[str, Any]] | None = None,
         conversation_id: str | None = None,
+        context: dict[str, Any] | None = None,  # noqa: ARG002 - uniform sub-agent runner contract
         original_agent: str | None = None,
         reason: str | None = None,
         ticket_id: str | None = None,

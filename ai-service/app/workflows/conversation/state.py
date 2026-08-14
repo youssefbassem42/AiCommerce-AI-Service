@@ -1,4 +1,4 @@
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 
 class ConversationWorkflowState(TypedDict, total=False):
@@ -14,5 +14,8 @@ class ConversationWorkflowState(TypedDict, total=False):
     store_id: str | None
     customer_id: str | None
     conversation_id: str | None
+    message_id: NotRequired[str | None]
+    context: NotRequired[dict[str, Any]]
     response: dict[str, Any] | None
     error: str | None
+    escalation: NotRequired[dict[str, Any] | None]

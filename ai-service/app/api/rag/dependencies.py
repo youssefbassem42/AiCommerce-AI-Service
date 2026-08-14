@@ -9,6 +9,7 @@ from app.api.ai.dependencies import (
     get_provider,
     get_provider_factory,
 )
+from app.api.commerce.dependencies import get_product_repository
 from app.api.knowledge.retrieval_dependencies import get_retriever_service
 from app.api.ticket.dependencies import get_notification_service, get_ticket_service
 from app.application.knowledge.retrieval.service import RetrieverService
@@ -19,6 +20,7 @@ from app.application.services.conversation_service import ConversationService
 from app.application.ticket.services.notification_service import TicketNotificationService
 from app.application.ticket.services.ticket_service import TicketService
 from app.domain.commerce.repositories.order_repository import OrderRepository
+from app.domain.commerce.repositories.product_repository import ProductRepository
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
 from app.domain.knowledge.repositories.business_summary_repository import BusinessSummaryRepository
 from app.domain.knowledge.value_objects.tenant_context import TenantContext
@@ -30,8 +32,13 @@ def get_tenant_context(request: Request) -> TenantContext | None:
     """Resolve the authoritative tenant context from the authenticated request.
 
     Returns None in anonymous mode (no token or token without tenant claims);
-    callers then fall back to client-supplied tenant identifiers.
+    callers then fall back to client-supplied tenant identifiers. A token that
+    carries only a partial tenant identity (e.g. org without store) is treated
+    as unbound (None) — callers must reject rather than trust client input.
     """
+    import logging
+
+    logger = logging.getLogger(__name__)
     claims = {
         "organization_id": getattr(request.state, "organization_id", None),
         "store_id": getattr(request.state, "store_id", None),
@@ -39,7 +46,11 @@ def get_tenant_context(request: Request) -> TenantContext | None:
     }
     if not claims["organization_id"] and not claims["store_id"]:
         return None
-    return TenantContextResolver.from_claims(claims)
+    try:
+        return TenantContextResolver.from_claims(claims)
+    except ValueError as exc:
+        logger.warning("Partial tenant claims ignored: %s", exc)
+        return None
 
 
 def get_summary_repository() -> BusinessSummaryRepository:
@@ -66,6 +77,8 @@ def get_support_agent(
     order_repo: OrderRepository = Depends(get_order_repository),
     ticket_service: TicketService = Depends(get_ticket_service),
     escalation_agent: EscalationAgent = Depends(get_escalation_agent),
+    retriever_service: RetrieverService = Depends(get_retriever_service),
+    product_repo: ProductRepository = Depends(get_product_repository),
 ) -> SupportAgent:
     return SupportAgent(
         llm=llm,
@@ -73,6 +86,8 @@ def get_support_agent(
         order_repo=order_repo,
         ticket_service=ticket_service,
         escalation_agent=escalation_agent,
+        retriever_service=retriever_service,
+        product_repo=product_repo,
     )
 
 

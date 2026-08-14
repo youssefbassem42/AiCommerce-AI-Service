@@ -103,6 +103,10 @@ def get_bundle_tracking_collection():
     return get_collection("bundle_tracking")
 
 
+def get_bundle_events_collection():
+    return get_collection("bundle_events")
+
+
 def get_store_capabilities_collection():
     return get_collection("store_capabilities")
 

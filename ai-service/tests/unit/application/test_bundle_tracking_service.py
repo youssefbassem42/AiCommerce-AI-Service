@@ -28,6 +28,13 @@ def mock_tracking():
 
 
 @pytest.fixture
+def mock_events():
+    col = MagicMock()
+    col.insert_one = AsyncMock()
+    return col
+
+
+@pytest.fixture
 def mock_insights():
     col = MagicMock()
     col.find_one = AsyncMock()
@@ -37,11 +44,15 @@ def mock_insights():
 
 
 @pytest.fixture
-def service(mock_tracking, mock_insights):
+def service(mock_tracking, mock_events, mock_insights):
     with (
         patch(
             "app.application.analytics.bundle_tracking_service.get_bundle_tracking_collection",
             return_value=mock_tracking,
+        ),
+        patch(
+            "app.application.analytics.bundle_tracking_service.get_bundle_events_collection",
+            return_value=mock_events,
         ),
         patch(
             "app.application.analytics.bundle_tracking_service.get_dashboard_insights_collection",
@@ -50,6 +61,7 @@ def service(mock_tracking, mock_insights):
     ):
         svc = BundleTrackingService()
         svc._tracking_collection = mock_tracking
+        svc._events_collection = mock_events
         svc._insights_collection = mock_insights
         yield svc
 
@@ -72,6 +84,69 @@ class TestBundleKey:
 
 
 class TestBundleTrackingService:
+    async def test_track_event_records_and_mirrors_counter(self, service, mock_events, mock_tracking):
+        mock_tracking.update_one.return_value.modified_count = 1
+
+        result = await service.track_event(
+            store_id="s1",
+            event="bundle_clicked",
+            customer_id="c1",
+            conversation_id="conv1",
+            product_ids=["p1", "p2"],
+            discount_pct=10.0,
+        )
+
+        assert result["recorded"] is True
+        assert result["event"] == "bundle_clicked"
+        mock_events.insert_one.assert_awaited_once()
+        doc = mock_events.insert_one.await_args.args[0]
+        assert doc["store_id"] == "s1"
+        assert doc["event"] == "bundle_clicked"
+        assert doc["customer_id"] == "c1"
+        assert doc["product_ids"] == ["p1", "p2"]
+        mock_tracking.update_one.assert_awaited_once()
+        update_filter = mock_tracking.update_one.await_args.args[0]
+        update = mock_tracking.update_one.await_args.args[1]
+        assert update_filter == {"store_id": "s1", "bundle_key": doc["bundle_key"]}
+        assert update["$inc"] == {"click_count": 1}
+
+    async def test_track_event_promo_copied(self, service, mock_events, mock_tracking):
+        result = await service.track_event(
+            store_id="s1",
+            event="promo_copied",
+            promo_code="BUNDLE-X",
+            product_ids=["p1"],
+            discount_pct=15.0,
+        )
+        assert result["recorded"] is True
+        doc = mock_events.insert_one.await_args.args[0]
+        assert doc["promo_code"] == "BUNDLE-X"
+        assert mock_tracking.update_one.await_args.args[1]["$inc"] == {"copy_count": 1}
+
+    async def test_track_event_purchase_completed(self, service, mock_events, mock_tracking):
+        result = await service.track_event(
+            store_id="s1",
+            event="purchase_completed",
+            customer_id="c1",
+            metadata={"order_id": "ord_1"},
+        )
+        assert result["recorded"] is True
+        doc = mock_events.insert_one.await_args.args[0]
+        assert doc["metadata"] == {"order_id": "ord_1"}
+        assert mock_tracking.update_one.await_args.args[1]["$inc"] == {"purchase_count": 1}
+
+    async def test_track_event_unknown_event_ignored(self, service, mock_events, mock_tracking):
+        result = await service.track_event(store_id="s1", event="not_a_real_event")
+        assert result["recorded"] is False
+        mock_events.insert_one.assert_not_awaited()
+        mock_tracking.update_one.assert_not_awaited()
+
+    async def test_track_event_deterministic_bundle_key(self, service, mock_events, mock_tracking):
+        await service.track_event(store_id="s1", event="bundle_shown", product_ids=["p2", "p1"], discount_pct=10.0)
+        await service.track_event(store_id="s1", event="bundle_shown", product_ids=["p1", "p2"], discount_pct=10.0)
+        docs = [c.args[0] for c in mock_events.insert_one.await_args_list]
+        assert docs[0]["bundle_key"] == docs[1]["bundle_key"]
+
     async def test_track_copy_event_first_time(self, service, mock_tracking, mock_insights):
         mock_tracking.find_one_and_update.return_value = {
             "_id": "doc_id",

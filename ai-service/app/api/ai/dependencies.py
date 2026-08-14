@@ -1,10 +1,13 @@
 from fastapi import Depends, Request
 
+from app.api.commerce.dependencies import get_product_repository
+from app.api.knowledge.retrieval_dependencies import get_retriever_service
 from app.api.recommendation.dependencies import (
     get_bundle_service,
     get_recommendation_service,
 )
 from app.api.ticket.dependencies import get_notification_service, get_ticket_service
+from app.application.knowledge.retrieval.service import RetrieverService
 from app.application.recommendation.promo_service import PromoCodeService
 from app.application.recommendation.services import BundleSuggestionService, RecommendationService
 from app.application.services.chat_service import ChatService
@@ -17,6 +20,7 @@ from app.domain.customer.repositories.customer_repository import ICustomerReposi
 from app.domain.memory.repositories.memory_repository import MemoryRepository
 from app.infrastructure.mongodb.collections import get_user_memories_collection
 from app.infrastructure.mongodb.repositories.commerce_order_repository import CommerceOrderRepository
+from app.infrastructure.mongodb.repositories.commerce_product_repository import CommerceProductRepository
 from app.infrastructure.mongodb.repositories.customer_repository import CustomerMongoRepository
 from app.infrastructure.mongodb.repositories.memory_repository import MongoMemoryRepository
 from app.infrastructure.providers.base import BaseLLMProvider
@@ -64,6 +68,8 @@ def get_orchestration_service(
     ticket_service: TicketService = Depends(get_ticket_service),
     notification_service: TicketNotificationService = Depends(get_notification_service),
     promo_service: PromoCodeService = Depends(get_promo_service),
+    retriever_service: RetrieverService = Depends(get_retriever_service),
+    product_repo: CommerceProductRepository = Depends(get_product_repository),
 ) -> OrchestrationService:
     return OrchestrationService(
         provider_factory=LLMProviderFactory(),
@@ -76,6 +82,8 @@ def get_orchestration_service(
         ticket_service=ticket_service,
         notification_service=notification_service,
         promo_service=promo_service,
+        retriever_service=retriever_service,
+        product_repo=product_repo,
     )
 
 

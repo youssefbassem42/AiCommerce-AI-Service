@@ -9,15 +9,17 @@ from app.agents.support.nodes import (
     categorize_issue_node,
     collect_feedback_node,
     escalate_if_needed_node,
-    format_support_response_node,
+    generate_response_node,
     handle_refund_node,
     resolve_order_issue_node,
+    retrieve_facts_node,
     verify_customer_node,
 )
 from app.agents.support.state import SupportState
 from app.application.ticket.dto.support_dto import SupportResponse
 from app.application.ticket.services.ticket_service import TicketService
 from app.domain.commerce.repositories.order_repository import OrderRepository
+from app.domain.commerce.repositories.product_repository import ProductRepository
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
 from app.infrastructure.providers.base import BaseLLMProvider
 
@@ -33,13 +35,13 @@ def route_after_verify(state: SupportState) -> str:
 def route_after_categorize(state: SupportState) -> str:
     if state.get("issue_category") in ORDER_CATEGORIES:
         return "resolve_order_issue"
-    return "escalate_if_needed"
+    return "retrieve_facts"
 
 
 def route_after_order(state: SupportState) -> str:
     if state.get("issue_category") == "refund":
         return "handle_refund"
-    return "escalate_if_needed"
+    return "retrieve_facts"
 
 
 def route_after_refund(state: SupportState) -> str:
@@ -51,11 +53,11 @@ def route_after_escalate(state: SupportState) -> str:
 
 
 def route_after_feedback(state: SupportState) -> str:
-    return "format_response"
+    return "generate_response"
 
 
 class SupportAgent:
-    """Conversational support agent: verify, categorize, resolve, escalate, collect feedback."""
+    """Conversational, store-aware support agent: verify, categorize, retrieve facts, resolve, escalate, respond."""
 
     def __init__(
         self,
@@ -64,12 +66,16 @@ class SupportAgent:
         order_repo: OrderRepository | None = None,
         ticket_service: TicketService | None = None,
         escalation_agent: EscalationAgent | None = None,
+        retriever_service: Any | None = None,
+        product_repo: ProductRepository | None = None,
     ):
         self._llm = llm
         self._customer_repo = customer_repo
         self._order_repo = order_repo
         self._ticket_service = ticket_service
         self._escalation_agent = escalation_agent
+        self._retriever_service = retriever_service
+        self._product_repo = product_repo
         self._graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
@@ -77,11 +83,12 @@ class SupportAgent:
 
         workflow.add_node("verify_customer", self._wrap(verify_customer_node))
         workflow.add_node("categorize_issue", self._wrap(categorize_issue_node))
+        workflow.add_node("retrieve_facts", self._wrap(retrieve_facts_node))
         workflow.add_node("resolve_order_issue", self._wrap(resolve_order_issue_node))
         workflow.add_node("handle_refund", self._wrap(handle_refund_node))
         workflow.add_node("escalate_if_needed", self._wrap(escalate_if_needed_node))
         workflow.add_node("collect_feedback", self._wrap(collect_feedback_node))
-        workflow.add_node("format_response", self._wrap(format_support_response_node))
+        workflow.add_node("generate_response", self._wrap(generate_response_node))
 
         workflow.set_entry_point("verify_customer")
 
@@ -93,13 +100,14 @@ class SupportAgent:
         workflow.add_conditional_edges(
             "categorize_issue",
             route_after_categorize,
-            {"resolve_order_issue": "resolve_order_issue", "escalate_if_needed": "escalate_if_needed"},
+            {"resolve_order_issue": "resolve_order_issue", "retrieve_facts": "retrieve_facts"},
         )
         workflow.add_conditional_edges(
             "resolve_order_issue",
             route_after_order,
-            {"handle_refund": "handle_refund", "escalate_if_needed": "escalate_if_needed"},
+            {"handle_refund": "handle_refund", "retrieve_facts": "retrieve_facts"},
         )
+        workflow.add_edge("retrieve_facts", "escalate_if_needed")
         workflow.add_conditional_edges(
             "handle_refund",
             route_after_refund,
@@ -113,9 +121,9 @@ class SupportAgent:
         workflow.add_conditional_edges(
             "collect_feedback",
             route_after_feedback,
-            {"format_response": "format_response"},
+            {"generate_response": "generate_response"},
         )
-        workflow.add_edge("format_response", END)
+        workflow.add_edge("generate_response", END)
 
         return workflow.compile()
 
@@ -126,11 +134,17 @@ class SupportAgent:
                 extra["customer_repo"] = self._customer_repo
             elif node_fn == categorize_issue_node:
                 extra["llm"] = self._llm
+            elif node_fn == retrieve_facts_node:
+                extra["llm"] = self._llm
+                extra["retriever_service"] = self._retriever_service
+                extra["product_repo"] = self._product_repo
             elif node_fn == resolve_order_issue_node:
                 extra["order_repo"] = self._order_repo
             elif node_fn == escalate_if_needed_node:
                 extra["escalation_agent"] = self._escalation_agent
                 extra["ticket_service"] = self._ticket_service
+            elif node_fn == generate_response_node:
+                extra["llm"] = self._llm
             return await node_fn(state, **extra)
 
         return wrapped
@@ -142,8 +156,10 @@ class SupportAgent:
         customer_id: str | None = None,
         history: list[dict[str, Any]] | None = None,
         conversation_id: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> SupportResponse:
         start = time.perf_counter()
+        context = context or {}
 
         initial_state: SupportState = {
             "user_query": query,
@@ -167,6 +183,9 @@ class SupportAgent:
             "satisfaction_question": None,
             "response": None,
             "error": None,
+            "context": context,
+            "memory": context.get("memory") or {},
+            "customer_profile": context.get("customer"),
         }
 
         try:

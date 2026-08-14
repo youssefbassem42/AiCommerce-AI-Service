@@ -17,6 +17,21 @@ class ProviderNotFoundException(AIException):
         super().__init__(f"Provider '{provider}' was not found or is not supported.", 404)
 
 
+class ProviderCredentialsError(AIException):
+    """Raised when a provider is constructed without production credentials.
+
+    Missing credentials must fail loudly at construction time — never silently
+    fall back to a placeholder key, which would send unauthenticated requests
+    and mask misconfiguration.
+    """
+
+    def __init__(self, provider: str, env_var: str, extra_hint: str | None = None):
+        hint = f" Set {env_var} to a valid key before starting the service."
+        if extra_hint:
+            hint += f" {extra_hint}"
+        super().__init__(f"Provider '{provider}' requires credential env var {env_var}.{hint}", 500)
+
+
 class ModelNotFoundException(AIException):
     """Raised when the requested model is not supported or found for a provider."""
 

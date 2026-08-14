@@ -214,3 +214,48 @@ async def summarize_transcript(transcript: str, llm: BaseLLMProvider | None = No
     except Exception as e:
         logger.error(f"Session summarization failed: {e}")
         return {}
+
+
+async def extract_shopping_state(
+    user_input: str,
+    history: str = "",
+    current_state: dict[str, Any] | None = None,
+    llm: BaseLLMProvider | None = None,
+) -> dict[str, Any]:
+    """Extract the incremental shopping-state update from the latest message.
+
+    Returns a plain dict with only the fields the latest message adds or
+    changes; None/absent fields mean "no new information" (Fix 3.3).
+    """
+    provider = llm or _get_llm()
+    from app.agents.memory.prompts import EXTRACT_SHOPPING_STATE_PROMPT
+    from app.application.context.shopping_state import ShoppingState
+    from app.application.dto.ai_dto import ChatRequest, MessageDTO
+
+    current = ShoppingState.from_dict(current_state)
+    request = ChatRequest(
+        messages=[
+            MessageDTO(
+                role="system",
+                content="You track e-commerce shopping requirements across turns. Return only valid JSON.",
+            ),
+            MessageDTO(
+                role="user",
+                content=EXTRACT_SHOPPING_STATE_PROMPT.format(
+                    current_state=json.dumps(current.to_dict()),
+                    history=history or "(no prior conversation)",
+                    user_input=user_input,
+                ),
+            ),
+        ],
+        model=ai_settings.DEFAULT_MODEL,
+        json_mode=True,
+    )
+    try:
+        response = await provider.structured_output(request, dict[str, Any])
+        content = response.message.content
+        data = json.loads(content) if isinstance(content, str) else content
+        return ShoppingState.from_dict(data).to_dict()
+    except Exception as e:
+        logger.error(f"Shopping state extraction failed: {e}")
+        return {}

@@ -1,4 +1,4 @@
-.PHONY: dev test lint typecheck docker-build docker-up docker-down clean install
+.PHONY: dev test lint typecheck docker-build docker-up docker-down clean install eval
 
 dev:
 	uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -14,6 +14,9 @@ test-integration:
 
 test-e2e:
 	pytest tests/e2e -v
+
+eval:
+	pytest tests/eval -v -m eval
 
 lint:
 	ruff check . --fix

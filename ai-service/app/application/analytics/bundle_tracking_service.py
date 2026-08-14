@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.infrastructure.mongodb.collections import (
+    get_bundle_events_collection,
     get_bundle_tracking_collection,
     get_dashboard_insights_collection,
 )
@@ -13,6 +14,27 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_THRESHOLD = 5
 METRIC_NAME = "top_bundles"
+
+# Fix 5.6: canonical bundle funnel events for the marketing intelligence
+# feature. The full funnel is stored per event; counters on the bundle doc
+# mirror click/applied/purchase activity for the top-bundles dashboard.
+BUNDLE_EVENTS = {
+    "bundle_shown",
+    "bundle_clicked",
+    "promo_displayed",
+    "promo_copied",
+    "promo_applied",
+    "purchase_completed",
+}
+
+_EVENT_COUNTER_FIELDS = {
+    "bundle_shown": "shown_count",
+    "bundle_clicked": "click_count",
+    "promo_displayed": "promo_displayed_count",
+    "promo_copied": "copy_count",
+    "promo_applied": "applied_count",
+    "purchase_completed": "purchase_count",
+}
 
 
 def _make_bundle_key(product_ids: list[str], discount_pct: float) -> str:
@@ -28,6 +50,67 @@ class BundleTrackingService:
     def __init__(self):
         self._tracking_collection = get_bundle_tracking_collection()
         self._insights_collection = get_dashboard_insights_collection()
+        self._events_collection = get_bundle_events_collection()
+
+    async def track_event(
+        self,
+        store_id: str,
+        event: str,
+        *,
+        customer_id: str | None = None,
+        conversation_id: str | None = None,
+        product_ids: list[str] | None = None,
+        discount_pct: float | None = None,
+        promo_code: str | None = None,
+        bundle_key: str | None = None,
+        total_original: float | None = None,
+        total_discount: float | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Record one bundle-funnel event (Fix 5.6).
+
+        Events are appended to ``bundle_events`` for the funnel analytics and
+        mirrored as counters on the ``bundle_tracking`` doc for the
+        top-bundles dashboard.
+        """
+        if event not in BUNDLE_EVENTS:
+            logger.warning("Ignoring unknown bundle event '%s'", event)
+            return {"event": event, "recorded": False}
+
+        now = datetime.now(UTC)
+        product_ids = list(product_ids or [])
+        event_key = bundle_key or _make_bundle_key(product_ids, discount_pct or 0.0)
+
+        document = {
+            "store_id": store_id,
+            "event": event,
+            "customer_id": customer_id,
+            "conversation_id": conversation_id,
+            "bundle_key": event_key,
+            "product_ids": product_ids,
+            "discount_pct": discount_pct,
+            "promo_code": promo_code,
+            "total_original": total_original,
+            "total_discount": total_discount,
+            "metadata": metadata or {},
+            "created_at": now,
+        }
+        await self._events_collection.insert_one(document)
+
+        counter_field = _EVENT_COUNTER_FIELDS[event]
+        await self._tracking_collection.update_one(
+            {"store_id": store_id, "bundle_key": event_key},
+            {"$inc": {counter_field: 1}, "$setOnInsert": {"created_at": now}},
+            upsert=True,
+        )
+
+        logger.info(
+            "Bundle event '%s' recorded for store %s (bundle_key=%s)",
+            event,
+            store_id,
+            event_key,
+        )
+        return {"event": event, "bundle_key": event_key, "recorded": True}
 
     async def track_copy_event(
         self,

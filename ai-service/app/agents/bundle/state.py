@@ -13,6 +13,7 @@ class BundleState(TypedDict):
     customer_id: str | None
     budget: float | None
     desired_items: list[str]
+    use_case: str | None
     budget_parsed: bool
     candidates_by_type: dict[str, list[Product]]
     bundles: list[BundleCandidate]

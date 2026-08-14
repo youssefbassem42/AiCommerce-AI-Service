@@ -1,5 +1,18 @@
 from fastapi import Depends, HTTPException, Request, status
 
+from app.agents.memory.agent import MemoryAgent
+from app.api.ai.dependencies import (
+    get_conversation_service,
+    get_customer_repository,
+    get_memory_repository,
+)
+from app.api.knowledge.retrieval_dependencies import (
+    get_chat_provider,
+    get_retriever_service,
+)
+from app.api.rag.dependencies import get_summary_repository
+from app.application.context.builder import ContextBuilder
+from app.application.services.conversation_service import ConversationService
 from app.application.widget.bootstrap_service import WidgetBootstrapService
 from app.application.widget.cached_origin_service import CachedWidgetOriginService
 from app.application.widget.installation_service import WidgetInstallationService
@@ -38,6 +51,26 @@ def get_widget_installation_service(
     service = WidgetInstallationService(repository=repository)
     service.set_on_created(origin_cache.clear)
     return service
+
+
+def get_context_builder(
+    retriever_service=Depends(get_retriever_service),
+    llm=Depends(get_chat_provider),
+    conversation_service: ConversationService = Depends(get_conversation_service),
+    summary_repository=Depends(get_summary_repository),
+    memory_repo=Depends(get_memory_repository),
+    customer_repo=Depends(get_customer_repository),
+) -> ContextBuilder:
+    """Build the canonical AIContext (conversation, memory, RAG, store, user) per request."""
+    memory_agent = MemoryAgent(memory_repo=memory_repo, llm=llm)
+    return ContextBuilder(
+        retriever_service=retriever_service,
+        llm=llm,
+        conversation_service=conversation_service,
+        summary_repository=summary_repository,
+        memory_agent=memory_agent,
+        customer_repo=customer_repo,
+    )
 
 
 def get_widget_bootstrap_service(

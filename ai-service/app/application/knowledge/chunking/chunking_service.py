@@ -11,6 +11,7 @@ from app.domain.knowledge.entities.knowledge_document import KnowledgeDocument
 from app.domain.knowledge.exceptions import ChunkingException
 from app.domain.knowledge.repositories.chunk_repository import ChunkRepository
 from app.domain.knowledge.repositories.knowledge_repository import KnowledgeRepository
+from app.utils.content_guard import contains_instructional_content
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,13 @@ class ChunkingService:
             raise ChunkingException(f"Chunking produced zero chunks for document '{document.id}'")
 
         chunks = await self._delete_and_recreate(document, raw_chunks, config, chunker.strategy_name, organization_id)
+
+        if contains_instructional_content(text):
+            logger.warning(
+                "Knowledge poisoning scan: document '%s' contains instruction-like content; flagged for review.",
+                document.id,
+            )
+            document.metadata.attributes["injection_flagged"] = True
 
         document.status = "active"
         document.chunking_strategy = config.strategy

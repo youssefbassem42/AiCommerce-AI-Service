@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from app.agents.recommendation.agent import RecommendationAgent
 from app.application.knowledge.retrieval.service import RetrieverService
@@ -27,9 +28,13 @@ class RecommendationWorkflow:
         query: str,
         store_id: str,
         customer_id: str | None = None,
+        history: list[dict[str, Any]] | None = None,  # noqa: ARG002 - uniform sub-agent runner contract
+        conversation_id: str | None = None,  # noqa: ARG002 - uniform sub-agent runner contract
+        shopping_state: dict[str, Any] | None = None,
     ) -> RecommendationResponse:
         return await self._agent.run(
             query=query,
             store_id=store_id,
             customer_id=customer_id,
+            shopping_state=shopping_state,
         )

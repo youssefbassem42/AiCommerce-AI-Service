@@ -32,7 +32,7 @@ class DeepSeekProvider(BaseLLMProvider):
     """
 
     def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or KeyManager().get_provider_api_key("deepseek") or ""
+        self.api_key = api_key or KeyManager().require_provider_api_key("deepseek")
         self.client = AsyncOpenAI(
             api_key=self.api_key,
             base_url="https://api.deepseek.com/v1",

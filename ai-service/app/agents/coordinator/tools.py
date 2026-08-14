@@ -8,6 +8,11 @@ from app.agents.coordinator.prompts import (
     FALLBACK_PROMPT,
     INTENT_CLASSIFICATION_PROMPT,
 )
+from app.application.contracts.intent import (
+    COMING_SOON_INTENTS as CANONICAL_COMING_SOON_INTENTS,
+)
+from app.application.contracts.intent import EXECUTABLE_INTENTS as CANONICAL_EXECUTABLE_INTENTS
+from app.application.contracts.intent import Intent
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.core.ai_settings import ai_settings
 from app.infrastructure.providers.base import BaseLLMProvider
@@ -15,23 +20,13 @@ from app.infrastructure.providers.factory import LLMProviderFactory
 
 logger = logging.getLogger(__name__)
 
-VALID_INTENTS = {
-    "sales",
-    "support",
-    "bundle",
-    "recommendation",
-    "marketing",
-    "analytics",
-    "escalation",
-    "integration",
-    "general",
-}
+VALID_INTENTS = {intent.value for intent in Intent}
 
 # Intents the coordinator can hand off to an executable conversational agent.
-EXECUTABLE_INTENTS = {"bundle", "recommendation", "sales", "support", "escalation"}
+EXECUTABLE_INTENTS = {intent.value for intent in CANONICAL_EXECUTABLE_INTENTS}
 
 # Intents that exist in the routing table but have no executable agent yet.
-COMING_SOON_INTENTS = {"marketing", "analytics"}
+COMING_SOON_INTENTS = {intent.value for intent in CANONICAL_COMING_SOON_INTENTS}
 
 
 def _get_llm() -> BaseLLMProvider:

@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from app.application.recommendation.dto.recommendation_dto import ProductCard
 from app.application.recommendation.dto.sales_dto import SalesResponse
@@ -19,5 +19,6 @@ class SalesState(TypedDict):
     checkout_note: str | None
     clarifying_question: str | None
     store_capabilities: dict
+    context: dict[str, Any]
     response: SalesResponse | None
     error: str | None

@@ -3,7 +3,12 @@ from pydantic import BaseModel, Field
 
 class RetrievalConfig(BaseModel):
     top_k: int = Field(default=10, ge=1, le=100, description="Maximum results to return")
-    score_threshold: float = Field(default=0.0, ge=0.0, le=1.0, description="Minimum similarity score")
+    score_threshold: float = Field(
+        default=0.25,
+        ge=0.0,
+        le=1.0,
+        description="Minimum similarity score; results below the threshold are dropped",
+    )
     use_hybrid: bool = Field(default=False, description="Enable hybrid search (keyword + vector)")
     use_mmr: bool = Field(default=False, description="Enable MMR diversity re-ranking")
     mmr_lambda: float = Field(default=0.7, ge=0.0, le=1.0, description="MMR relevance vs diversity (1=relevance only)")
@@ -17,6 +22,14 @@ class RetrievalConfig(BaseModel):
 class RetrievalFilters(BaseModel):
     organization_id: str | None = Field(default=None, description="Tenant organization ID")
     store_id: str | None = Field(default=None, description="Store context ID")
+    entity_type: str | None = Field(
+        default=None,
+        description="Canonical entity type filter ('product', 'knowledge', 'category', ...)",
+    )
+    entity_types: list[str] | None = Field(
+        default=None,
+        description="Canonical entity type set filter (any-of)",
+    )
     language: str | None = Field(default=None, description="Document language filter")
     document_type: str | None = Field(default=None, description="Source document type")
     document_status: str | None = Field(default=None, description="Document status filter ('active', 'archived')")

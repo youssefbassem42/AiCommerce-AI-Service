@@ -53,6 +53,21 @@ class KeyManager:
         env_var = env_var or f"{provider_name.upper()}_API_KEY"
         return os.getenv(env_var)
 
+    def require_provider_api_key(self, provider_name: str, env_var: str | None = None, extra_hint: str | None = None) -> str:
+        """Return the provider API key or raise loudly.
+
+        Phase 9 guardrail: placeholders such as "mock-key" must never be used in
+        production. Missing credentials raise ProviderCredentialsError at provider
+        construction time instead of silently degrading.
+        """
+        from app.core.ai_exceptions import ProviderCredentialsError
+
+        env_var = env_var or f"{provider_name.upper()}_API_KEY"
+        api_key = os.getenv(env_var)
+        if not api_key or api_key == "mock-key":
+            raise ProviderCredentialsError(provider_name, env_var, extra_hint=extra_hint)
+        return api_key
+
     def set_provider_api_key(self, provider_name: str, api_key: str) -> None:
         env_var = f"{provider_name.upper()}_API_KEY"
         os.environ[env_var] = api_key

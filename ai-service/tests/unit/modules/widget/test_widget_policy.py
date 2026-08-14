@@ -88,9 +88,14 @@ class TestPolicyUnit:
         assert "top_k:40->10" in result.clamped
 
     def test_expensive_retrieval_flags_forced_off(self):
-        result = apply_widget_policy(make_request(use_hybrid=True, use_mmr=True, rerank=True))
+        policy = WidgetServerPolicy(hybrid_allowed=False, mmr_allowed=False, rerank_allowed=False)
+        result = apply_widget_policy(make_request(use_hybrid=True, use_mmr=True, rerank=True), policy)
         assert (result.use_hybrid, result.use_mmr, result.rerank) == (False, False, False)
         assert {"use_hybrid:True->False", "use_mmr:True->False", "rerank:True->False"} <= set(result.clamped)
+
+    def test_expensive_retrieval_flags_allowed_by_default(self):
+        result = apply_widget_policy(make_request(use_hybrid=True, use_mmr=True, rerank=True))
+        assert (result.use_hybrid, result.use_mmr, result.rerank) == (True, True, True)
 
     def test_retrieval_flags_allowlisted(self):
         policy = WidgetServerPolicy(hybrid_allowed=True, mmr_allowed=True, rerank_allowed=True)
@@ -100,6 +105,7 @@ class TestPolicyUnit:
                 temperature=0.5,
                 max_tokens=256,
                 top_k=5,
+                score_threshold=0.25,
                 knowledge_scope=None,
                 use_hybrid=True,
                 use_mmr=True,
@@ -126,6 +132,7 @@ class TestPolicyUnit:
             temperature=0.5,
             max_tokens=256,
             top_k=5,
+            score_threshold=0.25,
             use_hybrid=False,
             use_mmr=False,
             rerank=False,
@@ -153,9 +160,9 @@ class TestWidgetChatRouterPolicy:
         from types import SimpleNamespace
 
         from app.api.ai.dependencies import get_conversation_service, get_orchestration_service
-        from app.api.knowledge.retrieval_dependencies import get_retriever_service
         from app.api.quota.dependencies import get_quota_enforcer
-        from app.api.rag.dependencies import get_summary_repository
+        from app.api.widget.dependencies import get_context_builder
+        from app.application.context.builder import ContextBuilder
         from app.application.dto.ai_dto import ChatResponse, MessageDTO, UsageDTO
         from app.application.knowledge.retrieval.dto import UnifiedRetrievalResult
         from app.domain.analytics.entities.plan_policy import PlanPolicy
@@ -215,9 +222,14 @@ class TestWidgetChatRouterPolicy:
             resolve_plan=AsyncMock(return_value=fake_plan),
             run=fake_run,
         )
+        context_builder = ContextBuilder(
+            retriever_service=self.retriever,
+            llm=AsyncMock(),
+            conversation_service=self.conversation_service,
+            summary_repository=self.summary_repo,
+        )
         app.dependency_overrides[get_orchestration_service] = lambda: self.orchestration
-        app.dependency_overrides[get_retriever_service] = lambda: self.retriever
-        app.dependency_overrides[get_summary_repository] = lambda: self.summary_repo
+        app.dependency_overrides[get_context_builder] = lambda: context_builder
         app.dependency_overrides[get_conversation_service] = lambda: self.conversation_service
         app.dependency_overrides[get_quota_enforcer] = lambda: fake_enforcer
         yield
@@ -258,9 +270,9 @@ class TestWidgetChatRouterPolicy:
         )
         assert resp.status_code == 200
         config = self.retriever.search.await_args.kwargs["config"]
-        assert config.top_k == 10
-        assert config.score_threshold == 0.0
-        assert (config.use_hybrid, config.use_mmr, config.rerank) == (False, False, False)
+        assert config.top_k == 6
+        assert config.score_threshold == 0.25
+        assert (config.use_hybrid, config.use_mmr, config.rerank) == (True, True, True)
         filters = self.retriever.search.await_args.kwargs["filters"]
         assert filters.knowledge_scope is None
 

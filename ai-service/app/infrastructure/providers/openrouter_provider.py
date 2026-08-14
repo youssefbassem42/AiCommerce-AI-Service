@@ -33,7 +33,8 @@ class OpenRouterProvider(BaseLLMProvider):
     """
 
     def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or KeyManager().get_provider_api_key("openrouter") or "mock-key"
+        key_manager = KeyManager()
+        self.api_key = api_key or key_manager.require_provider_api_key("openrouter")
         self.client = AsyncOpenAI(
             api_key=self.api_key,
             base_url="https://openrouter.ai/api/v1",

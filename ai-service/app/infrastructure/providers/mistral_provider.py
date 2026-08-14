@@ -33,7 +33,7 @@ class MistralProvider(BaseLLMProvider):
     """
 
     def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or KeyManager().get_provider_api_key("mistral") or ""
+        self.api_key = api_key or KeyManager().require_provider_api_key("mistral")
         # Mistral uses client wrapper
         self.client = Mistral(
             api_key=self.api_key,

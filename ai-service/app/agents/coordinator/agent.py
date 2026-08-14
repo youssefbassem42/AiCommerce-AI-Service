@@ -14,12 +14,12 @@ from app.agents.coordinator.nodes import (
     route_to_agent_node,
 )
 from app.agents.coordinator.state import CoordinatorState
+from app.application.contracts.intent import EXECUTABLE_INTENTS
 from app.domain.conversation.repositories.conversation_repository import ConversationRepository
 from app.infrastructure.providers.base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
 
-EXECUTABLE_INTENTS = {"bundle", "recommendation", "sales", "support", "escalation"}
 DEFERRED_INTENTS = {"general"}
 FALLBACK_INTENTS = {"marketing", "analytics", "integration"}
 
@@ -106,6 +106,7 @@ class CoordinatorAgent:
         conversation_id: str | None = None,
         customer_id: str | None = None,
         context: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> CoordinatorState:
         start = time.perf_counter()
 
@@ -121,6 +122,7 @@ class CoordinatorAgent:
             "response": None,
             "needs_clarification": False,
             "error": None,
+            "metadata": metadata or {},
         }
 
         result = await self._graph.ainvoke(initial_state)

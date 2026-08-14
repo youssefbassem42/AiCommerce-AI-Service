@@ -7,6 +7,7 @@ from app.domain.job.value_objects import JobStatus
 from app.infrastructure.mongodb.repositories.chunk_repository import ChunkRepository
 from app.infrastructure.providers.factory import LLMProviderFactory
 from app.infrastructure.tasks.helpers import _run_async, complete_job, fail_job, update_job_progress
+from app.shared.vector_payloads import knowledge_payload
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,19 @@ def embed_chunks_task(self, doc_id: str, org_id: str, store_id: str) -> int:  # 
         await vs.connect()
         collection = f"kb_{store_id}"
         points = [
-            VectorRecord(id=c.id, vector=emb, payload={"chunk_id": c.id, "document_id": c.document_id})
+            VectorRecord(
+                id=c.id,
+                vector=emb,
+                payload=knowledge_payload(
+                    organization_id=c.metadata.get("organization_id") or org_id,
+                    store_id=c.metadata.get("store_id") or store_id,
+                    chunk_id=c.id,
+                    document_id=c.document_id,
+                    document_type=c.metadata.get("document_type"),
+                    knowledge_scope=c.metadata.get("knowledge_scope"),
+                    content=c.content[:2000],
+                ),
+            )
             for c, emb in zip(chunks, response.embeddings, strict=False)
         ]
         try:
@@ -247,25 +260,24 @@ def sync_vectors_task(
 
                     points = []
                     for chunk, embedding in zip(chunks, response.embeddings, strict=False):
-                        payload = {
-                            "chunk_id": chunk.id,
-                            "document_id": chunk.document_id,
-                            "content": chunk.content[:2000],
-                            "chunk_index": chunk.chunk_index,
-                            "language": chunk.metadata.get("language"),
-                            "source_type": "knowledge_document",
-                            "document_status": "active",
-                            "store_id": (
-                                getattr(chunk, "store_id", None) or chunk.metadata.get("store_id") or filters_store_id
-                            ),
-                            "organization_id": (
+                        payload = knowledge_payload(
+                            organization_id=(
                                 getattr(chunk, "organization_id", None) or chunk.metadata.get("organization_id")
                             ),
-                            "document_title": chunk.metadata.get("parent_title", ""),
-                            "knowledge_scope": chunk.metadata.get("knowledge_scope"),
-                            "business_version": chunk.metadata.get("business_version"),
-                            "knowledge_version": chunk.metadata.get("knowledge_version", 1),
-                        }
+                            store_id=(
+                                getattr(chunk, "store_id", None) or chunk.metadata.get("store_id") or filters_store_id
+                            ),
+                            chunk_id=chunk.id,
+                            document_id=chunk.document_id,
+                            document_type=chunk.metadata.get("document_type"),
+                            knowledge_scope=chunk.metadata.get("knowledge_scope"),
+                            content=chunk.content[:2000],
+                            chunk_index=chunk.chunk_index,
+                            language=chunk.metadata.get("language"),
+                            document_title=chunk.metadata.get("parent_title", ""),
+                            business_version=chunk.metadata.get("business_version"),
+                            knowledge_version=chunk.metadata.get("knowledge_version", 1),
+                        )
                         points.append(VectorRecord(id=chunk.id, vector=embedding, payload=payload))
 
                     if points:

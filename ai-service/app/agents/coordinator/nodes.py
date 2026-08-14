@@ -12,8 +12,14 @@ from app.agents.coordinator.tools import (
     extract_context,
     format_history,
 )
+from app.application.context.ai_context import AIContext
+from app.application.contracts.bundle import bundle_payload_from_candidates
+from app.application.contracts.product import product_card_to_payload
+from app.core.ai_logging import log_flow_event
 from app.domain.conversation.repositories.conversation_repository import ConversationRepository
 from app.infrastructure.providers.base import BaseLLMProvider
+
+MAX_KNOWLEDGE_CHUNKS = 6
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +41,63 @@ def _is_valid_object_id(value: str | None) -> bool:
         return False
 
 
+def format_knowledge_context(context: dict[str, Any]) -> str:
+    """Render the router-built RAG context (chunks + business rules) for sub-agents."""
+    parts: list[str] = []
+
+    business_rules = context.get("business_rules") or {}
+    summary = business_rules.get("business_summary")
+    if summary:
+        version = business_rules.get("business_summary_version")
+        version_suffix = f" (version {version})" if version is not None else ""
+        parts.append(f"STORE BUSINESS SUMMARY{version_suffix}:\n{summary}")
+
+    chunks = context.get("knowledge_context") or []
+    for i, chunk in enumerate(chunks[:MAX_KNOWLEDGE_CHUNKS], start=1):
+        title = chunk.get("document_title") or chunk.get("metadata", {}).get("document_title", "Knowledge")
+        content = chunk.get("content", "")[:2000]
+        parts.append(f"[{i}] {title}\n{content}")
+
+    if not parts:
+        return ""
+    return "\n\n".join(parts)
+
+
+def _history_with_knowledge(
+    state: CoordinatorState,
+    history_messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Append the router-built knowledge context to the sub-agent history.
+
+    The knowledge context is passed to sub-agents as a system message so the
+    RAG context (policy/FAQ/product chunks, business rules) actually reaches
+    the agent instead of disappearing between router and sub-agent.
+    """
+    context = state.get("context") or {}
+    knowledge_text = format_knowledge_context(context)
+    if not knowledge_text:
+        return history_messages
+    return [
+        {"role": "system", "content": knowledge_text},
+        *history_messages,
+    ]
+
+
 async def extract_context_node(
     state: CoordinatorState,
     conversation_repo: ConversationRepository | None = None,
     llm: BaseLLMProvider | None = None,
 ) -> dict[str, Any]:
-    """Pull relevant context from conversation history and store profile."""
-    history_messages: list[dict[str, Any]] = []
-    if conversation_repo and _is_valid_object_id(state.get("conversation_id")):
+    """Merge context from the router/context-builder with conversation history.
+
+    Existing context (RAG chunks, business rules, intent, history provided by
+    the Context Builder) is preserved — this node only fills gaps and never
+    replaces the router-built context (Fix 2.2).
+    """
+    merged = AIContext.from_dict(state.get("context") or {})
+
+    history_messages: list[dict[str, Any]] = list(merged.history or [])
+    if not history_messages and conversation_repo and _is_valid_object_id(state.get("conversation_id")):
         try:
             conversation = await conversation_repo.find_by_id(state["conversation_id"])
             if conversation:
@@ -55,26 +110,39 @@ async def extract_context_node(
             logger.warning("Failed to load conversation history: %s", exc, exc_info=True)
 
     history_text = format_history(history_messages)
-    store_profile: dict[str, Any] = {}
+    store_profile: dict[str, Any] = dict(merged.store or {})
 
-    try:
-        extracted = await extract_context(
-            user_input=state["user_input"],
-            history=history_text,
-            store_profile=store_profile,
-            llm=llm,
-        )
-    except Exception as exc:
-        logger.error("Context extraction failed: %s", exc, exc_info=True)
-        extracted = {}
+    extracted: dict[str, Any] = {}
+    if not merged.entities:
+        try:
+            extracted = await extract_context(
+                user_input=state["user_input"],
+                history=history_text,
+                store_profile=store_profile,
+                llm=llm,
+            )
+        except Exception as exc:
+            logger.error("Context extraction failed: %s", exc, exc_info=True)
+            extracted = {}
+
+    context = AIContext(
+        tenant=merged.tenant,
+        store=store_profile,
+        conversation=merged.conversation,
+        history=history_messages,
+        memory=merged.memory,
+        intent=merged.intent,
+        confidence=merged.confidence,
+        entities={**merged.entities, **extracted},
+        knowledge_context=merged.knowledge_context,
+        products=merged.products,
+        business_rules=merged.business_rules,
+        customer=merged.customer,
+    ).to_dict()
+    context["history_text"] = history_text
 
     return {
-        "context": {
-            "history": history_messages,
-            "history_text": history_text,
-            "store_profile": store_profile,
-            "extracted": extracted,
-        },
+        "context": context,
         "error": None,
     }
 
@@ -83,12 +151,43 @@ async def classify_intent_node(
     state: CoordinatorState,
     llm: BaseLLMProvider | None = None,
 ) -> dict[str, Any]:
-    """Analyze user input and classify into an intent with confidence."""
+    """Analyze user input and classify into an intent with confidence.
+
+    When the Context Builder already classified the intent (router path), that
+    classification is reused — the coordinator never re-classifies or discards
+    the context builder's intent (Fix 2.2).
+    """
+    context = state.get("context") or {}
+    existing_intent = context.get("intent")
+    if existing_intent:
+        log_flow_event(
+            "intent.classified",
+            message_id=(state.get("metadata") or {}).get("message_id"),
+            store_id=state.get("store_id"),
+            conversation_id=state.get("conversation_id"),
+            intent=existing_intent,
+            confidence=context.get("confidence"),
+            source="context_builder",
+        )
+        return {
+            "intent": existing_intent,
+            "confidence": context.get("confidence"),
+            "error": None,
+        }
+
     try:
         intent, confidence = await classify_intent(
             user_input=state["user_input"],
-            history=state.get("context", {}).get("history_text", ""),
+            history=context.get("history_text", ""),
             llm=llm,
+        )
+        log_flow_event(
+            "intent.classified",
+            message_id=(state.get("metadata") or {}).get("message_id"),
+            store_id=state.get("store_id"),
+            conversation_id=state.get("conversation_id"),
+            intent=intent,
+            confidence=confidence,
         )
         return {"intent": intent, "confidence": confidence, "error": None}
     except Exception as exc:
@@ -119,17 +218,33 @@ async def execute_sub_agent_node(
             query=state["user_input"],
             store_id=state["store_id"],
             customer_id=state.get("customer_id"),
-            history=state.get("context", {}).get("history") or [],
+            history=_history_with_knowledge(
+                state,
+                state.get("context", {}).get("history") or [],
+            ),
             conversation_id=state.get("conversation_id"),
+            context=state.get("context") or {},
         )
         content = getattr(result, "rationale", None) or str(result)
+        clarifying_question = getattr(result, "clarifying_question", None)
+        if not isinstance(clarifying_question, str) or not clarifying_question:
+            clarifying_question = None
+        log_flow_event(
+            "agent.result",
+            message_id=(state.get("metadata") or {}).get("message_id"),
+            store_id=state.get("store_id"),
+            conversation_id=state.get("conversation_id"),
+            intent=state.get("intent"),
+            sub_agent=sub_agent,
+            serialized=bool(_serialize_sub_agent_result(result)),
+        )
         return {
             "response": {
                 "content": content,
                 "intent": state.get("intent"),
                 "confidence": state.get("confidence"),
                 "sub_agent": sub_agent,
-                "needs_clarification": False,
+                "needs_clarification": clarifying_question is not None,
                 "citations": [],
                 "result": _serialize_sub_agent_result(result),
             },
@@ -200,29 +315,9 @@ async def format_response_node(state: CoordinatorState) -> dict[str, Any]:
 
 
 def _serialize_product_card(product: Any) -> dict[str, Any] | None:
-    """Consumer-safe product card from a sub-agent result DTO."""
-    product_id = getattr(product, "product_id", None)
-    title = getattr(product, "title", None)
-    if not product_id and not title:
-        return None
-    specs = []
-    for spec in getattr(product, "specs", None) or []:
-        specs.append(
-            {
-                "name": getattr(spec, "name", None),
-                "value": getattr(spec, "value", None),
-            }
-        )
-    return {
-        "product_id": str(product_id or ""),
-        "title": title,
-        "price": str(getattr(product, "price", "") or ""),
-        "currency": getattr(product, "currency", "USD") or "USD",
-        "image_url": getattr(product, "image_url", None),
-        "product_url": getattr(product, "product_url", None),
-        "specs": [s for s in specs if s.get("name") or s.get("value")][:12],
-        "match_reasons": list(getattr(product, "match_reasons", None) or [])[:6],
-    }
+    """Consumer-safe product card from a sub-agent result DTO (canonical shape)."""
+    payload = product_card_to_payload(product)
+    return payload.model_dump() if payload else None
 
 
 def _serialize_sub_agent_result(result: Any) -> dict[str, Any] | None:
@@ -256,32 +351,6 @@ def _serialize_sub_agent_result(result: Any) -> dict[str, Any] | None:
 
 
 def _serialize_bundle(bundles: list[Any]) -> dict[str, Any] | None:
-    """First within-budget bundle candidate (or the first candidate) as a safe card."""
-    candidates = [b for b in bundles if getattr(b, "within_budget", True)] or list(bundles)
-    if not candidates:
-        return None
-    candidate = candidates[0]
-
-    items = []
-    for product in getattr(candidate, "products", None) or []:
-        items.append(
-            {
-                "product_id": str(getattr(product, "product_id", "") or ""),
-                "title": getattr(product, "product_title", None),
-                "original_price": str(getattr(product, "original_price", "") or ""),
-                "discount_pct": float(getattr(product, "discount_pct", 0.0) or 0.0),
-                "price_after_discount": str(getattr(product, "price_after_discount", "") or ""),
-            }
-        )
-
-    total_original = str(getattr(candidate, "total_original", "") or "")
-    total_discount = str(getattr(candidate, "total_discount", "") or "")
-    promo_code = getattr(candidate, "promo_code", None)
-
-    return {
-        "items": items,
-        "total_original": total_original,
-        "total_discount": total_discount,
-        "promo_code": promo_code,
-        "within_budget": bool(getattr(candidate, "within_budget", True)),
-    }
+    """First within-budget bundle candidate (or the first candidate) as a safe card (canonical shape)."""
+    payload = bundle_payload_from_candidates(bundles)
+    return payload.model_dump() if payload else None

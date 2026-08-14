@@ -97,6 +97,14 @@ class ConversationRepository:
         """
         now = datetime.datetime.now(datetime.UTC)
 
+        # Tenant-scoped append: when the caller is store-bound, only append to a
+        # conversation owned by that store (or a legacy untagged conversation).
+        # A store-tagged conversation owned by another store is never touched
+        # (Phase 9 guardrail — prevents cross-tenant message injection).
+        query: dict[str, Any] = {"conversation_id": conversation_id}
+        if store_id is not None:
+            query["store_id"] = {"$in": [store_id, None]}
+
         # Build update query
         update_doc: dict[str, Any] = {
             "$push": {"messages": message},
@@ -117,7 +125,7 @@ class ConversationRepository:
             inc_fields["interaction_count"] = 1
             update_doc["$inc"] = inc_fields
 
-        await self.collection.update_one({"conversation_id": conversation_id}, update_doc, upsert=True)
+        await self.collection.update_one(query, update_doc, upsert=True)
 
         # Re-estimate average latency if latency is passed
         if latency_ms is not None:

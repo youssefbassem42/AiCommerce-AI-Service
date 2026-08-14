@@ -36,7 +36,8 @@ class GeminiProvider(BaseLLMProvider):
     """
 
     def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or KeyManager().get_provider_api_key("gemini") or "mock-key"
+        key_manager = KeyManager()
+        self.api_key = api_key or key_manager.require_provider_api_key("gemini")
         self.client = genai.Client(api_key=self.api_key)
 
     async def _download_image_bytes(self, url: str) -> tuple[bytes, str]:

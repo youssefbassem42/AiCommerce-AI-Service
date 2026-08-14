@@ -325,6 +325,40 @@ class TestBridgePayloadAndRecordOps:
         assert point.payload["knowledge_version"] == 1
 
     @pytest.mark.asyncio
+    async def test_product_payload_has_canonical_entity_fields(self, mock_vector_store, mock_llm):
+        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm)
+        await bridge.sync_entity(
+            store_id="s1",
+            organization_id="o1",
+            entity_type="product",
+            records=[
+                {
+                    "_id": "mongo-id-2",
+                    "title": "Laptop X",
+                    "price": 499.0,
+                    "currency": "USD",
+                    "category_id": "cat-1",
+                    "brand_id": "brand-1",
+                    "external_id": "24",
+                }
+            ],
+        )
+        point = mock_vector_store.upsert.await_args.args[1][0]
+        payload = point.payload
+        assert payload["entity_type"] == "product"
+        assert payload["entity_id"] == "mongo-id-2"
+        assert payload["store_id"] == "s1"
+        assert payload["organization_id"] == "o1"
+        assert payload["source_type"] == "integration_sync"
+        assert payload["document_status"] == "active"
+        assert payload["product_id"] == "mongo-id-2"
+        assert payload["product_title"] == "Laptop X"
+        assert payload["price"] == 499.0
+        assert payload["currency"] == "USD"
+        assert payload["category_id"] == "cat-1"
+        assert payload["brand_id"] == "brand-1"
+
+    @pytest.mark.asyncio
     async def test_non_product_entity_no_product_fields(self, mock_vector_store, mock_llm):
         bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm)
         await bridge.sync_entity(

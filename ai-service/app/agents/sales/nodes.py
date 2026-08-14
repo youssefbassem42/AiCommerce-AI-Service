@@ -56,6 +56,7 @@ async def recommend_products_node(
             query=state["user_query"],
             store_id=state["store_id"],
             customer_id=state.get("customer_id"),
+            context=state.get("context") or {},
         )
         products = list(result.products)
         return {"stage": "recommendation", "products": products, "error": None}
@@ -120,7 +121,10 @@ async def close_sale_node(
                 discount_pct=discount_pct,
                 prefix=SALES_PROMO_PREFIX,
             )
-            checkout_note = f"Use promo code {promo_code} at checkout for {discount_pct:.0f}% off these items."
+            if promo_code:
+                checkout_note = f"Use promo code {promo_code} at checkout for {discount_pct:.0f}% off these items."
+            else:
+                checkout_note = "Your items are ready to check out. Ask your store about current discounts."
         except Exception as exc:
             logger.error("Promo code generation failed: %s", exc, exc_info=True)
             checkout_note = "Your items are ready to check out. Ask your store about current discounts."

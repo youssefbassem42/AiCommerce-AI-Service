@@ -1,4 +1,4 @@
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 
 class CoordinatorState(TypedDict):
@@ -15,3 +15,4 @@ class CoordinatorState(TypedDict):
     response: dict[str, Any] | None
     needs_clarification: bool
     error: str | None
+    metadata: NotRequired[dict[str, Any]]

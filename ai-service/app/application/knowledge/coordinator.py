@@ -28,6 +28,7 @@ from app.infrastructure.mongodb.documents.knowledge_version_document import (
 )
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.vectorstore.base import VectorRecord, VectorStore
+from app.shared.vector_payloads import knowledge_payload
 
 logger = logging.getLogger(__name__)
 
@@ -259,21 +260,22 @@ class KnowledgeSyncCoordinator:
                         VectorRecord(
                             id=chunk.id,
                             vector=emb,
-                            payload={
-                                "organization_id": self.tenant.organization_id,
-                                "store_id": self.tenant.store_id,
-                                "merchant_id": self.tenant.merchant_id,
-                                "document_id": chunk.document_id,
-                                "chunk_id": chunk.id,
-                                "knowledge_version": self.tenant.knowledge_version,
-                                "document_status": doc.status if hasattr(doc, "status") else "active",
-                                "document_type": doc.metadata.source_type,
-                                "source_type": doc.metadata.source_type,
-                                "language": doc.language,
-                                "product_id": doc.metadata.attributes.get("product_id", ""),
-                                "category_id": doc.metadata.attributes.get("category_id", ""),
-                                "brand_id": doc.metadata.attributes.get("brand_id", ""),
-                            },
+                            payload=knowledge_payload(
+                                organization_id=self.tenant.organization_id,
+                                store_id=self.tenant.store_id,
+                                chunk_id=chunk.id,
+                                document_id=chunk.document_id,
+                                document_type=doc.metadata.source_type,
+                                knowledge_scope=doc.metadata.category,
+                                content=chunk.content[:2000],
+                                knowledge_version=self.tenant.knowledge_version,
+                                source_type=doc.metadata.source_type,
+                                document_title=doc.title,
+                                language=doc.language,
+                                product_id=doc.metadata.attributes.get("product_id", ""),
+                                category_id=doc.metadata.attributes.get("category_id", ""),
+                                brand_id=doc.metadata.attributes.get("brand_id", ""),
+                            ),
                         )
                     )
             except Exception as e:

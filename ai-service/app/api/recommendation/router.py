@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.auth.dependencies import get_current_user
 from app.api.rag.dependencies import get_tenant_context
@@ -29,6 +29,21 @@ router = APIRouter(
 )
 
 
+def _resolve_store_id(tenant_context: TenantContext | None, payload_store_id: str | None) -> str:
+    """Resolve the store from authenticated claims only (Phase 9).
+
+    A client-supplied `store_id` in the payload is never trusted: an
+    authenticated user without a store claim gets 403 instead of falling back
+    to arbitrary input, matching the knowledge-retrieval doctrine.
+    """
+    if tenant_context is not None and tenant_context.store_id:
+        return tenant_context.store_id
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Store access denied: no store claim on the token.",
+    )
+
+
 @router.post(
     "/chat",
     response_model=RecommendationResponseSchema,
@@ -39,7 +54,7 @@ async def recommend_products(
     service: RecommendationService = Depends(get_recommendation_service),
     tenant_context: TenantContext | None = Depends(get_tenant_context),
 ) -> RecommendationResponseSchema:
-    store_id = tenant_context.store_id if tenant_context else payload.store_id
+    store_id = _resolve_store_id(tenant_context, payload.store_id)
     result = await service.recommend(
         query=payload.message,
         store_id=store_id,
@@ -79,7 +94,7 @@ async def suggest_bundle(
     service: BundleSuggestionService = Depends(get_bundle_service),
     tenant_context: TenantContext | None = Depends(get_tenant_context),
 ) -> BundleResponseSchema:
-    store_id = tenant_context.store_id if tenant_context else payload.store_id
+    store_id = _resolve_store_id(tenant_context, payload.store_id)
     result = await service.suggest(
         query=payload.message,
         store_id=store_id,

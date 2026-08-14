@@ -1,6 +1,7 @@
 import pytest
 
 from app.core.ai_exceptions import ProviderNotFoundException
+from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
 from app.infrastructure.providers.gemini_provider import GeminiProvider
 from app.infrastructure.providers.openai_provider import OpenAIProvider
@@ -17,14 +18,17 @@ def test_factory_get_provider():
     factory.clear_cache()
 
     openai_provider = factory.get_provider("openai")
-    assert isinstance(openai_provider, OpenAIProvider)
+    # Factory returns the instrumented wrapper; the underlying provider is
+    # still the concrete implementation.
+    assert isinstance(openai_provider, BaseLLMProvider)
+    assert isinstance(openai_provider._provider, OpenAIProvider)
 
     # Caching check
     openai_provider_cached = factory.get_provider("openai")
     assert openai_provider is openai_provider_cached
 
     gemini_provider = factory.get_provider("gemini")
-    assert isinstance(gemini_provider, GeminiProvider)
+    assert isinstance(gemini_provider._provider, GeminiProvider)
 
 
 def test_factory_invalid_provider():

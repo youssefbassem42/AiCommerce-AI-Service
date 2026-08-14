@@ -37,6 +37,7 @@ class RecommendationService:
         customer_id: str | None = None,
         history: list | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
         conversation_id: str | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
+        context: dict | None = None,
     ) -> RecommendationResponse:
         logger.info(
             "Recommendation requested: query='%s', store_id='%s', customer_id='%s'",
@@ -44,10 +45,16 @@ class RecommendationService:
             store_id,
             customer_id,
         )
+        from app.application.context.shopping_state import shopping_state_from_context
+
+        shopping_state = shopping_state_from_context(context)
         return await self._workflow.run(
             query=query,
             store_id=store_id,
             customer_id=customer_id,
+            history=history,
+            conversation_id=conversation_id,
+            shopping_state=shopping_state.to_dict() if not shopping_state.is_empty() else None,
         )
 
 
@@ -73,6 +80,7 @@ class BundleSuggestionService:
         customer_id: str | None = None,
         history: list | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
         conversation_id: str | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
+        context: dict | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
     ) -> BundleResponse:
         logger.info(
             "Bundle suggestion requested: query='%s', store_id='%s', customer_id='%s'",

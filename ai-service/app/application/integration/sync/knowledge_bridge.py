@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from contextlib import suppress
 from typing import Any
 
 from app.application.dto.ai_dto import EmbeddingRequest
@@ -9,6 +8,7 @@ from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
 from app.infrastructure.qdrant.provider import QdrantProvider
 from app.infrastructure.vectorstore.base import VectorRecord
+from app.shared.vector_payloads import product_payload
 
 logger = logging.getLogger(__name__)
 
@@ -208,47 +208,63 @@ class CommerceKnowledgeBridge:
         rec_idx: int,
     ) -> dict[str, Any]:
         title = record.get("title") or record.get("name") or f"{entity_type}:{entity_key}"
-        payload: dict[str, Any] = {
-            "organization_id": organization_id,
-            "store_id": store_id,
-            "entity_type": entity_type,
-            "entity_id": entity_key,
-            "external_id": str(record.get("external_id") or ""),
-            "source_type": "integration_sync",
-            "document_id": entity_key,
-            "document_title": title,
-            "document_status": "active",
-            "chunk_index": rec_idx,
-            "content": content,
-            "knowledge_version": 1,
-        }
         if entity_type == "product":
-            payload["product_id"] = entity_key
-            payload["product_title"] = title
             price = record.get("price")
             if isinstance(price, dict):
                 price = price.get("amount")
-            if price is not None:
-                with suppress(TypeError, ValueError):
-                    payload["price"] = float(price)
+            try:
+                price_float = float(price) if price is not None else None
+            except (TypeError, ValueError):
+                price_float = None
             currency = record.get("currency") or (
                 record.get("price", {}).get("currency") if isinstance(record.get("price"), dict) else None
             )
-            if currency:
-                payload["currency"] = str(currency)
-            if record.get("image_url"):
-                payload["image_url"] = str(record["image_url"])
-            if record.get("url") or record.get("handle"):
-                payload["product_url"] = str(record.get("url") or record.get("handle"))
             specs = []
-            for spec_name in ("sku", "vendor", "product_type", "inventory_quantity", "compare_at_price", "category_id"):
+            for spec_name in ("sku", "vendor", "product_type", "inventory_quantity", "compare_at_price"):
                 if record.get(spec_name) is not None:
                     specs.append({"name": spec_name, "value": str(record.get(spec_name))})
             if record.get("tags"):
                 specs.append({"name": "tags", "value": ", ".join(str(t) for t in record["tags"])})
-            if specs:
-                payload["specs"] = specs
-        return payload
+            extra: dict[str, Any] = {}
+            if record.get("image_url"):
+                extra["image_url"] = str(record["image_url"])
+            if record.get("url") or record.get("handle"):
+                extra["product_url"] = str(record.get("url") or record.get("handle"))
+            return product_payload(
+                organization_id=organization_id,
+                store_id=store_id,
+                product_id=entity_key,
+                title=title,
+                content=content,
+                price=price_float,
+                currency=currency or None,
+                category_id=record.get("category_id"),
+                brand_id=record.get("brand_id"),
+                specs=specs or None,
+                external_id=str(record.get("external_id") or ""),
+                document_id=entity_key,
+                document_title=title,
+                chunk_index=rec_idx,
+                knowledge_version=1,
+                **extra,
+            )
+        from app.shared.vector_payloads import EntityType, base_entity_payload
+
+        entity_type_value = EntityType.as_value(entity_type)
+        return base_entity_payload(
+            organization_id=organization_id,
+            store_id=store_id,
+            entity_type=entity_type_value,
+            entity_id=entity_key,
+            source_type="integration_sync",
+            external_id=str(record.get("external_id") or ""),
+            document_id=entity_key,
+            document_title=title,
+            document_status="active",
+            chunk_index=rec_idx,
+            content=content,
+            knowledge_version=1,
+        )
 
     async def _delete_stale_vectors(
         self,

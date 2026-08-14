@@ -72,9 +72,11 @@ class KnowledgeDocumentService:
         created = await self.repository.create(entity)
         return self._to_dto(created)
 
-    async def get_by_id(self, document_id: str) -> KnowledgeDocumentDTO:
+    async def get_by_id(self, document_id: str, owner_store_id: str | None = None) -> KnowledgeDocumentDTO:
         entity = await self.repository.find_by_id(document_id)
         if entity is None:
+            raise KnowledgeDocumentNotFoundException(f"Knowledge document '{document_id}' was not found.")
+        if owner_store_id is not None and entity.store_id != owner_store_id:
             raise KnowledgeDocumentNotFoundException(f"Knowledge document '{document_id}' was not found.")
         return self._to_dto(entity)
 
