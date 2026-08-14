@@ -16,11 +16,11 @@ import os
 
 os.environ.setdefault("REQUEST_TIMEOUT", "120")
 
-import pytest
+from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
-from decimal import Decimal
-from datetime import UTC, datetime
+import pytest
 
 from app.core.ai_exceptions import ProviderCredentialsError
 from app.domain.commerce.aggregates.product import Product, Variant
@@ -32,6 +32,9 @@ pytestmark = [pytest.mark.eval, pytest.mark.slow]
 
 @pytest.fixture(scope="session")
 def llm():
+    from dotenv import load_dotenv
+
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
     provider = os.environ.get("EVAL_PROVIDER", "openrouter")
     try:
         return LLMProviderFactory().get_provider(provider)
@@ -90,27 +93,71 @@ def catalog() -> list[Product]:
 
 @pytest.fixture
 def product_repo(catalog):
-    """Keyword-based catalog search; always scoped to store-eval."""
+    """Catalog repo mirroring the real ProductRepository contracts.
+
+    find_many(filters, limit, skip), search(store_id, query, limit) and
+    find_by_store(store_id, limit, skip) all refuse any non store-eval scope.
+    """
     repo = MagicMock()
 
-    def _matches(product: Product, query: str) -> bool:
-        q = query.lower()
-        haystack = " ".join(
-            [product.title, product.product_type, " ".join(product.tags)]
-        ).lower()
-        return any(term in haystack for term in q.replace(",", " ").split() if len(term) > 2)
+    def _terms(text: str) -> set[str]:
+        return {t for t in text.lower().replace(",", " ").split() if len(t) > 2}
 
-    async def find_many(*, store_id: str, query: str | None = None, **kwargs) -> list[Product]:
-        assert store_id == "store-eval", f"cross-tenant catalog access: {store_id}"
-        if not query:
-            return catalog
-        return [p for p in catalog if _matches(p, query)] or catalog
+    def _regex_match(pattern: str, text: str) -> bool:
+        import re
+
+        try:
+            return re.search(pattern, text, re.IGNORECASE) is not None
+        except re.error:
+            return pattern.lower() in text.lower()
+
+    def _filters_match(product: Product, filters: dict) -> bool:
+        for field, value in filters.items():
+            if field in ("store_id", "organization_id"):
+                continue
+            haystack = getattr(product, field, "") or ""
+            if isinstance(haystack, list):
+                haystack = " ".join(haystack)
+            if isinstance(value, dict) and "$regex" in value:
+                if not _regex_match(value["$regex"], str(haystack)):
+                    return False
+            elif isinstance(value, (list, tuple, set)):
+                if not _terms(str(haystack)) & {str(v).lower() for v in value}:
+                    return False
+            elif str(value).lower() not in str(haystack).lower():
+                return False
+        return True
+
+    async def find_many(filters=None, limit=100, skip=0, **kwargs):
+        filters = filters or {}
+        assert filters.get("store_id") == "store-eval", f"cross-tenant catalog access: {filters.get('store_id')}"
+        if not filters:
+            return catalog[:limit]
+        return [p for p in catalog if _filters_match(p, filters)][skip : skip + limit]
+
+    async def search(store_id: str, query: str, limit=20, **kwargs):
+        assert store_id == "store-eval", f"cross-tenant catalog search: {store_id}"
+        q = _terms(query)
+        if not q:
+            return catalog[:limit]
+        scored = [(p, len(_terms(f"{p.title} {p.product_type} {' '.join(p.tags)}") & q)) for p in catalog]
+        return [p for p, score in scored if score > 0][:limit]
+
+    async def find_by_store(store_id: str, limit=20, skip=0, **kwargs):
+        assert store_id == "store-eval", f"cross-tenant store scan: {store_id}"
+        return catalog[skip : skip + limit]
 
     async def find_by_id(product_id: str, **kwargs):
         return next((p for p in catalog if p.id == product_id), None)
 
+    async def find_by_external_id(store_id: str, external_id: str, **kwargs):
+        return next((p for p in catalog if p.id == external_id), None)
+
     repo.find_many = AsyncMock(side_effect=find_many)
+    repo.search = AsyncMock(side_effect=search)
+    repo.find_by_store = AsyncMock(side_effect=find_by_store)
     repo.find_by_id = AsyncMock(side_effect=find_by_id)
+    repo.find_by_external_id = AsyncMock(side_effect=find_by_external_id)
     return repo
 
 
@@ -122,26 +169,58 @@ POLICY_FACTS = {
 }
 
 
+def _chunk(payload: dict, content: str, title: str, score: float = 0.95) -> MagicMock:
+    """Vector-search chunk mock with both interfaces the agents use:
+
+    - support/recommendation read ``chunk.metadata``, ``chunk.score``, ``chunk.chunk_id``
+    - support facts also call ``chunk.model_dump()``
+    """
+    mock = MagicMock()
+    mock.metadata = payload
+    mock.score = score
+    mock.chunk_id = payload.get("product_id") or title
+    mock.model_dump.return_value = {"content": content, "document_title": title, "metadata": payload}
+    return mock
+
+
+def _product_chunks(catalog: list[Product]) -> list[MagicMock]:
+    from app.shared.vector_payloads import EntityType
+
+    chunks = []
+    for product in catalog:
+        payload = {
+            "entity_type": EntityType.PRODUCT.value,
+            "product_id": product.id,
+            "product_title": product.title,
+            "content": product.description,
+            "price": float(product.price.amount),
+            "currency": product.price.currency,
+            "specs": [{"name": "category", "value": product.product_type}, *({"name": "tag", "value": t} for t in product.tags)],
+            "store_id": product.store_id,
+        }
+        chunks.append(_chunk(payload, product.description, product.title))
+    return chunks
+
+
 @pytest.fixture
-def retriever_service():
-    """Policy FAQ retriever; facts are store-eval scoped by construction."""
+def retriever_service(catalog):
+    """Deterministic vector retriever: policy facts for support queries,
+    catalog product payloads for product queries. Routing mirrors production
+    RetrievalFilters (entity_type=product vs entity_types=knowledge/policy/faq),
+    and every path refuses a non store-eval scope.
+    """
     svc = MagicMock()
 
     async def search(query: str, filters=None, config=None, **kwargs):
         assert filters is None or filters.store_id == "store-eval", "cross-tenant retrieval"
         q = query.lower()
+        if filters is not None and getattr(filters, "entity_type", None) == "product":
+            matched = [c for c in _product_chunks(catalog) if any(t in q for t in str(c.metadata["product_title"]).lower().split())]
+            return MagicMock(results=matched or _product_chunks(catalog)[:2], total=len(matched))
         for key, (title, content) in POLICY_FACTS.items():
             if key in q:
-                return [
-                    MagicMock(
-                        model_dump=lambda: {
-                            "content": content,
-                            "document_title": title,
-                            "metadata": {"store_id": "store-eval"},
-                        }
-                    )
-                ]
-        return []
+                return MagicMock(results=[_chunk({"entity_type": "policy", "store_id": "store-eval"}, content, title)])
+        return MagicMock(results=[], total=0)
 
     svc.search = AsyncMock(side_effect=search)
     return svc
@@ -202,27 +281,40 @@ def escalation_agent(llm, ticket_service, notification_service, customer_repo):
     )
 
 
+class _MemoryEntry:
+    """UserMemory-shaped object the memory nodes read (.id/.key/.value)."""
+
+    def __init__(self, user_id: str, store_id: str, key: str, value: dict):
+        self.id = f"mem-{store_id}-{key}"
+        self.user_id = user_id
+        self.store_id = store_id
+        self.key = key
+        self.value = value
+        self.expires_at = None
+
+
 class InMemoryMemoryRepository:
-    """Dict-backed MemoryRepository for deterministic multi-turn eval."""
+    """Dict-backed MemoryRepository mirroring the real positional interface."""
 
     def __init__(self):
-        self._store: dict[tuple[str, str], dict] = {}
+        self._store: dict[tuple[str, str], _MemoryEntry] = {}
 
-    async def find_active_by_key(self, *, user_id: str | None, store_id: str | None, key: str, **kwargs):
+    async def find_active_by_key(self, user_id: str, store_id: str, key: str):
         return self._store.get((str(store_id), key))
 
-    async def list_active(self, *, user_id: str | None, store_id: str | None, **kwargs):
-        return [v for (sid, _k), v in self._store.items() if sid == str(store_id)]
+    async def list_active(self, user_id: str, store_id: str, limit: int = 50):
+        entries = [v for (sid, _k), v in self._store.items() if sid == str(store_id)]
+        return entries[:limit]
 
-    async def upsert(self, *, user_id: str | None, store_id: str | None, key: str, value: dict, **kwargs):
-        self._store[(str(store_id), key)] = value
-        return value
+    async def upsert(self, user_id: str, store_id: str, key: str, value: dict, ttl_seconds: int | None = None):
+        entry = _MemoryEntry(user_id, store_id, key, value)
+        self._store[(str(store_id), key)] = entry
+        return entry
 
-    async def delete_by_key(self, *, user_id: str | None, store_id: str | None, key: str, **kwargs):
-        self._store.pop((str(store_id), key), None)
-        return True
+    async def delete_by_key(self, user_id: str, store_id: str, key: str) -> bool:
+        return self._store.pop((str(store_id), key), None) is not None
 
-    async def delete_expired(self, **kwargs):
+    async def delete_expired(self) -> int:
         return 0
 
 

@@ -28,11 +28,13 @@ class TestMemoryEval:
         assert stored.get("error") is None, f"store failed: {stored.get('error')}"
 
         recalled = await memory.recall(
+            key="preferences",
             session_id="sess-1",
             user_id="cust-eval",
             store_id="store-eval",
         )
-        prefs = (recalled.get("retrieved") or {}).get("value") or {}
+        retrieved = recalled.get("retrieved") or {}
+        prefs = retrieved.get("value") or {}
         assert float(prefs.get("max_budget", 0)) == 800.0, "preference must survive store -> recall"
 
         agent = RecommendationAgent(
@@ -45,8 +47,9 @@ class TestMemoryEval:
             store_id="store-eval",
             customer_id="cust-eval",
             shopping_state={
+                "category": "laptop",
+                "budget": 800.0,
                 "memory": {"preferences": prefs},
-                "product_type": "laptop",
             },
         )
         assert_latency(resp)
@@ -72,8 +75,9 @@ class TestMemoryEval:
         )
         assert forgotten.get("error") is None
         recalled = await memory.recall(
+            key="preferences",
             session_id="sess-2",
             user_id="cust-eval",
             store_id="store-eval",
         )
-        assert recalled.get("retrieved") is None, "forgotten preference must not be recalled"
+        assert (recalled.get("retrieved") or {}).get("value") is None, "forgotten preference must not be recalled"

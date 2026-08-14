@@ -6,6 +6,8 @@ Scenarios:
 - out-of-scope -> no product search, no fabricated store data
 """
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from app.agents.recommendation.agent import RecommendationAgent

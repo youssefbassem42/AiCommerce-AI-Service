@@ -53,7 +53,9 @@ class KeyManager:
         env_var = env_var or f"{provider_name.upper()}_API_KEY"
         return os.getenv(env_var)
 
-    def require_provider_api_key(self, provider_name: str, env_var: str | None = None, extra_hint: str | None = None) -> str:
+    def require_provider_api_key(
+        self, provider_name: str, env_var: str | None = None, extra_hint: str | None = None
+    ) -> str:
         """Return the provider API key or raise loudly.
 
         Phase 9 guardrail: placeholders such as "mock-key" must never be used in
