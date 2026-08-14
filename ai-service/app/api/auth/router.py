@@ -13,7 +13,7 @@ async def list_audit_logs(
     limit: int = 50,
     repo: AuditLogRepository = Depends(get_audit_log_repository),
 ) -> list[AuditLogResponse]:
-    logs = await repo.find_many({}, limit=limit, skip=skip)
+    logs = await repo.find_many({}, limit=limit, skip=skip, descending=True)
     return [
         AuditLogResponse(
             id=log.id,
