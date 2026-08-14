@@ -141,7 +141,10 @@ class TestHumanizedResponse:
             _state(
                 verified_facts=[_chunk("Returns are accepted within 14 days of delivery.")],
                 memory={"entries": {"name": "Sam", "last_exchange": {"user": "hi", "assistant": "hello"}}},
-                history=[{"role": "user", "content": "earlier question"}, {"role": "assistant", "content": "earlier answer"}],
+                history=[
+                    {"role": "user", "content": "earlier question"},
+                    {"role": "assistant", "content": "earlier answer"},
+                ],
                 user_query="can I return this after 20 days?",
             ),
             llm=llm,

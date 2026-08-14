@@ -174,9 +174,7 @@ class TestContextBuilder:
 
         context_builder._summary_repo = MagicMock()
         context_builder._summary_repo.find_by_document_id = AsyncMock(
-            return_value=[
-                SimpleNamespace(version_number=3, created_at=None, summary="Store return policy: 30 days.")
-            ]
+            return_value=[SimpleNamespace(version_number=3, created_at=None, summary="Store return policy: 30 days.")]
         )
 
         with patch(

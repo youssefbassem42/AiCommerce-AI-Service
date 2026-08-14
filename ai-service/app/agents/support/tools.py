@@ -253,7 +253,9 @@ def format_memory_for_prompt(memory: dict[str, Any] | None) -> str:
     lines = [f"{key}: {value}" for key, value in entries.items() if key != "last_exchange"]
     exchange = entries.get("last_exchange")
     if isinstance(exchange, dict):
-        lines.append(f"previous exchange: user asked '{exchange.get('user', '')}', we said '{exchange.get('assistant', '')}'")
+        lines.append(
+            f"previous exchange: user asked '{exchange.get('user', '')}', we said '{exchange.get('assistant', '')}'"
+        )
     return "\n".join(lines) if lines else "(none)"
 
 

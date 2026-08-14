@@ -769,11 +769,7 @@ async def widget_chat(
     product_payloads: list[ProductPayload] = []
     bundle_payload: BundlePayload | None = None
 
-    if (
-        sub_agent == "escalation"
-        or escalation_decision.get("should_escalate")
-        or contains_internal_leak(answer_text)
-    ):
+    if sub_agent == "escalation" or escalation_decision.get("should_escalate") or contains_internal_leak(answer_text):
         answer_text = ESCALATION_REPLY
         response_type = "escalation"
     else:

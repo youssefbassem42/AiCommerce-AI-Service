@@ -83,8 +83,8 @@ def catalog() -> list[Product]:
     return [
         _product("p-dress-60", "Floral Summer Dress", "60.00", "dress", ["dress", "summer", "floral"]),
         _product("p-dress-120", "Evening Maxi Dress", "120.00", "dress", ["dress", "evening", "maxi"]),
-        _product("p-laptop-750", "Laptop Standard 14\"", "750.00", "laptop", ["laptop", "14-inch", "work"]),
-        _product("p-laptop-900", "Laptop Pro 16\"", "900.00", "laptop", ["laptop", "16-inch", "gaming", "programming"]),
+        _product("p-laptop-750", 'Laptop Standard 14"', "750.00", "laptop", ["laptop", "14-inch", "work"]),
+        _product("p-laptop-900", 'Laptop Pro 16"', "900.00", "laptop", ["laptop", "16-inch", "gaming", "programming"]),
         _product("p-mouse", "Wireless Mouse", "25.00", "mouse", ["mouse", "wireless"]),
         _product("p-keyboard", "Mechanical Keyboard", "70.00", "keyboard", ["keyboard", "mechanical", "rgb"]),
         _product("p-cable", "USB-C Cable", "15.00", "accessory", ["cable", "usb-c"]),
@@ -195,7 +195,10 @@ def _product_chunks(catalog: list[Product]) -> list[MagicMock]:
             "content": product.description,
             "price": float(product.price.amount),
             "currency": product.price.currency,
-            "specs": [{"name": "category", "value": product.product_type}, *({"name": "tag", "value": t} for t in product.tags)],
+            "specs": [
+                {"name": "category", "value": product.product_type},
+                *({"name": "tag", "value": t} for t in product.tags),
+            ],
             "store_id": product.store_id,
         }
         chunks.append(_chunk(payload, product.description, product.title))
@@ -215,7 +218,11 @@ def retriever_service(catalog):
         assert filters is None or filters.store_id == "store-eval", "cross-tenant retrieval"
         q = query.lower()
         if filters is not None and getattr(filters, "entity_type", None) == "product":
-            matched = [c for c in _product_chunks(catalog) if any(t in q for t in str(c.metadata["product_title"]).lower().split())]
+            matched = [
+                c
+                for c in _product_chunks(catalog)
+                if any(t in q for t in str(c.metadata["product_title"]).lower().split())
+            ]
             return MagicMock(results=matched or _product_chunks(catalog)[:2], total=len(matched))
         for key, (title, content) in POLICY_FACTS.items():
             if key in q:

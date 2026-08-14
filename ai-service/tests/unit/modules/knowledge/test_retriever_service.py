@@ -438,7 +438,9 @@ class TestRetrieverServiceHybrid:
             assert result.strategy == "hybrid"
 
     @pytest.mark.asyncio
-    async def test_hybrid_semantic_search_uses_config_score_threshold(self, retriever, mock_vector_store, mock_llm_provider):
+    async def test_hybrid_semantic_search_uses_config_score_threshold(
+        self, retriever, mock_vector_store, mock_llm_provider
+    ):
         mock_llm_provider.embeddings.return_value = MagicMock(embeddings=[[0.1, 0.2]])
         mock_vector_store.search.return_value = [make_search_result("c1", 0.9)]
 

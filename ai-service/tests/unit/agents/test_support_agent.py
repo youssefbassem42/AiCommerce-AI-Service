@@ -169,7 +169,11 @@ class TestSupportAgent:
             customer_id=None,
             context={
                 "knowledge_context": [
-                    {"document_title": "Return Policy", "content": "Returns are accepted within 14 days.", "metadata": {}}
+                    {
+                        "document_title": "Return Policy",
+                        "content": "Returns are accepted within 14 days.",
+                        "metadata": {},
+                    }
                 ]
             },
         )
