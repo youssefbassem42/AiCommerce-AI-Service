@@ -32,8 +32,6 @@ class OpenRouterProvider(BaseLLMProvider):
     Uses an OpenAI-compatible API format.
     """
 
-    DEFAULT_MAX_TOKENS = 2048
-
     def __init__(self, api_key: str | None = None):
         key_manager = KeyManager()
         self.api_key = api_key or key_manager.require_provider_api_key("openrouter")
@@ -113,11 +111,6 @@ class OpenRouterProvider(BaseLLMProvider):
                 kwargs["top_p"] = request.top_p
             if request.max_tokens is not None:
                 kwargs["max_tokens"] = request.max_tokens
-            else:
-                # OpenRouter pre-charges the model's full max completion budget
-                # (e.g. 16k) when max_tokens is omitted, which 402s low-balance
-                # accounts even for tiny prompts. Default to a sane cap instead.
-                kwargs["max_tokens"] = self.DEFAULT_MAX_TOKENS
             if request.json_mode:
                 kwargs["response_format"] = {"type": "json_object"}
 
@@ -184,8 +177,6 @@ class OpenRouterProvider(BaseLLMProvider):
             kwargs["top_p"] = request.top_p
         if request.max_tokens is not None:
             kwargs["max_tokens"] = request.max_tokens
-        else:
-            kwargs["max_tokens"] = self.DEFAULT_MAX_TOKENS
         if request.json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
