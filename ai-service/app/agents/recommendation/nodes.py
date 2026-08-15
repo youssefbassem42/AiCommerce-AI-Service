@@ -46,8 +46,9 @@ def _missing_requirement_question(
 ) -> str | None:
     """Ask for the first unanswered requirement so the search has full constraints.
 
-    Priority: what to buy -> budget -> use case. Returns None when the intent
-    is complete enough to search.
+    Priority: what to buy -> budget. The use case is a soft ranking signal,
+    not a search prerequisite, so it is never a blocking question.
+    Returns None when the intent is complete enough to search.
     """
     if not intent:
         return "What kind of product are you looking for?"
@@ -57,8 +58,6 @@ def _missing_requirement_question(
         missing.append("category")
     if intent.max_budget is None:
         missing.append("budget")
-    if not intent.use_case:
-        missing.append("use_case")
 
     if not missing:
         return None
@@ -67,7 +66,6 @@ def _missing_requirement_question(
     questions = {
         "category": "What kind of product are you looking for?",
         "budget": "What's your budget?",
-        "use_case": "What will you use it for?",
     }
     return questions[next_question]
 

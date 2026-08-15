@@ -265,7 +265,8 @@ class TestRecommendationShoppingState:
         assert response.products == []
         retriever.search.assert_not_awaited()
 
-    async def test_missing_use_case_asks_after_budget_known(self, retriever, product_repo, shopping_llm):
+    async def test_missing_use_case_searches_after_budget_known(self, retriever, product_repo, shopping_llm):
+        """Use case is a soft ranking signal, never a blocking question."""
         agent = RecommendationAgent(retriever_service=retriever, product_repo=product_repo, llm=shopping_llm)
 
         response = await agent.run(
@@ -274,9 +275,8 @@ class TestRecommendationShoppingState:
             shopping_state={"intent": "product_recommendation", "category": "laptop", "budget": 800},
         )
 
-        assert response.clarifying_question is not None
-        assert "use it for" in response.clarifying_question.lower()
-        retriever.search.assert_not_awaited()
+        assert response.clarifying_question is None
+        assert response.products is not None
 
     async def test_complete_state_searches_directly(self, retriever, product_repo, shopping_llm):
         agent = RecommendationAgent(retriever_service=retriever, product_repo=product_repo, llm=shopping_llm)
