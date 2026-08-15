@@ -10,6 +10,7 @@ from app.application.recommendation.dto.recommendation_dto import (
     DiscountInfo,
 )
 from app.application.recommendation.promo_service import PromoCodeService
+from app.core.ai_settings import ai_settings
 from app.domain.commerce.aggregates.product import Product
 from app.domain.commerce.repositories import ProductRepository
 from app.infrastructure.providers.base import BaseLLMProvider
@@ -67,7 +68,7 @@ def expand_use_case(use_case: str | None) -> list[str]:
 
 
 def _get_llm() -> BaseLLMProvider:
-    return LLMProviderFactory().get_provider("openai")
+    return LLMProviderFactory().get_provider(ai_settings.DEFAULT_PROVIDER)
 
 
 async def parse_budget(

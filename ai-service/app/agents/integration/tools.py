@@ -17,6 +17,7 @@ from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.application.integration.discovery.field_suggester import FieldSuggester
 from app.application.integration.mapping.transformers import get_default_registry
 from app.application.integration.openapi.resolver import RefResolver
+from app.core.ai_settings import ai_settings
 from app.core.model_registry import ModelRegistry
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
@@ -91,7 +92,7 @@ def _select_best_provider() -> tuple[BaseLLMProvider, str]:
         except Exception as e:
             logger.debug("Provider %s (%s) unavailable: %s", provider_name, model_name, e)
             continue
-    return factory.get_provider("openai"), "gpt-4o-mini"
+    return factory.get_provider(ai_settings.DEFAULT_PROVIDER), "gpt-4o-mini"
 
 
 def _summarize_spec(spec: dict) -> dict:

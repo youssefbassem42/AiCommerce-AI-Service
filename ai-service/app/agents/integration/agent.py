@@ -12,6 +12,7 @@ from app.agents.integration.nodes import (
 )
 from app.agents.integration.schemas import IntegrationMappingReport
 from app.agents.integration.state import IntegrationMappingState
+from app.core.ai_settings import ai_settings
 from app.core.model_registry import ModelRegistry
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
@@ -37,7 +38,7 @@ async def _select_best_model() -> tuple[BaseLLMProvider, str]:
                     return provider, model_name
         except Exception:
             continue
-    return factory.get_provider("openai"), "gpt-4o-mini"
+    return factory.get_provider(ai_settings.DEFAULT_PROVIDER), "gpt-4o-mini"
 
 
 def route_after_parse(state: IntegrationMappingState) -> str:

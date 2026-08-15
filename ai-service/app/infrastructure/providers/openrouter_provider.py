@@ -111,6 +111,8 @@ class OpenRouterProvider(BaseLLMProvider):
                 kwargs["top_p"] = request.top_p
             if request.max_tokens is not None:
                 kwargs["max_tokens"] = request.max_tokens
+            else:
+                kwargs["max_tokens"] = 2048
             if request.json_mode:
                 kwargs["response_format"] = {"type": "json_object"}
 
@@ -251,7 +253,11 @@ class OpenRouterProvider(BaseLLMProvider):
         request_copy = ChatRequest(**request.model_dump())
         request_copy.json_mode = True
 
-        instruction = f"\nReturn a JSON object matching this schema:\n{schema_desc}"
+        instruction = (
+            "\nReturn a JSON object that INSTANTIATES this schema — i.e. the data itself, "
+            "NOT the schema definition. Do not wrap the data in 'properties'.\n"
+            f"Schema (for shape reference only):\n{schema_desc}"
+        )
         if request_copy.messages:
             last_msg = request_copy.messages[-1]
             if isinstance(last_msg.content, str):
@@ -259,7 +265,39 @@ class OpenRouterProvider(BaseLLMProvider):
             else:
                 last_msg.content.append({"type": "text", "text": instruction})
 
-        return await self.chat(request_copy, timeout)
+        response = await self.chat(request_copy, timeout)
+        return self._unwrap_schema_echo(response)
+
+    def _unwrap_schema_echo(self, response: ChatResponse) -> ChatResponse:
+        """Recover when the model echoes the schema instead of instantiating it.
+
+        Some models respond with {"description": ..., "type": ..., "properties": {...}}
+        where the actual data sits under "properties". Unwrap it so callers get the data.
+        """
+        content = response.message.content
+        if not isinstance(content, str):
+            return response
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            return response
+        if not isinstance(data, dict):
+            return response
+        if "properties" not in data or "type" not in data or "description" not in data:
+            return response
+        props = data["properties"]
+        if not isinstance(props, dict) or not props:
+            return response
+        if any(isinstance(v, dict) for v in props.values()):
+            return response
+        try:
+            import copy
+
+            fixed = copy.deepcopy(response)
+            fixed.message.content = json.dumps(props)
+            return fixed
+        except Exception:
+            return response
 
     async def tool_call(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
         return await self.chat(request, timeout)
