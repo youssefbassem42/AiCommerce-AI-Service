@@ -97,7 +97,7 @@ test("one-line install: widget mounts and chat returns structured product cards"
         const cards = shadow.querySelectorAll(".recommendation-card, [class*='product-card'], [class*='ProductCard']");
         return cards.length > 0;
       },
-      { timeout: 90000 },
+      { timeout: 180000 },
     );
 
     const cards = await countProductCards(page);

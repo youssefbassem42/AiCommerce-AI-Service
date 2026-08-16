@@ -91,7 +91,7 @@ const RUNTIME_PATCHES = [
   [
     "P9-seed-on-mount",
     "this._state.set(h.READY),this._renderLauncher(),this._config.autoOpen&&this.open()",
-    "this._state.set(h.READY),this._renderLauncher(),this._ensureApi(),this._auth.seedFromSlot(),this._config.autoOpen&&this.open()",
+    "this._state.set(h.READY),this._renderLauncher(),this._ensureApi(),this._auth.seedFromSlot()&&(this._bootstrapAttempted=!0),this._config.autoOpen&&this.open()",
   ],
   // P7 (test-only artifact): export the pure adapter/state classes so Node tests
   // can exercise the exact shipped code. Inert in the browser.

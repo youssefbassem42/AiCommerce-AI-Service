@@ -1,9 +1,9 @@
 {
   "version": "v1",
-  "runtimeHash": "966c594212d4",
-  "runtimeUrl": "/widget/v1/runtime.966c594212d4.js",
+  "runtimeHash": "a96075ac2bef",
+  "runtimeUrl": "/widget/v1/runtime.a96075ac2bef.js",
   "entryUrl": "/v1/widget.js",
   "legacyUrl": "/widget.js",
-  "builtAt": "2026-08-16T19:56:04.232Z",
-  "runtimeBytes": 72172
+  "builtAt": "2026-08-16T20:09:21.527Z",
+  "runtimeBytes": 72203
 }
