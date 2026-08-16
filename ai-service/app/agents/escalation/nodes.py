@@ -54,9 +54,9 @@ async def summarize_conversation_node(
                     ),
                     MessageDTO(
                         role="user",
-                        content=(
-                            await get_prompt_client().get("escalation.summarization_prompt")
-                        ).format(transcript=transcript, reason=reason),
+                        content=(await get_prompt_client().get("escalation.summarization_prompt")).format(
+                            transcript=transcript, reason=reason
+                        ),
                     ),
                 ],
                 model=ai_settings.DEFAULT_MODEL,

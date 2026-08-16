@@ -282,9 +282,7 @@ class ContextBuilder:
             resolution = await resolve_intent(
                 message,
                 llm=self._llm,
-                history="\n".join(
-                    f"{m.get('role')}: {m.get('content', '')}" for m in context.history[-8:]
-                ),
+                history="\n".join(f"{m.get('role')}: {m.get('content', '')}" for m in context.history[-8:]),
                 previous_intent=previous_intent,
                 shopping_state=shopping_state,
             )

@@ -17,11 +17,7 @@ def _chat_response(intent: str) -> ChatResponse:
         metadata={
             "intent": intent,
             "sub_agent": "recommendation",
-            "result": {
-                "products": [
-                    {"product_id": "p1", "title": "Wireless Mouse", "price": "49.99"}
-                ]
-            },
+            "result": {"products": [{"product_id": "p1", "title": "Wireless Mouse", "price": "49.99"}]},
         },
         model="openai/gpt-4o-mini",
         provider="openrouter",

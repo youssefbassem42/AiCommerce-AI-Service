@@ -5,7 +5,7 @@ import jwt as pyjwt
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.ticket.dependencies import get_notification_service, get_ticket_service
+from app.api.ticket.dependencies import get_ticket_service
 from app.core.auth_settings import auth_settings
 from app.main import app
 from app.middleware.audit import AuditMiddleware

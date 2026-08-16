@@ -80,9 +80,7 @@ def disable_promo_codes(monkeypatch):
 
 
 class TestPromoCodeService:
-    async def test_generate_disabled_by_config_returns_none(
-        self, promo_service, connection_repo, disable_promo_codes
-    ):
+    async def test_generate_disabled_by_config_returns_none(self, promo_service, connection_repo, disable_promo_codes):
         assert ai_settings.PROMO_CODES_ENABLED is False
         code = await promo_service.generate_code("s1", ["p1"], 10.0)
         assert code is None

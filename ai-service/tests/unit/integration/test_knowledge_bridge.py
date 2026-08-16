@@ -309,7 +309,9 @@ class TestBridgePayloadAndRecordOps:
 
     @pytest.mark.asyncio
     async def test_product_payload_has_recommendation_fields(self, mock_vector_store, mock_llm):
-        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1))
+        bridge = CommerceKnowledgeBridge(
+            vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1)
+        )
         await bridge.sync_entity(
             store_id="s1",
             organization_id="o1",
@@ -327,7 +329,9 @@ class TestBridgePayloadAndRecordOps:
 
     @pytest.mark.asyncio
     async def test_product_payload_has_canonical_entity_fields(self, mock_vector_store, mock_llm):
-        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1))
+        bridge = CommerceKnowledgeBridge(
+            vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1)
+        )
         await bridge.sync_entity(
             store_id="s1",
             organization_id="o1",
@@ -361,7 +365,9 @@ class TestBridgePayloadAndRecordOps:
 
     @pytest.mark.asyncio
     async def test_non_product_entity_no_product_fields(self, mock_vector_store, mock_llm):
-        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1))
+        bridge = CommerceKnowledgeBridge(
+            vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1)
+        )
         await bridge.sync_entity(
             store_id="s1",
             organization_id="o1",
@@ -408,7 +414,9 @@ class TestBridgePayloadAndRecordOps:
     @pytest.mark.asyncio
     async def test_create_collection_uses_embedding_dimensions(self, mock_vector_store, mock_llm):
         mock_vector_store.collection_exists = AsyncMock(return_value=False)
-        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1))
+        bridge = CommerceKnowledgeBridge(
+            vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1)
+        )
         await bridge.sync_entity(
             store_id="s1",
             organization_id="o1",
@@ -419,7 +427,9 @@ class TestBridgePayloadAndRecordOps:
 
     @pytest.mark.asyncio
     async def test_sync_record_single(self, mock_vector_store, mock_llm):
-        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1))
+        bridge = CommerceKnowledgeBridge(
+            vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1)
+        )
         result = await bridge.sync_record(
             store_id="s1",
             organization_id="o1",
@@ -431,7 +441,9 @@ class TestBridgePayloadAndRecordOps:
 
     @pytest.mark.asyncio
     async def test_delete_record_filters_by_entity_key(self, mock_vector_store, mock_llm):
-        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1))
+        bridge = CommerceKnowledgeBridge(
+            vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1)
+        )
         await bridge.delete_record(store_id="s1", entity_type="product", entity_key="m1")
         must = mock_vector_store.delete_by_filter.await_args.kwargs["must"]
         assert {"key": "entity_type", "value": "product"} in must
@@ -440,7 +452,9 @@ class TestBridgePayloadAndRecordOps:
     @pytest.mark.asyncio
     async def test_delete_record_missing_collection(self, mock_vector_store, mock_llm):
         mock_vector_store.collection_exists = AsyncMock(return_value=False)
-        bridge = CommerceKnowledgeBridge(vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1))
+        bridge = CommerceKnowledgeBridge(
+            vector_store=mock_vector_store, llm_provider=mock_llm, knowledge_version_resolver=AsyncMock(return_value=1)
+        )
         deleted = await bridge.delete_record(store_id="s1", entity_type="product", entity_key="m1")
         assert deleted == 0
         mock_vector_store.delete_by_filter.assert_not_awaited()

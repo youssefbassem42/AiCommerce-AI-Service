@@ -1,6 +1,8 @@
 import logging
 from datetime import UTC, datetime
 
+from bson import ObjectId
+
 from app.domain.prompt.entities.prompt import Prompt
 from app.infrastructure.mongodb.repositories.prompt_repository import PromptRepository
 from app.infrastructure.prompts.client import get_prompt_client
@@ -71,6 +73,7 @@ class PromptService:
 
         latest = DEFAULT_PROMPTS.get(key)
         entity = Prompt(
+            id=str(ObjectId()),
             key=key,
             type=type,
             content=content,
@@ -144,6 +147,7 @@ class PromptService:
             return await self._repo.update(existing)
 
         entity = Prompt(
+            id=str(ObjectId()),
             key=key,
             type=default.get("type", "system"),
             content=default["content"],
@@ -163,8 +167,20 @@ class PromptService:
             try:
                 existing = await self._repo.find_by_key(key)
                 if existing:
+                    if existing.version == 1 and existing.content != data["content"]:
+                        existing.content = data["content"]
+                        existing.description = data["description"]
+                        existing.tags = data["tags"]
+                        existing.type = data.get("type", "system")
+                        existing.variables = data.get("variables", [])
+                        existing.updated_at = datetime.now(UTC)
+                        self._cache.pop(key, None)
+                        _invalidate_runtime_cache(key)
+                        await self._repo.update(existing)
+                        count += 1
                     continue
                 entity = Prompt(
+                    id=str(ObjectId()),
                     key=key,
                     type=data.get("type", "system"),
                     content=data["content"],

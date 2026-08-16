@@ -120,9 +120,7 @@ class RagOrchestrationService:
         chunk_header = await get_prompt_client().get("rag.core.chunk_header")
         for i, c in enumerate(chunks[:MAX_CHUNKS_IN_CONTEXT]):
             snippet = c.content[:MAX_CHUNK_CHARS]
-            chunks_context_lines.append(
-                chunk_header.format(index=i + 1, title=c.document_title, content=snippet)
-            )
+            chunks_context_lines.append(chunk_header.format(index=i + 1, title=c.document_title, content=snippet))
 
         chunks_context = "\n".join(chunks_context_lines)
 

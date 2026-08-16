@@ -110,9 +110,7 @@ class TestBundleSuggestionService:
         assert saved.status == "active"
 
     async def test_suggest_skips_persistence_without_products(self, service, recommendation_repo):
-        service._workflow.run = AsyncMock(
-            return_value=_bundle_response(bundles=[BundleCandidate(products=[], rank=0)])
-        )
+        service._workflow.run = AsyncMock(return_value=_bundle_response(bundles=[BundleCandidate(products=[], rank=0)]))
         await service.suggest(query="nothing", store_id="store_1")
         recommendation_repo.save_bundle_suggestion.assert_not_awaited()
 
