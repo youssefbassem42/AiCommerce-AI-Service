@@ -3,9 +3,18 @@ from datetime import UTC, datetime
 
 from app.domain.prompt.entities.prompt import Prompt
 from app.infrastructure.mongodb.repositories.prompt_repository import PromptRepository
+from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.prompts.seed import DEFAULT_PROMPTS
 
 logger = logging.getLogger(__name__)
+
+
+def _invalidate_runtime_cache(key: str) -> None:
+    """Propagate admin prompt edits to the runtime PromptClient cache."""
+    try:
+        get_prompt_client().invalidate(key)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Failed to invalidate runtime prompt cache for '%s': %s", key, exc)
 
 
 class PromptService:
@@ -72,6 +81,7 @@ class PromptService:
             is_active=True,
         )
         self._cache.pop(key, None)
+        _invalidate_runtime_cache(key)
         return await self._repo.create(entity)
 
     async def update_prompt(
@@ -104,6 +114,7 @@ class PromptService:
         existing.version += 1
         existing.updated_at = datetime.now(UTC)
         self._cache.pop(key, None)
+        _invalidate_runtime_cache(key)
         return await self._repo.update(existing)
 
     async def delete_prompt(self, key: str) -> bool:
@@ -111,6 +122,7 @@ class PromptService:
         if not existing:
             return False
         self._cache.pop(key, None)
+        _invalidate_runtime_cache(key)
         return await self._repo.delete(existing.id)
 
     async def restore_default(self, key: str) -> Prompt | None:
@@ -128,6 +140,7 @@ class PromptService:
             existing.version += 1
             existing.updated_at = datetime.now(UTC)
             self._cache.pop(key, None)
+            _invalidate_runtime_cache(key)
             return await self._repo.update(existing)
 
         entity = Prompt(
@@ -141,6 +154,7 @@ class PromptService:
             is_active=True,
         )
         self._cache.pop(key, None)
+        _invalidate_runtime_cache(key)
         return await self._repo.create(entity)
 
     async def seed_defaults(self) -> int:

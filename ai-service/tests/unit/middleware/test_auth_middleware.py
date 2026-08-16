@@ -75,6 +75,17 @@ class TestAuthMiddleware:
             assert response.status_code == 401
 
     @pytest.mark.asyncio
+    async def test_widget_bootstrap_reachable_when_jwt_required(self):
+        """Preconditions: JWT required, no auth header. Input: Widget bootstrap. Execution: Dispatch. Expected: 200 (whitelisted)."""
+        with patch("app.middleware.auth.auth_settings.JWT_REQUIRED", True):
+            request = create_mock_request(path="/api/v1/widget/bootstrap")
+            middleware = AuthMiddleware(lambda app: None)
+
+            call_next = AsyncMock(return_value=Response("OK", status_code=200))
+            response = await middleware.dispatch(request, call_next)
+            assert response.status_code == 200
+
+    @pytest.mark.asyncio
     async def test_missing_auth_header_with_jwt_not_required(self):
         """Preconditions: JWT not required, no auth header. Input: Request. Execution: Dispatch. Expected: 200."""
         with patch("app.middleware.auth.auth_settings.JWT_REQUIRED", False):

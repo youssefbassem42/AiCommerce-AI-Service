@@ -2,7 +2,6 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.agents.escalation.prompts import NOTIFICATION_TEMPLATE, SUMMARIZATION_PROMPT
 from app.agents.escalation.state import EscalationState
 from app.agents.escalation.tools import (
     assign_team,
@@ -15,6 +14,7 @@ from app.application.ticket.dto.ticket_dto import TicketCreateDTO
 from app.application.ticket.services.notification_service import TicketNotificationService
 from app.application.ticket.services.ticket_service import TicketService
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
+from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,9 @@ async def summarize_conversation_node(
                     ),
                     MessageDTO(
                         role="user",
-                        content=SUMMARIZATION_PROMPT.format(transcript=transcript, reason=reason),
+                        content=(
+                            await get_prompt_client().get("escalation.summarization_prompt")
+                        ).format(transcript=transcript, reason=reason),
                     ),
                 ],
                 model="gpt-4o-mini",
@@ -153,7 +155,9 @@ async def notify_customer_node(
         if eta
         else ""
     )
-    message = NOTIFICATION_TEMPLATE.format(team=team, eta_suffix=eta_suffix)
+    message = (await get_prompt_client().get("escalation.notification_template")).format(
+        team=team, eta_suffix=eta_suffix
+    )
 
     try:
         await notification_service.create_notification(

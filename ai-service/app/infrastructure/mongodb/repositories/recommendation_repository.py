@@ -49,12 +49,14 @@ class RecommendationRepository(BaseMongoRepository[RecommendationDocument, Recom
 
     async def save_bundle_suggestion(self, bundle: BundleSuggestion, session: Any = None) -> BundleSuggestion:
         """Create or update a bundle suggestion."""
-        if not ObjectId.is_valid(bundle.id):
-            raise ValueError(f"Bundle contains an invalid ObjectId format: {bundle.id}")
+        bundle_id = bundle.id
+        if not ObjectId.is_valid(bundle_id):
+            bundle_id = str(ObjectId())
+            bundle.id = bundle_id
         try:
             doc = BundleSuggestionDocument.from_entity(bundle)
             data = doc.to_mongo_dict()
-            await self.bundles_collection.replace_one({"_id": ObjectId(bundle.id)}, data, upsert=True, session=session)
+            await self.bundles_collection.replace_one({"_id": ObjectId(bundle_id)}, data, upsert=True, session=session)
             return bundle
         except Exception as e:
             self._handle_db_error(e)

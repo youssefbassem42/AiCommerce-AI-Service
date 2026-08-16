@@ -6,7 +6,6 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from app.agents.integration.prompts import ANALYZE_SPEC_PROMPT, ERROR_EXPLANATION_PROMPT, FEATURE_GAP_PROMPT
 from app.agents.integration.schemas import (
     AuthInfo,
     FeatureAnalysis,
@@ -19,6 +18,7 @@ from app.application.integration.mapping.transformers import get_default_registr
 from app.application.integration.openapi.resolver import RefResolver
 from app.core.ai_settings import ai_settings
 from app.core.model_registry import ModelRegistry
+from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
 
@@ -328,7 +328,7 @@ async def analyze_spec_with_llm(
 
     summary = _summarize_spec(spec)
 
-    analyze_prompt = ANALYZE_SPEC_PROMPT.format(
+    analyze_prompt = (await get_prompt_client().get("integration.agent.analyze_spec_prompt")).format(
         platform_name=platform_name,
         endpoint_count=summary["endpoint_count"],
         schema_count=summary["schema_count"],
@@ -424,7 +424,7 @@ async def analyze_feature_gaps(
             else "  (none discovered)"
         )
 
-        prompt = FEATURE_GAP_PROMPT.format(
+        prompt = (await get_prompt_client().get("integration.agent.feature_gap_prompt")).format(
             endpoints_summary=endpoints_summary,
             entities_summary=entities_summary,
         )
@@ -466,7 +466,7 @@ async def create_user_friendly_error(
     spec_format = _extract_spec_format(spec)
     summary = _summarize_spec(spec_dict)
 
-    prompt = ERROR_EXPLANATION_PROMPT.format(
+    prompt = (await get_prompt_client().get("integration.agent.error_explanation_prompt")).format(
         error=error,
         platform_name=platform_name,
         has_endpoints="yes" if summary["endpoint_count"] > 0 else "no",

@@ -147,7 +147,12 @@ class TicketService:
                         phone=customer_entity.phone,
                     )
             except Exception:
-                pass
+                logger.warning(
+                    "Customer profile enrichment failed for ticket '%s' (customer '%s')",
+                    ticket_id,
+                    entity.customer_id,
+                    exc_info=True,
+                )
 
         return self._to_dto(entity, customer, orders, conversation)
 

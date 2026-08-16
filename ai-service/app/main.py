@@ -18,7 +18,6 @@ from app.api.knowledge.generation_router import router as knowledge_generation_r
 from app.api.knowledge.job_router import router as knowledge_job_router
 from app.api.knowledge.retrieval_router import router as knowledge_retrieval_router
 from app.api.knowledge.unified_router import router as knowledge_unified_router
-from app.api.rag.router import router as rag_router
 from app.api.recommendation.router import router as recommendation_router
 from app.api.ticket.router import router as ticket_router
 from app.api.widget.admin_router import router as widget_admin_router
@@ -120,7 +119,6 @@ app.include_router(knowledge_generation_router)
 app.include_router(knowledge_retrieval_router)
 app.include_router(knowledge_job_router)
 app.include_router(knowledge_unified_router)
-app.include_router(rag_router)
 app.include_router(recommendation_router)
 app.include_router(admin_analytics_router)
 app.include_router(admin_prompt_router)

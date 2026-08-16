@@ -2,7 +2,6 @@ import logging
 from typing import Any
 
 from app.agents.escalation.agent import EscalationAgent
-from app.agents.support.prompts import SUPPORT_REPLY_PROMPT
 from app.agents.support.state import SupportState
 from app.agents.support.tools import (
     REFUND_ESCALATION_THRESHOLD,
@@ -25,6 +24,7 @@ from app.application.ticket.dto.ticket_dto import TicketCreateDTO
 from app.application.ticket.services.ticket_service import TicketService
 from app.domain.commerce.repositories.order_repository import OrderRepository
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
+from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
@@ -395,11 +395,12 @@ async def _generate_grounded_reply(
     conversation_lines = [f"{m.get('role')}: {m.get('content', '')}" for m in (state.get("history") or [])]
     conversation_lines.append(f"user: {state['user_query']}")
 
+    prompt = await get_prompt_client().get("support.reply_prompt")
     request = ChatRequest(
         messages=[
             MessageDTO(
                 role="system",
-                content=SUPPORT_REPLY_PROMPT.format(
+                content=prompt.format(
                     facts=format_facts_for_prompt(facts),
                     order_details=format_order_for_prompt(order),
                     memory=format_memory_for_prompt(memory),

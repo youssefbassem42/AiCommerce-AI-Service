@@ -74,8 +74,15 @@ def enable_promo_codes(monkeypatch):
     monkeypatch.setattr(ai_settings, "PROMO_CODES_ENABLED", True)
 
 
+@pytest.fixture
+def disable_promo_codes(monkeypatch):
+    monkeypatch.setattr(ai_settings, "PROMO_CODES_ENABLED", False)
+
+
 class TestPromoCodeService:
-    async def test_generate_disabled_by_config_returns_none(self, promo_service, connection_repo):
+    async def test_generate_disabled_by_config_returns_none(
+        self, promo_service, connection_repo, disable_promo_codes
+    ):
         assert ai_settings.PROMO_CODES_ENABLED is False
         code = await promo_service.generate_code("s1", ["p1"], 10.0)
         assert code is None

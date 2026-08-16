@@ -14,8 +14,14 @@ from app.application.services.conversation_service import ConversationService
 from app.domain.commerce.repositories.order_repository import OrderRepository
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
 from app.domain.memory.repositories.memory_repository import MemoryRepository
+from app.domain.recommendation.repositories.store_capabilities_repository import (
+    StoreCapabilitiesRepository,
+)
 from app.infrastructure.mongodb.repositories.conversation_repository import (
     ConversationRepository as MongoConversationRepository,
+)
+from app.infrastructure.mongodb.repositories.store_capabilities_repository import (
+    StoreCapabilitiesMongoRepository,
 )
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
@@ -48,6 +54,7 @@ class OrchestrationService:
         promo_service: PromoCodeService | None = None,
         retriever_service: Any | None = None,
         product_repo: Any | None = None,
+        capabilities_repo: StoreCapabilitiesRepository | None = None,
     ):
         self._provider_factory = provider_factory
         self._conversation_service = conversation_service
@@ -61,6 +68,7 @@ class OrchestrationService:
         self._promo_service = promo_service
         self._retriever_service = retriever_service
         self._product_repo = product_repo
+        self._capabilities_repo = capabilities_repo or StoreCapabilitiesMongoRepository()
         self._llm = llm or LLMProviderFactory().get_provider("openrouter")
         self._workflow: ConversationWorkflow | None = None
 
@@ -95,7 +103,27 @@ class OrchestrationService:
                 recommendation_service=self._recommendation_service,
                 promo_service=self._promo_service,
             )
-            sub_agents["sales"] = sales_agent.run
+
+            async def sales_runner(
+                query,
+                store_id,
+                customer_id=None,
+                history=None,
+                conversation_id=None,
+                context=None,
+            ):
+                capabilities = await self._capabilities_repo.get_or_detect(store_id)
+                return await sales_agent.run(
+                    query=query,
+                    store_id=store_id,
+                    customer_id=customer_id,
+                    history=history,
+                    conversation_id=conversation_id,
+                    store_capabilities=dict(capabilities.capabilities),
+                    context=context,
+                )
+
+            sub_agents["sales"] = sales_runner
 
         escalation_agent = EscalationAgent(
             llm=self._llm,

@@ -107,7 +107,7 @@ class TestSearchSpecVectors:
 
 class TestFilterInventory:
     async def test_empty_candidates(self):
-        results = await filter_inventory([], AsyncMock())
+        results = await filter_inventory([], AsyncMock(), "s1")
         assert results == []
 
     async def test_filters_out_of_stock(self):
@@ -137,7 +137,7 @@ class TestFilterInventory:
 
         repo.find_by_id.side_effect = [p1, p2]
 
-        filtered = await filter_inventory(candidates, repo)
+        filtered = await filter_inventory(candidates, repo, "s1")
         assert len(filtered) == 1
         assert filtered[0].product_id == "p2"
 
@@ -148,7 +148,7 @@ class TestFilterInventory:
             ScoredProduct(product_id="ghost-1", title="FAQ chunk", store_id="s1", price=Decimal("0")),
         ]
 
-        filtered = await filter_inventory(candidates, repo)
+        filtered = await filter_inventory(candidates, repo, "s1")
 
         assert filtered == []
 
@@ -157,7 +157,7 @@ class TestFilterInventory:
         repo.find_by_id.side_effect = RuntimeError("db down")
         candidates = [ScoredProduct(product_id="p1", title="P1", store_id="s1")]
 
-        filtered = await filter_inventory(candidates, repo)
+        filtered = await filter_inventory(candidates, repo, "s1")
 
         assert filtered == []
 
@@ -174,7 +174,7 @@ class TestFilterInventory:
             ScoredProduct(product_id="p1", title="No price", store_id="s1", price=Decimal("0")),
         ]
 
-        filtered = await filter_inventory(candidates, repo)
+        filtered = await filter_inventory(candidates, repo, "s1")
 
         assert filtered == []
 
@@ -194,18 +194,38 @@ class TestFilterInventory:
             ScoredProduct(product_id="p1", title="Stale payload title", store_id="s1", price=Decimal("0")),
         ]
 
-        filtered = await filter_inventory(candidates, repo)
+        filtered = await filter_inventory(candidates, repo, "s1")
 
         assert len(filtered) == 1
         assert filtered[0].price == Decimal("499")
         assert filtered[0].title == "Laptop"
+
+    async def test_discards_product_belonging_to_another_store(self):
+        repo = AsyncMock()
+        repo.find_by_id.return_value = Product(
+            id="p1",
+            store_id="s2",
+            organization_id="o2",
+            title="Other store laptop",
+            variants=[
+                Variant(id="v1", sku="S1", title="V1", price=Money(amount=Decimal("499"), currency="USD")),
+            ],
+        )
+        repo.find_by_id.return_value.variants[0].inventory_quantity = 3
+        candidates = [
+            ScoredProduct(product_id="p1", title="Other store laptop", store_id="s1", price=Decimal("0")),
+        ]
+
+        filtered = await filter_inventory(candidates, repo, "s1")
+
+        assert filtered == []
 
 
 class TestApplyBudgetFilter:
     async def test_no_budget_returns_all(self):
         repo = AsyncMock()
         candidates = [ScoredProduct(product_id="p1", title="P1", store_id="s1")]
-        result = await apply_budget_filter(candidates, None, repo)
+        result = await apply_budget_filter(candidates, None, repo, "s1")
         assert len(result) == 1
 
     async def test_filters_by_budget(self):
@@ -231,7 +251,7 @@ class TestApplyBudgetFilter:
             ),
         ]
 
-        result = await apply_budget_filter(candidates, 500.0, repo)
+        result = await apply_budget_filter(candidates, 500.0, repo, "s1")
         assert len(result) == 1
         assert result[0].product_id == "p2"
 
@@ -248,7 +268,7 @@ class TestApplyBudgetFilter:
             ScoredProduct(product_id="p1", title="P1", store_id="s1", price=Decimal("10")),
         ]
 
-        result = await apply_budget_filter(candidates, 500.0, repo)
+        result = await apply_budget_filter(candidates, 500.0, repo, "s1")
 
         assert result == []
 
@@ -259,7 +279,7 @@ class TestApplyBudgetFilter:
             ScoredProduct(product_id="ghost-1", title="P1", store_id="s1", price=Decimal("0")),
         ]
 
-        result = await apply_budget_filter(candidates, 500.0, repo)
+        result = await apply_budget_filter(candidates, 500.0, repo, "s1")
 
         assert result == []
 

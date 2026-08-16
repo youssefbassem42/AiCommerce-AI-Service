@@ -12,7 +12,21 @@ from app.core.security import ERR_INVALID_FORMAT, ERR_MISSING_HEADER, JWTAuthent
 
 logger = logging.getLogger(__name__)
 
-WHITELIST_PATHS = {"/health/", "/health", "/docs", "/redoc", "/openapi.json", "/widget.js", "/demo", "/demo/"}
+WHITELIST_PATHS = {
+    "/health/",
+    "/health",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/widget.js",
+    "/demo",
+    "/demo/",
+    # Widget bootstrap exchanges the public widget key for a scoped session
+    # token, so it must be reachable without a Bearer token even when
+    # JWT_REQUIRED is enabled (its own key + origin checks still apply).
+    "/api/v1/widget/bootstrap",
+    "/api/v1/widget/bootstrap/",
+}
 
 BEARER_PREFIX = "Bearer "
 

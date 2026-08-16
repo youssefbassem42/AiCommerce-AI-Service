@@ -21,6 +21,7 @@ from app.application.ticket.services.ticket_service import TicketService
 from app.core.ai_exceptions import ProviderUnavailableException, RateLimitException
 from app.core.ai_settings import ai_settings
 from app.domain.knowledge.repositories.business_summary_repository import BusinessSummaryRepository
+from app.infrastructure.prompts.client import get_prompt_client
 
 if TYPE_CHECKING:
     from app.agents.support.agent import SupportAgent
@@ -116,15 +117,16 @@ class RagOrchestrationService:
                 logger.warning("Failed to load business summary for store '%s'", request.store_id, exc_info=True)
 
         chunks_context_lines = []
+        chunk_header = await get_prompt_client().get("rag.core.chunk_header")
         for i, c in enumerate(chunks[:MAX_CHUNKS_IN_CONTEXT]):
             snippet = c.content[:MAX_CHUNK_CHARS]
             chunks_context_lines.append(
-                f"\n### Retrieved Knowledge Chunk [{i + 1}]\n**Source:** {c.document_title}\n{snippet}\n"
+                chunk_header.format(index=i + 1, title=c.document_title, content=snippet)
             )
 
         chunks_context = "\n".join(chunks_context_lines)
 
-        system_content, user_content, _ = build_rag_messages(
+        system_content, user_content, _ = await build_rag_messages(
             user_message=request.message,
             chunks_context=chunks_context,
             business_summary_context=business_summary_text,
@@ -170,20 +172,18 @@ class RagOrchestrationService:
 
         ctx = await self._prepare_context(request)
 
-        chat_latency_start = time.perf_counter()
+        llm_success = False
         try:
             llm_response = await self._chat.chat(
                 request=ctx.ai_request,
                 conversation_id=request.conversation_id,
                 store_id=request.store_id,
                 fallbacks=request.fallback_providers or None,
+                inject_history=False,
             )
-            (time.perf_counter() - chat_latency_start) * 1000
             llm_success = True
         except (RateLimitException, ProviderUnavailableException) as e:
-            (time.perf_counter() - chat_latency_start) * 1000
             logger.warning("LLM unavailable (%s). Returning retrieved context directly.", e)
-            llm_success = False
 
         if llm_success:
             response_text = llm_response.message.content

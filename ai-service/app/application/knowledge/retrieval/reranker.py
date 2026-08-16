@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.application.knowledge.retrieval.dto import RetrievedChunkDTO
+from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
@@ -21,12 +22,6 @@ class ReRanker(ABC):
 
 
 class LLMCrossEncoderReRanker(ReRanker):
-    RERANK_SYSTEM_PROMPT = (
-        "You are a relevance scorer. For the given query, score each document "
-        "on a scale of 0.0 to 1.0 based on relevance. Return ONLY a JSON array "
-        'of objects with "score" (float) and "index" (int) fields, ordered by score descending.'
-    )
-
     def __init__(
         self,
         provider: BaseLLMProvider,
@@ -58,7 +53,10 @@ class LLMCrossEncoderReRanker(ReRanker):
 
         request = ChatRequest(
             messages=[
-                MessageDTO(role="system", content=self.RERANK_SYSTEM_PROMPT),
+                MessageDTO(
+                    role="system",
+                    content=await get_prompt_client().get("knowledge.retrieval.rerank_system_prompt"),
+                ),
                 MessageDTO(role="user", content=user_content),
             ],
             model=self._model,

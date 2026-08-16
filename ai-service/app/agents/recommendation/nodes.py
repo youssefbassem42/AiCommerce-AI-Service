@@ -117,13 +117,14 @@ async def filter_inventory_node(
         return {"filtered": []}
 
     try:
-        in_stock = await filter_inventory(candidates, product_repo)
+        in_stock = await filter_inventory(candidates, product_repo, state["store_id"])
         intent = state.get("intent")
         max_budget = intent.max_budget if intent is not None else None
         within_budget = await apply_budget_filter(
             in_stock,
             max_budget,
             product_repo,
+            state["store_id"],
         )
         with_discounts = RecommendationCatalogService.apply_discount_strategy(within_budget, max_budget)
         return {"filtered": with_discounts}

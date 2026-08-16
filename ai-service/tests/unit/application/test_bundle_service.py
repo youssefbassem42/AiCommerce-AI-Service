@@ -1,8 +1,13 @@
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.application.recommendation.dto.recommendation_dto import BundleResponse
+from app.application.recommendation.dto.recommendation_dto import (
+    BundleCandidate,
+    BundleResponse,
+    DiscountInfo,
+)
 from app.application.recommendation.services import BundleSuggestionService
 
 
@@ -30,12 +35,43 @@ def capabilities_repo():
 
 
 @pytest.fixture
-def service(product_repo, llm, capabilities_repo):
+def recommendation_repo():
+    return AsyncMock()
+
+
+@pytest.fixture
+def service(product_repo, llm, capabilities_repo, recommendation_repo):
     return BundleSuggestionService(
         product_repo=product_repo,
         llm=llm,
         capabilities_repo=capabilities_repo,
+        recommendation_repo=recommendation_repo,
     )
+
+
+def _bundle_response(**overrides):
+    response = BundleResponse(
+        query="gaming setup",
+        store_id="store_1",
+        customer_id="cust_1",
+        bundles=[
+            BundleCandidate(
+                products=[DiscountInfo(product_id="p1", product_title="GPU")],
+                total_original=Decimal("200"),
+                total_discount=Decimal("40"),
+                total_after_discount=Decimal("160"),
+                rank=0,
+            ),
+            BundleCandidate(
+                products=[DiscountInfo(product_id="p2", product_title="Mouse")],
+                total_original=Decimal("50"),
+                total_discount=Decimal("5"),
+                total_after_discount=Decimal("45"),
+                rank=1,
+            ),
+        ],
+    )
+    return response.model_copy(update=overrides)
 
 
 class TestBundleSuggestionService:
@@ -56,3 +92,32 @@ class TestBundleSuggestionService:
             store_id="store_1",
         )
         assert result.customer_id is None
+
+    async def test_suggest_persists_top_bundle(self, service, recommendation_repo):
+        service._workflow.run = AsyncMock(return_value=_bundle_response())
+        result = await service.suggest(
+            query="gaming setup",
+            store_id="store_1",
+            customer_id="cust_1",
+        )
+        assert result is not None
+        recommendation_repo.save_bundle_suggestion.assert_awaited_once()
+        saved = recommendation_repo.save_bundle_suggestion.await_args.args[0]
+        assert saved.store_id == "store_1"
+        assert saved.product_ids == ["p1"]
+        assert saved.total_price == 160.0
+        assert saved.discount_percentage == 20.0
+        assert saved.status == "active"
+
+    async def test_suggest_skips_persistence_without_products(self, service, recommendation_repo):
+        service._workflow.run = AsyncMock(
+            return_value=_bundle_response(bundles=[BundleCandidate(products=[], rank=0)])
+        )
+        await service.suggest(query="nothing", store_id="store_1")
+        recommendation_repo.save_bundle_suggestion.assert_not_awaited()
+
+    async def test_suggest_ignores_persistence_failure(self, service, recommendation_repo):
+        service._workflow.run = AsyncMock(return_value=_bundle_response())
+        recommendation_repo.save_bundle_suggestion.side_effect = Exception("db down")
+        result = await service.suggest(query="gaming setup", store_id="store_1")
+        assert isinstance(result, BundleResponse)

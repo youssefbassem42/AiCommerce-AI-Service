@@ -7,8 +7,15 @@ from app.application.recommendation.dto.recommendation_dto import (
 )
 from app.application.recommendation.promo_service import PromoCodeService
 from app.domain.commerce.repositories import ProductRepository
+from app.domain.recommendation.entities.bundle_suggestion import BundleSuggestion
+from app.domain.recommendation.repositories.recommendation_repository import (
+    RecommendationRepository as IRecommendationRepository,
+)
 from app.domain.recommendation.repositories.store_capabilities_repository import (
     StoreCapabilitiesRepository,
+)
+from app.infrastructure.mongodb.repositories.recommendation_repository import (
+    RecommendationRepository,
 )
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.workflows.bundle.graph import BundleSuggestionWorkflow
@@ -65,8 +72,10 @@ class BundleSuggestionService:
         llm: BaseLLMProvider,
         capabilities_repo: StoreCapabilitiesRepository,
         promo_service: PromoCodeService | None = None,
+        recommendation_repo: IRecommendationRepository | None = None,
     ):
         self._capabilities_repo = capabilities_repo
+        self._recommendation_repo = recommendation_repo or RecommendationRepository()
         self._workflow = BundleSuggestionWorkflow(
             product_repo=product_repo,
             llm=llm,
@@ -92,9 +101,32 @@ class BundleSuggestionService:
         caps = await self._capabilities_repo.get_or_detect(store_id)
         store_capabilities = dict(caps.capabilities)
 
-        return await self._workflow.run(
+        result = await self._workflow.run(
             query=query,
             store_id=store_id,
             customer_id=customer_id,
             store_capabilities=store_capabilities,
         )
+
+        await self._persist_top_bundle(result)
+
+        return result
+
+    async def _persist_top_bundle(self, result: BundleResponse) -> None:
+        top = next((b for b in result.bundles if b.rank == 0), None)
+        if top is None or not top.products:
+            return
+        total_original = float(top.total_original)
+        discount_pct = (float(top.total_discount) / total_original * 100.0) if total_original > 0 else 0.0
+        bundle = BundleSuggestion(
+            id="",
+            store_id=result.store_id,
+            title=f"Bundle: {result.query}",
+            product_ids=[p.product_id for p in top.products],
+            total_price=float(top.total_after_discount),
+            discount_percentage=round(discount_pct, 2),
+        )
+        try:
+            await self._recommendation_repo.save_bundle_suggestion(bundle)
+        except Exception as exc:
+            logger.warning("Failed to persist bundle suggestion for store %s: %s", result.store_id, exc)

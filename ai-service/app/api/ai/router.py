@@ -20,25 +20,18 @@ from app.application.dto.ai_dto import ChatRequest, EmbeddingRequest
 from app.application.services.chat_service import ChatService
 from app.core.ai_settings import ai_settings
 from app.core.model_registry import ModelRegistry
+from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.factory import LLMProviderFactory
 
 router = APIRouter(prefix="/api/v1/ai", tags=["AI"], dependencies=[Depends(get_current_user)])
 
-ECOMMERCE_SYSTEM_PROMPT = (
-    "You are an AI assistant for an e-commerce SaaS platform called DigitalHippo. "
-    "You help store owners and customers with product inquiries, order management, "
-    "catalog questions, promo codes, discounts, gift cards, shipping, and general "
-    "store operations. When discussing technical integration, refer to the store's "
-    "connected API capabilities. If you don't know something, say so honestly. "
-    "Always be helpful, concise, and focused on e-commerce tasks."
-)
 
-
-def _inject_ecommerce_system_message(messages: list[MessageSchema]) -> list[MessageSchema]:
+async def _inject_ecommerce_system_message(messages: list[MessageSchema]) -> list[MessageSchema]:
     has_system = any(m.role == "system" for m in messages)
     if has_system:
         return messages
-    return [MessageSchema(role="system", content=ECOMMERCE_SYSTEM_PROMPT)] + messages
+    system_prompt = await get_prompt_client().get("ai.router.ecommerce_system_prompt")
+    return [MessageSchema(role="system", content=system_prompt)] + messages
 
 
 @router.post("/chat", response_model=ChatResponseSchema)
@@ -54,7 +47,7 @@ async def chat(
     Injects e-commerce system prompt if no system message is present.
     Chat traffic flows through the Phase 01 coordinator + conversation workflow.
     """
-    payload.messages = _inject_ecommerce_system_message(payload.messages)
+    payload.messages = await _inject_ecommerce_system_message(payload.messages)
     request_dto = ChatRequest(**payload.model_dump())
     store_id, customer_id = get_store_context(request)
     response_dto = await ai_service.chat(
@@ -74,7 +67,7 @@ async def chat_stream(
     Stream chat completion response back in SSE (Server-Sent Events) format.
     Injects e-commerce system prompt if no system message is present.
     """
-    request.messages = _inject_ecommerce_system_message(request.messages)
+    request.messages = await _inject_ecommerce_system_message(request.messages)
     request_dto = ChatRequest(**request.model_dump())
 
     async def event_generator():

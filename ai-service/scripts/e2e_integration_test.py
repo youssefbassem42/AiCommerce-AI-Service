@@ -353,32 +353,6 @@ async def run_knowledge_bridge():
     return total_synced
 
 
-async def test_rag_query(query: str, store_id: str = STORE_ID, org_id: str = ORG_ID):
-    """Test RAG via the /rag/chat endpoint."""
-    import httpx
-
-    payload = {
-        "message": query,
-        "store_id": store_id,
-        "organization_id": org_id,
-        "top_k": 10,
-        "score_threshold": 0.0,
-        "use_hybrid": False,
-        "use_mmr": False,
-        "rerank": False,
-    }
-    logger.info("  POST /rag/chat — query: '%s'", query)
-    async with httpx.AsyncClient(base_url=API_BASE, timeout=60) as client:
-        resp = await client.post("/rag/chat", json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-        logger.info("  Response: %s", data.get("response", "")[:500])
-        logger.info("  Citations: %s", data.get("citations", []))
-        logger.info("  Confidence: %s", data.get("confidence_score"))
-        logger.info("  Latency: %s ms", data.get("latency_ms"))
-        return data
-
-
 def _load_spec(path: Path) -> dict:
     if path.suffix == ".json":
         return json.loads(path.read_text(encoding="utf-8"))
@@ -439,39 +413,9 @@ async def main():
         total = await run_knowledge_bridge()
         print(f"  ✓ Synced {total} vectors to Qdrant")
 
-    # ---- STEP 5: Test RAG ----
-    print("\n" + "=" * 72)
-    print("  Testing RAG with price-range queries")
-    print("=" * 72)
-
-    queries = [
-        "I need a laptop between $1000 and $2000, what do you recommend?",
-        "Find me audio products under $300",
-        "What products do you have between $100 and $200?",
-        "Show me products over $1000",
-        "I'm looking for a budget-friendly keyboard or monitor under $500",
-        "What laptops are available and which one has the best value?",
-    ]
-
-    for q in queries:
-        print(f"\n--- Query: {q} ---")
-        try:
-            data = await test_rag_query(q)
-            response = data.get("response", "")
-            citations = data.get("citations", [])
-
-            # Check if the response mentions product names or prices
-            has_product_ref = any(
-                keyword in response.lower()
-                for keyword in ["macbook", "dell", "samsung", "sony", "logitech", "airpods", "asus", "lg"]
-            )
-            has_price_ref = "$" in response or "dollar" in response.lower() or "price" in response.lower()
-
-            print(f"  Product references: {'✓' if has_product_ref else '✗'}")
-            print(f"  Price references: {'✓' if has_price_ref else '✗'}")
-            print(f"  Citations: {len(citations)}")
-        except Exception as e:
-            logger.error("  RAG query failed: %s", e)
+    # ---- STEP 5: RAG chat query testing: REMOVED ----
+    # The legacy anonymous /rag/chat endpoint has been deleted. Chat behavior
+    # is covered by the widget chat flow and unit tests.
 
     print("\n" + "=" * 72)
     print("  E2E test complete")

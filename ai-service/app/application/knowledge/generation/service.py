@@ -7,8 +7,8 @@ from bson import ObjectId
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.application.knowledge.generation.config import GenerationConfig
 from app.application.knowledge.generation.prompt_builder import (
-    SECTION_DEFINITIONS,
     build_generation_messages,
+    get_section_definitions,
 )
 from app.domain.knowledge.entities.business_summary import BusinessSummary
 from app.domain.knowledge.entities.knowledge_document import KnowledgeDocument
@@ -45,7 +45,8 @@ class BusinessSummaryGenerationService:
         merged = self._merge_documents(documents)
 
         version = await self._next_version(store_id)
-        sections = await self._call_llm(merged, cfg, store_id)
+        section_definitions = await get_section_definitions()
+        sections = await self._call_llm(merged, cfg, store_id, section_definitions)
         rag_context = sections.pop("rag_context", "")
         title = f"{BUSINESS_CONTEXT_TITLE_PREFIX} v{version}"
 
@@ -54,7 +55,7 @@ class BusinessSummaryGenerationService:
             document_id=store_id,
             version_number=version,
             title=title,
-            summary=rag_context or self._build_fallback_context(sections),
+            summary=rag_context or self._build_fallback_context(sections, section_definitions),
             metadata={
                 "version": version,
                 "store_id": store_id,
@@ -117,8 +118,14 @@ class BusinessSummaryGenerationService:
             return 1
         return max(s.version_number for s in existing) + 1
 
-    async def _call_llm(self, merged_content: str, cfg: GenerationConfig, store_id: str) -> dict[str, str]:
-        raw_messages = build_generation_messages(merged_content)
+    async def _call_llm(
+        self,
+        merged_content: str,
+        cfg: GenerationConfig,
+        store_id: str,
+        section_definitions: dict[str, str],
+    ) -> dict[str, str]:
+        raw_messages = await build_generation_messages(merged_content)
         messages = [MessageDTO(role=m["role"], content=m["content"]) for m in raw_messages]
 
         request = ChatRequest(
@@ -133,9 +140,15 @@ class BusinessSummaryGenerationService:
         if isinstance(raw, list):
             raw = " ".join(str(item) for item in raw)
 
-        return self._parse_response(raw, store_id, cfg)
+        return self._parse_response(raw, store_id, cfg, section_definitions)
 
-    def _parse_response(self, raw: str, store_id: str, cfg: GenerationConfig) -> dict[str, str]:
+    def _parse_response(
+        self,
+        raw: str,
+        store_id: str,
+        cfg: GenerationConfig,
+        section_definitions: dict[str, str],
+    ) -> dict[str, str]:
         cleaned = raw.strip()
         if cleaned.startswith("```json"):
             cleaned = cleaned.removeprefix("```json")
@@ -153,16 +166,16 @@ class BusinessSummaryGenerationService:
             return {"rag_context": str(parsed)}
 
         parsed = {k: (v if isinstance(v, str) else json.dumps(v)) for k, v in parsed.items()}
-        expected = set(SECTION_DEFINITIONS.keys()) | {"rag_context"}
+        expected = set(section_definitions.keys()) | {"rag_context"}
         missing = expected - set(parsed.keys())
         if missing:
             logger.warning("LLM response missing sections %s for store '%s'", missing, store_id)
 
         return parsed
 
-    def _build_fallback_context(self, sections: dict[str, str]) -> str:
+    def _build_fallback_context(self, sections: dict[str, str], section_definitions: dict[str, str]) -> str:
         parts = []
-        for key, _desc in SECTION_DEFINITIONS.items():
+        for key in section_definitions:
             content = sections.get(key, "")
             if content:
                 parts.append(f"{key.replace('_', ' ').title()}\n{content}")

@@ -25,36 +25,10 @@ from app.application.integration.mapping.transformers import get_default_registr
 from app.core.ai_settings import ai_settings
 from app.domain.integration.value_objects.entity_mapping import EntityMapping
 from app.domain.integration.value_objects.field_mapping import FieldMapping
+from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.factory import LLMProviderFactory
 
 logger = logging.getLogger(__name__)
-
-SYSTEM_PROMPT = """You are a data-integration expert for an AI commerce platform.
-
-Your task: produce a COMPLETE field mapping between a store's external API
-and the platform's canonical entity schema, so that NOT A SINGLE canonical
-field is left unmapped when a sensible source field exists.
-
-Instructions:
-1. Map EVERY canonical field you can find a source for. Prefer the most
-   semantically correct source, not the same-named one.
-2. `source` supports dot notation for nested objects (e.g. "pricing.list").
-3. When a required canonical field has no reasonable source in the item,
-   still provide a mapping with `source: "derive"` and a LITERAL
-   `default_value` (e.g. "active", 0, true) — never descriptive text like
-   "derive from X", which would be stored verbatim — or map the closest
-   field (the platform tolerates nulls).
-4. `transformer` may be one of: lowercase, uppercase, trim, strip,
-   string_to_decimal, string_to_int, iso_date, datetime_iso, unix_timestamp,
-   split_by_comma, concat_fields, map_enum, first_image_url, money_to_amount,
-   money_to_currency, url_join. Use None when no transformation is needed.
-5. NEVER invent fake `source` paths that do not appear in the item samples;
-   when unsure, map to the closest real key.
-6. `required: true` ONLY when the canonical field is required AND the source
-   is present on every sample item.
-7. Keep the total mapping compact but complete: one entry per canonical field
-   that has a source or a sensible default.
-"""
 
 
 class LLMFieldMapping(BaseModel):
@@ -109,7 +83,7 @@ class LlmEntityMapper:
 
         try:
             provider = self._factory.get_provider(self._provider_name or ai_settings.DEFAULT_PROVIDER)
-            request = self._build_request(entity_type, current, raw_spec, sample_items)
+            request = await self._build_request(entity_type, current, raw_spec, sample_items)
             response = await provider.structured_output(request, LLMMappingResult, timeout=self.timeout)
         except Exception as e:
             logger.warning("LLM mapping failed for entity '%s': %s — using rule engine.", entity_type, e)
@@ -136,7 +110,7 @@ class LlmEntityMapper:
 
         return current.model_copy(update={"field_mappings": fields})
 
-    def _build_request(
+    async def _build_request(
         self,
         entity_type: str,
         current: EntityMapping,
@@ -173,7 +147,11 @@ class LlmEntityMapper:
         }
         system = MessageDTO(
             role="system",
-            content=SYSTEM_PROMPT + "\n\nCANONICAL SCHEMAS:\n" + json.dumps(CANONICAL_SCHEMAS, indent=2),
+            content=(
+                await get_prompt_client().get("integration.mapping.system_prompt")
+                + "\n\nCANONICAL SCHEMAS:\n"
+                + json.dumps(CANONICAL_SCHEMAS, indent=2)
+            ),
         )
         user = MessageDTO(role="user", content=json.dumps(user_payload, indent=2, default=str))
         return ChatRequest(

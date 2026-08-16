@@ -6,8 +6,9 @@ from app.application.dto.ai_dto import UsageDTO
 from app.application.knowledge.retrieval.dto import RetrievedChunkDTO
 from app.application.rag.dedup import _content_fingerprint, deduplicate_chunks
 from app.application.rag.dto import ChunkReference, Citation, RAGRequest, RAGResponse
-from app.application.rag.prompt import RAG_SYSTEM_PROMPT, build_rag_messages
+from app.application.rag.prompt import build_rag_messages
 from app.application.rag.service import RagOrchestrationService
+from app.infrastructure.prompts.seed import DEFAULT_PROMPTS
 
 # ---------- Dedup tests ----------
 
@@ -70,17 +71,17 @@ class TestDeduplicateChunks:
 
 
 class TestBuildRagMessages:
-    def test_without_business_summary(self):
-        system, user, original = build_rag_messages(
+    async def test_without_business_summary(self):
+        system, user, original = await build_rag_messages(
             user_message="What is the price?",
             chunks_context="Chunk content here",
         )
-        assert RAG_SYSTEM_PROMPT in system
+        assert DEFAULT_PROMPTS["rag.core.system_prompt"]["content"] in system
         assert "Chunk content here" in system
         assert user == "What is the price?"
 
-    def test_with_business_summary(self):
-        system, user, original = build_rag_messages(
+    async def test_with_business_summary(self):
+        system, user, original = await build_rag_messages(
             user_message="Tell me about policies",
             chunks_context="Policy chunks",
             business_summary_context="Business overview",
@@ -90,8 +91,8 @@ class TestBuildRagMessages:
         assert "Business overview" in system
         assert "Policy chunks" in system
 
-    def test_with_conversation_history(self):
-        system, user, original = build_rag_messages(
+    async def test_with_conversation_history(self):
+        system, user, original = await build_rag_messages(
             user_message="Follow up",
             chunks_context="Context",
             conversation_history=[{"role": "user", "content": "Previous"}],

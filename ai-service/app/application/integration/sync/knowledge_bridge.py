@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app.application.dto.ai_dto import EmbeddingRequest
@@ -16,6 +17,9 @@ EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIMENSIONS = 768
 BATCH_SIZE = 50
 SUPPORTED_ENTITY_TYPES: set[str] | None = None  # None means all types are accepted
+
+# Resolver signature: (store_id, organization_id) -> current knowledge version.
+KnowledgeVersionResolver = Callable[[str, str], Awaitable[int]]
 
 
 class EntityVectorSyncResult:
@@ -42,10 +46,12 @@ class CommerceKnowledgeBridge:
         vector_store: QdrantProvider | None = None,
         llm_provider: BaseLLMProvider | None = None,
         embedding_model: str = EMBEDDING_MODEL,
+        knowledge_version_resolver: KnowledgeVersionResolver | None = None,
     ):
         self._vector_store = vector_store
         self._llm_provider = llm_provider
         self._embedding_model = embedding_model
+        self._knowledge_version_resolver = knowledge_version_resolver or self._resolve_knowledge_version
 
     async def _ensure_providers(self) -> None:
         if not self._vector_store:
@@ -67,6 +73,30 @@ class CommerceKnowledgeBridge:
             embedding_provider = os.getenv("EMBEDDING_PROVIDER") or ai_settings.DEFAULT_PROVIDER
             factory = LLMProviderFactory()
             self._llm_provider = factory.get_provider(embedding_provider)
+
+    async def _resolve_knowledge_version(self, store_id: str, organization_id: str) -> int:
+        """Resolve the store's current active knowledge version.
+
+        Falls back to 1 when no version has been started or the lookup fails,
+        so synced vectors remain retrievable under the default tenant version.
+        """
+        try:
+            from app.infrastructure.mongodb.collections import get_knowledge_versions_collection
+
+            col = get_knowledge_versions_collection()
+            cursor = (
+                col.find(
+                    {"organization_id": organization_id, "store_id": store_id},
+                )
+                .sort("version_number", -1)
+                .limit(1)
+            )
+            latest = await cursor.to_list(length=1)
+            if latest:
+                return int(latest[0].get("version_number", 1))
+        except Exception as exc:
+            logger.warning("Could not resolve knowledge version for store '%s': %s", store_id, exc)
+        return 1
 
     async def sync_entity(
         self,
@@ -94,6 +124,12 @@ class CommerceKnowledgeBridge:
             logger.warning("%s", msg)
             result.errors.append(msg)
             return result
+
+        try:
+            knowledge_version = await self._knowledge_version_resolver(store_id, organization_id)
+        except Exception as exc:
+            logger.warning("Knowledge version resolution failed for store '%s': %s", store_id, exc)
+            knowledge_version = 1
 
         collection = f"kb_{store_id}"
 
@@ -141,6 +177,7 @@ class CommerceKnowledgeBridge:
                                 record=rec,
                                 content=batch[j],
                                 rec_idx=rec_idx,
+                                knowledge_version=knowledge_version,
                             ),
                         )
                     )
@@ -206,6 +243,7 @@ class CommerceKnowledgeBridge:
         record: dict[str, Any],
         content: str,
         rec_idx: int,
+        knowledge_version: int,
     ) -> dict[str, Any]:
         title = record.get("title") or record.get("name") or f"{entity_type}:{entity_key}"
         if entity_type == "product":
@@ -245,7 +283,7 @@ class CommerceKnowledgeBridge:
                 document_id=entity_key,
                 document_title=title,
                 chunk_index=rec_idx,
-                knowledge_version=1,
+                knowledge_version=knowledge_version,
                 **extra,
             )
         from app.shared.vector_payloads import EntityType, base_entity_payload
@@ -263,7 +301,7 @@ class CommerceKnowledgeBridge:
             document_status="active",
             chunk_index=rec_idx,
             content=content,
-            knowledge_version=1,
+            knowledge_version=knowledge_version,
         )
 
     async def _delete_stale_vectors(

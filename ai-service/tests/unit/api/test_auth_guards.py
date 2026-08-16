@@ -151,30 +151,10 @@ def test_legacy_ai_commerce_token_rejected(client):
     assert resp.status_code == 401
 
 
-def test_public_rag_accepts_no_token(client):
-    from unittest.mock import AsyncMock, MagicMock
-
-    from app.api.rag.dependencies import get_rag_service
-    from app.application.dto.ai_dto import UsageDTO
-    from app.application.rag.dto import RAGResponse
-
-    service = MagicMock()
-    service.answer = AsyncMock(
-        return_value=RAGResponse(
-            response="ok",
-            citations=[],
-            chunk_references=[],
-            confidence_score=0.5,
-            latency_ms=1.0,
-            model="test",
-            provider="mock",
-            usage=UsageDTO(),
-        )
-    )
-    client.app.dependency_overrides[get_rag_service] = lambda: service
-
+def test_legacy_rag_chat_endpoint_removed(client):
+    """The anonymous /rag/chat endpoint was removed (super-admin assistant is a future replacement)."""
     resp = client.post(
         "/rag/chat",
         json={"message": "hello", "store_id": STORE_GUID},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 404

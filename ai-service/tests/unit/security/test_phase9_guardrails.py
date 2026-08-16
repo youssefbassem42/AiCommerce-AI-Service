@@ -257,14 +257,16 @@ class TestKnowledgePoisoning:
         assert contains_instructional_content(guarded[0]["content"]) is False
 
     def test_support_prompt_boundary_exists(self):
-        from app.agents.support.prompts import SUPPORT_REPLY_PROMPT
+        from app.infrastructure.prompts.seed import DEFAULT_PROMPTS
 
-        assert "untrusted data" in SUPPORT_REPLY_PROMPT
+        support_reply = DEFAULT_PROMPTS["support.reply_prompt"]["content"]
+        assert "untrusted data" in support_reply
 
     def test_rag_prompt_boundary_exists(self):
-        from app.application.rag.prompt import RAG_SYSTEM_PROMPT
+        from app.infrastructure.prompts.seed import DEFAULT_PROMPTS
 
-        assert "UNTRUSTED DATA" in RAG_SYSTEM_PROMPT
+        rag_system = DEFAULT_PROMPTS["rag.core.system_prompt"]["content"]
+        assert "UNTRUSTED DATA" in rag_system
 
     def test_format_facts_redacts_poisoned_content(self):
         from app.agents.support.tools import format_facts_for_prompt

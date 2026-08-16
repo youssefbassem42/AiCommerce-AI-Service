@@ -24,7 +24,6 @@ PUBLIC_STATIC_PATHS = ("/widget.js", "/demo", "/demo/")
 LLM_PATHS = (
     "/chat",
     "/api/v1/ai/chat",
-    "/rag/chat",
     "/api/v1/recommendations",
     "/api/v1/widget/chat",
     "/api/v1/widget/recommendations",

@@ -602,110 +602,12 @@ async def step_generate_business_summary(args):
             return None
 
 
-async def step_test_tenant_isolation():
-    print("\n" + "=" * 72)
-    print("  STEP 6: Test Tenant Isolation")
-    print("=" * 72)
-    import httpx
-
-    wrong_store = "store_nonexistent_999"
-    payload = {
-        "message": "What laptops do you have?",
-        "store_id": wrong_store,
-        "organization_id": "org_nonexistent_999",
-        "top_k": 5,
-    }
-    async with httpx.AsyncClient(base_url=API_BASE, timeout=30) as client:
-        resp = await client.post("/rag/chat", json=payload)
-        if resp.status_code == 200:
-            data = resp.json()
-            response = data.get("response", "")
-            citations = data.get("citations", [])
-            has_no_info = check_response(
-                response,
-                [
-                    "don't have enough information",
-                    "no information",
-                    "couldn't find",
-                    "no relevant",
-                    "nothing",
-                    "unavailable",
-                ],
-            )
-            is_isolation = has_no_info or len(citations) == 0
-            print(f"  Response: {response[:200]}")
-            print(f"  Citations: {len(citations)}")
-            print(
-                f"  [{status_icon(is_isolation)}] Tenant isolation: {'✓ no data leaked' if is_isolation else '✗ data may have leaked'}"
-            )
-        else:
-            print(f"  [FAIL] HTTP {resp.status_code}")
-            return False
-    return True
-
-
-async def step_rag_query(
-    query: str,
-    scenario_name: str,
-    expected_keywords: list[str],
-    expected_price_ref: bool = False,
-    min_citations: int = 0,
-) -> dict:
-    print(f"\n  --- RAG Query [{scenario_name}] ---")
-    print(f"  Query: {query}")
-    import httpx
-
-    payload = {
-        "message": query,
-        "store_id": STORE_ID,
-        "organization_id": ORG_ID,
-        "top_k": 10,
-        "score_threshold": 0.0,
-    }
-    async with httpx.AsyncClient(base_url=API_BASE, timeout=60) as client:
-        resp = await client.post("/rag/chat", json=payload)
-        if resp.status_code != 200:
-            print(f"  [FAIL] HTTP {resp.status_code}: {resp.text[:200]}")
-            return {"status": "fail", "error": f"HTTP {resp.status_code}"}
-        data = resp.json()
-        response = data.get("response", "")
-        citations = data.get("citations", [])
-        confidence = data.get("confidence_score", 0)
-        latency = data.get("latency_ms", 0)
-
-        has_keywords = check_response(response, expected_keywords)
-        has_price_ref = (
-            check_response(response, ["$", "dollar", "price", "cost", "budget"]) if expected_price_ref else True
-        )
-        has_citations = len(citations) >= min_citations
-        is_useful = not check_response(response, ["don't have enough information", "no information", "couldn't find"])
-
-        passed = has_keywords and has_price_ref and has_citations and is_useful
-        print(f"  Response: {response[:300]}")
-        print(f"  Citations: {len(citations)}, Confidence: {confidence:.3f}, Latency: {latency:.0f}ms")
-        print(f"  Keywords found: {expected_keywords} → {status_icon(has_keywords)}")
-        print(f"  Price ref: {status_icon(has_price_ref)}")
-        print(f"  Has citations (≥{min_citations}): {status_icon(has_citations)}")
-        print(f"  Not 'no info': {status_icon(is_useful)}")
-        print(f"  OVERALL: [{status_icon(passed)}]")
-
-        return {
-            "status": "pass" if passed else "fail",
-            "response": response,
-            "citations": citations,
-            "confidence": confidence,
-            "latency_ms": latency,
-        }
-
-
 async def main():
     parser = argparse.ArgumentParser(description="E2E Full User Flow Test")
     parser.add_argument("--skip-parse", action="store_true", help="Skip parsing & connections")
     parser.add_argument("--skip-seed", action="store_true", help="Skip seeding entities")
     parser.add_argument("--skip-vectorize", action="store_true", help="Skip vectorization")
     parser.add_argument("--skip-summary", action="store_true", help="Skip business summary generation")
-    parser.add_argument("--skip-isolation", action="store_true", help="Skip tenant isolation test")
-    parser.add_argument("--skip-rag", action="store_true", help="Skip RAG scenario tests")
     args = parser.parse_args()
 
     results = {}
@@ -769,83 +671,9 @@ async def main():
         results["summary"] = {"passed": False, "detail": str(e)}
         print(f"  [FAIL] Step 5 exception: {e}")
 
-    # ─── STEP 6: Tenant Isolation ───
-    results["isolation"] = {"passed": False, "detail": ""}
-    if not args.skip_isolation:
-        try:
-            isolated = await step_test_tenant_isolation()
-            results["isolation"]["passed"] = isolated
-        except Exception as e:
-            results["isolation"] = {"passed": False, "detail": str(e)}
-            print(f"  [FAIL] Step 6 exception: {e}")
-    else:
-        print("\n  STEP 6: SKIPPED")
-
-    # ─── STEPS 7-10: RAG Scenarios ───
-    if not args.skip_rag:
-        print("\n" + "=" * 72)
-        print("  RAG SCENARIO TESTS")
-        print("=" * 72)
-
-        scenarios = []
-
-        # SCENARIO 1: Customer Service Support
-        scenarios.append(
-            {
-                "name": "S1: Customer Service - Return Policy",
-                "query": "What is your return policy? I need to return a laptop I bought last week.",
-                "keywords": ["return", "30 day", "refund", "policy"],
-                "min_citations": 1,
-            }
-        )
-
-        # SCENARIO 2: Product Recommendations
-        scenarios.append(
-            {
-                "name": "S2: Product Recommendation - Best Gaming Laptop",
-                "query": "I'm looking for the best laptop for gaming and video editing. What do you recommend?",
-                "keywords": ["macbook", "dell", "laptop", "xps", "pro"],
-                "min_citations": 1,
-            }
-        )
-
-        # SCENARIO 3: Bundle Suggestion
-        scenarios.append(
-            {
-                "name": "S3: Bundle Suggestion - $300 budget for keyboard + mouse",
-                "query": "I have a budget of $300 and want to buy a keyboard and a mouse. What combos do you recommend that fit my budget?",
-                "keywords": ["keyboard", "mouse", "logitech", "budget", "$"],
-                "min_citations": 1,
-            }
-        )
-
-        # SCENARIO 4: Ticket Submission (frustrated user)
-        scenarios.append(
-            {
-                "name": "S4: Ticket Submission - Frustrated Customer",
-                "query": "I ordered a laptop 2 weeks ago and it still hasn't arrived. The tracking number isn't working. I'm really frustrated and want to speak to someone who can help me right now. This is unacceptable.",
-                "keywords": ["track", "order", "shipping", "support", "contact", "apolog"],
-                "min_citations": 1,
-            }
-        )
-
-        for s in scenarios:
-            print(f"\n  ─── {s['name']} ───")
-            try:
-                result = await step_rag_query(
-                    query=s["query"],
-                    scenario_name=s["name"],
-                    expected_keywords=s["keywords"],
-                    min_citations=s["min_citations"],
-                )
-                s["result"] = result
-            except Exception as e:
-                print(f"  [FAIL] Exception: {e}")
-                s["result"] = {"status": "fail", "error": str(e)}
-
-        results["rag_scenarios"] = scenarios
-    else:
-        print("\n  RAG SCENARIOS: SKIPPED")
+    # ─── STEPS 6-10 (RAG chat scenarios): REMOVED ───
+    # The legacy anonymous /rag/chat endpoint has been deleted. Chat scenarios
+    # are covered by the widget chat flow (app/static/widget) and unit tests.
 
     # ─── FINAL REPORT ───
     print("\n" + "█" * 72)
@@ -858,7 +686,6 @@ async def main():
         ("3. Seed Entities", "seed"),
         ("4. Vectorize to Qdrant", "vectorize"),
         ("5. Business Summary", "summary"),
-        ("6. Tenant Isolation", "isolation"),
     ]
 
     all_pass = True
@@ -873,17 +700,7 @@ async def main():
             print(f"  [SKIP] {label}")
 
     print()
-    rag_results = results.get("rag_scenarios", [])
-    for s in rag_results:
-        r = s.get("result", {})
-        if r.get("status") == "pass":
-            print(f"  [PASS] {s['name']}")
-        else:
-            print(f"  [FAIL] {s['name']}: {r.get('error', 'Check details above')}")
-            all_pass = False
-
-    if not rag_results and not args.skip_rag:
-        print("  [SKIP] RAG Scenarios (no results)")
+    print("  RAG chat scenarios: REMOVED (legacy /rag/chat endpoint deleted)")
 
     print()
     if all_pass:

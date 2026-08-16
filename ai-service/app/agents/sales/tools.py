@@ -2,8 +2,8 @@ import json
 import logging
 from typing import Any
 
-from app.agents.sales.prompts import NEEDS_EXTRACTION_PROMPT, OBJECTION_PROMPT, OFFER_PROMPT
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
+from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
@@ -19,13 +19,14 @@ async def extract_needs(query: str, llm: BaseLLMProvider) -> dict[str, Any]:
         "clarifying_question": None,
     }
     try:
+        prompt = await get_prompt_client().get("sales.needs_extraction_prompt")
         request = ChatRequest(
             messages=[
                 MessageDTO(
                     role="system",
                     content="You extract shopping context from user messages. Return only valid JSON.",
                 ),
-                MessageDTO(role="user", content=NEEDS_EXTRACTION_PROMPT.format(query=query)),
+                MessageDTO(role="user", content=prompt.format(query=query)),
             ],
             model="gpt-4o-mini",
             json_mode=True,
@@ -43,13 +44,14 @@ async def detect_objection(query: str, llm: BaseLLMProvider) -> dict[str, Any]:
     """Detect an objection and build a tailored rebuttal."""
     default = {"objection_detected": False, "objection_type": None, "rebuttal": None}
     try:
+        prompt = await get_prompt_client().get("sales.objection_prompt")
         request = ChatRequest(
             messages=[
                 MessageDTO(
                     role="system",
                     content="You detect sales objections. Return only valid JSON.",
                 ),
-                MessageDTO(role="user", content=OBJECTION_PROMPT.format(query=query)),
+                MessageDTO(role="user", content=prompt.format(query=query)),
             ],
             model="gpt-4o-mini",
             json_mode=True,
@@ -78,13 +80,14 @@ async def build_offer_payload(
         "message": None,
     }
     try:
+        prompt = await get_prompt_client().get("sales.offer_prompt")
         request = ChatRequest(
             messages=[
                 MessageDTO(
                     role="system",
                     content="You build personalized sales offers. Return only valid JSON.",
                 ),
-                MessageDTO(role="user", content=OFFER_PROMPT.format(products=products_text, query=query)),
+                MessageDTO(role="user", content=prompt.format(products=products_text, query=query)),
             ],
             model="gpt-4o-mini",
             json_mode=True,

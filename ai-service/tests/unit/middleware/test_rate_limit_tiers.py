@@ -2,7 +2,7 @@
 
 Tiers:
   default          every non-whitelisted route (store or IP identity)
-  llm              /chat, /api/v1/ai/chat*, /rag/chat*, /api/v1/recommendations*,
+  llm              /chat, /api/v1/ai/chat*, /api/v1/recommendations*,
                    /api/v1/widget/chat, /api/v1/widget/recommendations
   widget_session   /api/v1/widget/chat, /api/v1/widget/recommendations (store key)
   widget_bootstrap /api/v1/widget/bootstrap (SHA-256 of X-Widget-Key)
@@ -58,13 +58,6 @@ class TestTierResolution:
         assert checks[0][0].startswith("ip:")
         assert checks[0][1] == 100
 
-    def test_rag_chat_gets_llm_tier(self, middleware):
-        checks = middleware._resolve_checks(make_request(path="/rag/chat"))
-        tiers = [t for _, _, t in checks]
-        assert "llm" in tiers
-        llm_limit = next(l for _, l, t in checks if t == "llm")
-        assert llm_limit == 20
-
     def test_ai_chat_stream_gets_llm_tier(self, middleware):
         checks = middleware._resolve_checks(make_request(path="/api/v1/ai/chat/stream", store_id="s1"))
         assert ("llm:store:s1", 20, "llm") in checks
@@ -116,7 +109,7 @@ class TestDispatchEnforcement:
 
     async def test_llm_tier_trips_before_default(self, middleware):
         middleware.llm_limit_per_minute = 2
-        req = make_request(path="/rag/chat", store_id="store-1")
+        req = make_request(path="/api/v1/ai/chat", store_id="store-1")
 
         r1 = await self._run(middleware, req)
         r2 = await self._run(middleware, req)

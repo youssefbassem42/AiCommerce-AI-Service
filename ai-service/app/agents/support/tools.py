@@ -2,9 +2,9 @@ import json
 import logging
 from typing import Any
 
-from app.agents.support.prompts import CATEGORIZE_PROMPT, TOPIC_DETECT_PROMPT
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
+from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ async def categorize_issue(
     if not llm:
         return default
     try:
+        prompt = await get_prompt_client().get("support.categorize_prompt")
         request = ChatRequest(
             messages=[
                 MessageDTO(
@@ -66,7 +67,7 @@ async def categorize_issue(
                 ),
                 MessageDTO(
                     role="user",
-                    content=CATEGORIZE_PROMPT.format(query=query, history=history[:1500]),
+                    content=prompt.format(query=query, history=history[:1500]),
                 ),
             ],
             model="gpt-4o-mini",
@@ -124,6 +125,7 @@ async def detect_topic(
     if not llm:
         return default
     try:
+        prompt = await get_prompt_client().get("support.topic_detect_prompt")
         request = ChatRequest(
             messages=[
                 MessageDTO(
@@ -132,7 +134,7 @@ async def detect_topic(
                 ),
                 MessageDTO(
                     role="user",
-                    content=TOPIC_DETECT_PROMPT.format(query=query, history=history[:1500]),
+                    content=prompt.format(query=query, history=history[:1500]),
                 ),
             ],
             model="gpt-4o-mini",

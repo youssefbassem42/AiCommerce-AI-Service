@@ -20,9 +20,10 @@ class AISettings(BaseSettings):
     ENABLE_TOOL_CALLS: bool = Field(default=True)
     ENABLE_JSON_MODE: bool = Field(default=True)
 
-    # Promo code generation is synthetic (no platform/checkout integration).
-    # Disabled by default until a real code-issuing integration exists.
-    PROMO_CODES_ENABLED: bool = Field(default=False)
+    # Promo codes are real coupons created on the store's connected
+    # e-commerce platform. Enabled by default; when no coupon-capable
+    # integration exists the flow degrades gracefully (no code is shown).
+    PROMO_CODES_ENABLED: bool = Field(default=True)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=True)
 

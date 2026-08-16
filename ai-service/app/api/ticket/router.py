@@ -15,7 +15,7 @@ from app.api.ticket.schemas import (
     TicketResponseSchema,
     TicketStatusUpdateSchema,
 )
-from app.application.ticket.dto.ticket_dto import TicketCreateDTO, TicketStatusUpdateDTO
+from app.application.ticket.dto.ticket_dto import TicketCreateDTO, TicketDTO, TicketStatusUpdateDTO
 from app.application.ticket.services.notification_service import TicketNotificationService
 from app.application.ticket.services.ticket_service import TicketService
 from app.domain.ticket.exceptions import TicketNotFoundException
@@ -25,6 +25,13 @@ router = APIRouter(
     tags=["Tickets"],
     dependencies=[Depends(require_admin_role)],
 )
+
+
+def _assert_ticket_store_owned(ticket: TicketDTO | None, store_id: str) -> None:
+    """Ticket endpoints are store-admin scoped: a ticket from another store is
+    never readable or mutable (tenant isolation, matching commerce endpoints)."""
+    if ticket is None or ticket.store_id != store_id:
+        raise TicketNotFoundException("Ticket not found.")
 
 
 @router.post("", response_model=TicketResponseSchema, status_code=status.HTTP_201_CREATED)
@@ -39,11 +46,11 @@ async def create_ticket(
 @router.get("/{ticket_id}", response_model=TicketResponseSchema)
 async def get_ticket(
     ticket_id: str,
+    store_id: str = Depends(get_current_store_id),
     service: TicketService = Depends(get_ticket_service),
 ) -> TicketResponseSchema:
     result = await service.get_ticket(ticket_id)
-    if result is None:
-        raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
+    _assert_ticket_store_owned(result, store_id)
     return TicketResponseSchema(**result.model_dump())
 
 
@@ -86,11 +93,11 @@ async def get_resolution_metrics(
 async def update_ticket_status(
     ticket_id: str,
     payload: TicketStatusUpdateSchema,
+    store_id: str = Depends(get_current_store_id),
     service: TicketService = Depends(get_ticket_service),
 ) -> TicketResponseSchema:
     result = await service.update_status(ticket_id, TicketStatusUpdateDTO(**payload.model_dump()))
-    if result is None:
-        raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
+    _assert_ticket_store_owned(result, store_id)
     return TicketResponseSchema(**result.model_dump())
 
 
@@ -98,6 +105,7 @@ async def update_ticket_status(
 async def add_ticket_message(
     ticket_id: str,
     payload: AddMessageSchema,
+    store_id: str = Depends(get_current_store_id),
     service: TicketService = Depends(get_ticket_service),
 ) -> TicketResponseSchema:
     result = await service.add_message(
@@ -105,8 +113,7 @@ async def add_ticket_message(
         sender=payload.sender,
         content=payload.content,
     )
-    if result is None:
-        raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
+    _assert_ticket_store_owned(result, store_id)
     return TicketResponseSchema(**result.model_dump())
 
 
@@ -114,6 +121,7 @@ async def add_ticket_message(
 async def resolve_ticket(
     ticket_id: str,
     payload: ResolveTicketSchema,
+    store_id: str = Depends(get_current_store_id),
     service: TicketService = Depends(get_ticket_service),
 ) -> TicketResponseSchema:
     result = await service.resolve_ticket(
@@ -121,8 +129,7 @@ async def resolve_ticket(
         resolution_type=payload.resolution_type,
         message=payload.message,
     )
-    if result is None:
-        raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
+    _assert_ticket_store_owned(result, store_id)
     return TicketResponseSchema(**result.model_dump())
 
 
@@ -130,6 +137,7 @@ async def resolve_ticket(
 async def escalate_ticket(
     ticket_id: str,
     payload: EscalateTicketSchema,
+    store_id: str = Depends(get_current_store_id),
     service: TicketService = Depends(get_ticket_service),
 ) -> TicketResponseSchema:
     result = await service.escalate_ticket(
@@ -139,27 +147,30 @@ async def escalate_ticket(
         eta=payload.eta,
         message=payload.message,
     )
-    if result is None:
-        raise TicketNotFoundException(f"Ticket '{ticket_id}' not found.")
+    _assert_ticket_store_owned(result, store_id)
     return TicketResponseSchema(**result.model_dump())
 
 
 @router.get("/{ticket_id}/notifications", response_model=TicketNotificationListSchema)
 async def list_ticket_notifications(
     ticket_id: str,
+    store_id: str = Depends(get_current_store_id),
     customer_id: str | None = Query(default=None),
     unread_only: bool = Query(default=False),
     limit: int = Query(default=50, ge=1, le=200),
-    service: TicketNotificationService = Depends(get_notification_service),
+    service: TicketService = Depends(get_ticket_service),
+    notification_service: TicketNotificationService = Depends(get_notification_service),
 ) -> TicketNotificationListSchema:
-    items = await service.list_notifications(
+    ticket = await service.get_ticket(ticket_id)
+    _assert_ticket_store_owned(ticket, store_id)
+    items = await notification_service.list_notifications(
         ticket_id=ticket_id,
         customer_id=customer_id,
         unread_only=unread_only,
         limit=limit,
     )
     unread = len(
-        await service.list_notifications(
+        await notification_service.list_notifications(
             ticket_id=ticket_id,
             customer_id=customer_id,
             unread_only=True,
@@ -176,10 +187,13 @@ async def list_ticket_notifications(
 @router.delete("/{ticket_id}", response_model=DeleteResponseSchema)
 async def delete_ticket(
     ticket_id: str,
+    store_id: str = Depends(get_current_store_id),
     service: TicketService = Depends(get_ticket_service),
 ) -> DeleteResponseSchema:
     from app.infrastructure.mongodb.repositories.ticket_repository import TicketRepository
 
+    existing = await service.get_ticket(ticket_id)
+    _assert_ticket_store_owned(existing, store_id)
     repo = TicketRepository()
     success = await repo.delete(ticket_id)
     if not success:

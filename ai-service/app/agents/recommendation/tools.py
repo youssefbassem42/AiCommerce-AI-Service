@@ -307,15 +307,26 @@ def _catalog_price(product: Any) -> float | None:
 def _resolve_catalog_candidate(
     candidate: ScoredProduct,
     product: Any,
+    store_id: str,
 ) -> ScoredProduct | None:
     """Enrich a candidate from the real catalog record.
 
     Returns None when the candidate cannot be resolved to a real, priced
-    product. Payload-derived fields (title, price) are never trusted — the
-    Mongo catalog is authoritative.
+    product of the requesting store. Payload-derived fields (title, price)
+    are never trusted — the Mongo catalog is authoritative, and a product
+    belonging to another store is never surfaced (tenant isolation).
     """
     if product is None:
         logger.debug("Discarding candidate '%s': no catalog product", candidate.product_id)
+        return None
+
+    if getattr(product, "store_id", None) != store_id:
+        logger.debug(
+            "Discarding candidate '%s': catalog product belongs to store '%s', not '%s'",
+            candidate.product_id,
+            getattr(product, "store_id", None),
+            store_id,
+        )
         return None
 
     price = _catalog_price(product)
@@ -356,11 +367,13 @@ def _catalog_stock_quantity(product: Any) -> int:
 async def filter_inventory(
     candidates: list[ScoredProduct],
     product_repo: ProductRepository,
+    store_id: str,
 ) -> list[ScoredProduct]:
     """Keep only candidates that resolve to a real, in-stock catalog product.
 
-    A vector result that cannot be resolved to a real Mongo product is
-    discarded — never kept as a payload-derived "fake product".
+    A vector result that cannot be resolved to a real Mongo product of the
+    requesting store is discarded — never kept as a payload-derived
+    "fake product".
     """
     if not candidates:
         return []
@@ -376,7 +389,7 @@ async def filter_inventory(
             logger.debug("Product lookup failed for '%s'", candidate.product_id, exc_info=True)
             product = None
 
-        resolved = _resolve_catalog_candidate(candidate, product)
+        resolved = _resolve_catalog_candidate(candidate, product, store_id)
         if resolved is None:
             continue
 
@@ -391,6 +404,7 @@ async def apply_budget_filter(
     candidates: list[ScoredProduct],
     max_budget: float | None,
     product_repo: ProductRepository,
+    store_id: str,
 ) -> list[ScoredProduct]:
     """Keep only candidates whose real catalog price fits the budget.
 
@@ -412,7 +426,7 @@ async def apply_budget_filter(
                 product = await product_repo.find_by_id(candidate.product_id)
             except Exception:
                 product = None
-            resolved = _resolve_catalog_candidate(candidate, product)
+            resolved = _resolve_catalog_candidate(candidate, product, store_id)
             if resolved is None:
                 continue
             candidate = resolved

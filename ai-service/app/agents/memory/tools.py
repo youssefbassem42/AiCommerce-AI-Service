@@ -185,9 +185,10 @@ async def recall_all(session_id: str, user_id: str, store_id: str) -> dict[str, 
 async def summarize_transcript(transcript: str, llm: BaseLLMProvider | None = None) -> dict[str, Any]:
     """Summarize a conversation transcript into structured memory via the LLM."""
     provider = llm or _get_llm()
-    from app.agents.memory.prompts import SUMMARIZE_SESSION_PROMPT
     from app.application.dto.ai_dto import ChatRequest, MessageDTO
+    from app.infrastructure.prompts.client import get_prompt_client
 
+    prompt = await get_prompt_client().get("memory.summarize_session_prompt")
     request = ChatRequest(
         messages=[
             MessageDTO(
@@ -196,7 +197,7 @@ async def summarize_transcript(transcript: str, llm: BaseLLMProvider | None = No
             ),
             MessageDTO(
                 role="user",
-                content=SUMMARIZE_SESSION_PROMPT.format(transcript=transcript),
+                content=prompt.format(transcript=transcript),
             ),
         ],
         model=ai_settings.DEFAULT_MODEL,
@@ -228,11 +229,12 @@ async def extract_shopping_state(
     changes; None/absent fields mean "no new information" (Fix 3.3).
     """
     provider = llm or _get_llm()
-    from app.agents.memory.prompts import EXTRACT_SHOPPING_STATE_PROMPT
     from app.application.context.shopping_state import ShoppingState
     from app.application.dto.ai_dto import ChatRequest, MessageDTO
+    from app.infrastructure.prompts.client import get_prompt_client
 
     current = ShoppingState.from_dict(current_state)
+    prompt = await get_prompt_client().get("memory.extract_shopping_state_prompt")
     request = ChatRequest(
         messages=[
             MessageDTO(
@@ -241,7 +243,7 @@ async def extract_shopping_state(
             ),
             MessageDTO(
                 role="user",
-                content=EXTRACT_SHOPPING_STATE_PROMPT.format(
+                content=prompt.format(
                     current_state=json.dumps(current.to_dict()),
                     history=history or "(no prior conversation)",
                     user_input=user_input,

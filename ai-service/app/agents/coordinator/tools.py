@@ -2,12 +2,6 @@ import json
 import logging
 from typing import Any
 
-from app.agents.coordinator.prompts import (
-    COMING_SOON_PROMPT,
-    CONTEXT_EXTRACTION_PROMPT,
-    FALLBACK_PROMPT,
-    INTENT_CLASSIFICATION_PROMPT,
-)
 from app.application.contracts.intent import (
     COMING_SOON_INTENTS as CANONICAL_COMING_SOON_INTENTS,
 )
@@ -15,6 +9,7 @@ from app.application.contracts.intent import EXECUTABLE_INTENTS as CANONICAL_EXE
 from app.application.contracts.intent import Intent
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.core.ai_settings import ai_settings
+from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
 
@@ -54,6 +49,7 @@ async def classify_intent(
 ) -> tuple[str, float]:
     """Classify user input into an intent and return (intent, confidence)."""
     provider = llm or _get_llm()
+    prompt = await get_prompt_client().get("coordinator.intent_classification_prompt")
     request = ChatRequest(
         messages=[
             MessageDTO(
@@ -62,7 +58,7 @@ async def classify_intent(
             ),
             MessageDTO(
                 role="user",
-                content=INTENT_CLASSIFICATION_PROMPT.format(user_input=user_input, history=history),
+                content=prompt.format(user_input=user_input, history=history),
             ),
         ],
         model=ai_settings.DEFAULT_MODEL,
@@ -86,6 +82,7 @@ async def extract_context(
 ) -> dict[str, Any]:
     """Extract relevant context from the user input, history, and store profile."""
     provider = llm or _get_llm()
+    prompt = await get_prompt_client().get("coordinator.context_extraction_prompt")
     request = ChatRequest(
         messages=[
             MessageDTO(
@@ -94,7 +91,7 @@ async def extract_context(
             ),
             MessageDTO(
                 role="user",
-                content=CONTEXT_EXTRACTION_PROMPT.format(
+                content=prompt.format(
                     user_input=user_input,
                     history=history,
                     store_profile=json.dumps(store_profile or {}),
@@ -121,9 +118,10 @@ async def build_fallback_response(
 ) -> str:
     """Build a graceful fallback (clarifying question) response."""
     provider = llm or _get_llm()
-    prompt_template = FALLBACK_PROMPT
     if intent in COMING_SOON_INTENTS:
-        prompt_template = COMING_SOON_PROMPT
+        prompt_template = await get_prompt_client().get("coordinator.coming_soon_prompt")
+    else:
+        prompt_template = await get_prompt_client().get("coordinator.fallback_prompt")
 
     request = ChatRequest(
         messages=[

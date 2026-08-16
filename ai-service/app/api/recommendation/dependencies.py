@@ -13,6 +13,9 @@ from app.domain.recommendation.repositories.store_capabilities_repository import
 from app.infrastructure.mongodb.repositories.commerce_product_repository import (
     CommerceProductRepository,
 )
+from app.infrastructure.mongodb.repositories.recommendation_repository import (
+    RecommendationRepository,
+)
 from app.infrastructure.mongodb.repositories.store_capabilities_repository import (
     StoreCapabilitiesMongoRepository,
 )
@@ -26,6 +29,10 @@ def get_recommendation_llm() -> BaseLLMProvider:
 
 def get_capabilities_repository() -> StoreCapabilitiesRepository:
     return StoreCapabilitiesMongoRepository()
+
+
+def get_recommendation_repository() -> RecommendationRepository:
+    return RecommendationRepository()
 
 
 async def get_recommendation_service(
@@ -44,9 +51,11 @@ async def get_bundle_service(
     product_repo: CommerceProductRepository = Depends(get_product_repository),
     llm: BaseLLMProvider = Depends(get_recommendation_llm),
     capabilities_repo: StoreCapabilitiesRepository = Depends(get_capabilities_repository),
+    recommendation_repo: RecommendationRepository = Depends(get_recommendation_repository),
 ) -> BundleSuggestionService:
     return BundleSuggestionService(
         product_repo=product_repo,
         llm=llm,
         capabilities_repo=capabilities_repo,
+        recommendation_repo=recommendation_repo,
     )

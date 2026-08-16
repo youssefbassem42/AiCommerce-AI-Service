@@ -93,12 +93,17 @@ class ChatService:
         fallbacks: list[str] | None = None,
         store_id: str | None = None,
         customer_id: str | None = None,
+        inject_history: bool = True,
     ) -> ChatResponse:
         """
         Generate completion response, automatically trying fallback providers if the main call fails.
 
         When orchestration_service is configured, chat traffic is delegated to the
         coordinator + conversation workflow (Phase 01 orchestration).
+
+        `inject_history` controls whether conversation history is loaded and
+        prepended here. Callers that already build history into `request.messages`
+        (e.g. the RAG service) must pass False to avoid double injection.
         """
         corr_id = correlation_id or get_request_id() or self._generate_correlation_id()
 
@@ -112,7 +117,7 @@ class ChatService:
             )
 
         # Inject conversation history if conversation_id is provided
-        if conversation_id and self.conversation_service:
+        if inject_history and conversation_id and self.conversation_service:
             history = await self.conversation_service.get_conversation_history(conversation_id, store_id=store_id)
             if history:
                 # Merge history messages before current messages
