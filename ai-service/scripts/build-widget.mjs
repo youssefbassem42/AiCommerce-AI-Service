@@ -77,6 +77,14 @@ const RUNTIME_PATCHES = [
     "isTokenExpired(){return this._token?this._now()>=this._expiresAt-this.marginSeconds:!0}get expiresInSeconds(){return Math.max(0,this._expiresAt-this._now())}async bootstrap(e={}){",
     "isTokenExpired(){return this._token?this._now()>=this._expiresAt-this.marginSeconds:!0}get expiresInSeconds(){return Math.max(0,this._expiresAt-this._now())}seedFromSlot(){let n=null;try{n=typeof window!=\"undefined\"?window.__AICommerce__:null}catch{return null}if(!n||!n.session)return null;let t=n.session;if(!t||typeof t.access_token!=\"string\"||!t.access_token)return null;let a;try{a=q.adapt(t)}catch{return null}this._token=a.accessToken;let s=this._now();return this._expiresAt=s+a.expiresIn,this._bootstrapError=null,this._bootstrapDone=!0,delete n.session,a}async bootstrap(e={}){",
   ],
+  // P8: the panel class never defined focus() although the widget's open()
+  // calls this._panel.focus() — open() threw right before bootstrapping, so the
+  // session seed was only ever consumed on first send. Give the panel a focus().
+  [
+    "P8-panel-focus",
+    "get lastFocusable(){let e=he(this.element);return e.length>0?e[e.length-1]:null}showWelcome(){",
+    "get lastFocusable(){let e=he(this.element);return e.length>0?e[e.length-1]:null}focus(){this.input.focus()}showWelcome(){",
+  ],
   // P7 (test-only artifact): export the pure adapter/state classes so Node tests
   // can exercise the exact shipped code. Inert in the browser.
   [
