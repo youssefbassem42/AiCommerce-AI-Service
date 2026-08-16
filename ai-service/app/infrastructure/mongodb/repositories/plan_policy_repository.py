@@ -19,9 +19,11 @@ class PlanPolicyMongoRepository(BaseMongoRepository[StorePlanPolicyDocument, Pla
     async def upsert(self, policy: PlanPolicy) -> PlanPolicy:
         try:
             doc = StorePlanPolicyDocument.from_entity(policy)
+            data = doc.to_mongo_dict()
+            data.pop("_id", None)
             await self.collection.replace_one(
                 {"store_id": policy.store_id},
-                doc.to_mongo_dict(),
+                data,
                 upsert=True,
             )
             return policy

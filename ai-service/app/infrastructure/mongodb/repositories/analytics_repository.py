@@ -94,6 +94,7 @@ class AnalyticsRepository(BaseMongoRepository[AIRuntimeLogDocument, AIRuntimeLog
         try:
             doc = DashboardInsightDocument.from_entity(insight)
             data = doc.to_mongo_dict()
+            data.pop("_id", None)
             await self.insights_collection.replace_one(
                 {"store_id": insight.store_id}, data, upsert=True, session=session
             )
