@@ -85,6 +85,14 @@ const RUNTIME_PATCHES = [
     "get lastFocusable(){let e=he(this.element);return e.length>0?e[e.length-1]:null}showWelcome(){",
     "get lastFocusable(){let e=he(this.element);return e.length>0?e[e.length-1]:null}focus(){this.input.focus()}showWelcome(){",
   ],
+  // P9: consume the loader-provided session as soon as the widget mounts, so
+  // the scoped token lingers in the global slot only for the instant between the
+  // loader's stash and runtime execution (not until first open/send).
+  [
+    "P9-seed-on-mount",
+    "this._state.set(h.READY),this._renderLauncher(),this._config.autoOpen&&this.open()",
+    "this._state.set(h.READY),this._renderLauncher(),this._ensureApi(),this._auth.seedFromSlot(),this._config.autoOpen&&this.open()",
+  ],
   // P7 (test-only artifact): export the pure adapter/state classes so Node tests
   // can exercise the exact shipped code. Inert in the browser.
   [
