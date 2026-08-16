@@ -12,6 +12,7 @@ from app.agents.memory.nodes import (
     summarize_session_node,
 )
 from app.agents.memory.state import MemoryState
+from app.core.ai_settings import ai_settings
 from app.domain.memory.repositories.memory_repository import MemoryRepository
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
@@ -37,7 +38,7 @@ class MemoryAgent:
         redis_client: RedisClient | None = None,
     ):
         self._memory_repo = memory_repo
-        self._llm = llm or LLMProviderFactory().get_provider("openrouter")
+        self._llm = llm or LLMProviderFactory().get_provider(ai_settings.DEFAULT_PROVIDER)
         self._redis_client = redis_client
         self._graph = self._build_graph()
 

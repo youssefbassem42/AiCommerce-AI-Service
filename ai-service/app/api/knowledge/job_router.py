@@ -10,6 +10,7 @@ from app.api.auth.dependencies import (
 )
 from app.api.knowledge.job_schemas import JobCreateResponseSchema, JobResponseSchema, PaginatedJobResponseSchema
 from app.application.jobs.job_dispatcher import JobDispatcher
+from app.core.ai_settings import ai_settings
 from app.core.path_validation import is_safe_document_path
 from app.domain.auth.entities.authenticated_user import AuthenticatedUser
 from app.domain.job.entities.knowledge_job import KnowledgeJob
@@ -158,7 +159,7 @@ async def create_summary_generation_job(
         job_type=JobType.SUMMARY_GENERATION,
         payload={
             "store_id": store_id,
-            "model": model or "gpt-4o-mini",
+            "model": model or ai_settings.DEFAULT_MODEL,
         },
         enqueue=lambda job_id: generate_summary_task.delay(
             store_id=store_id,

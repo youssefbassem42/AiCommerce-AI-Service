@@ -84,7 +84,7 @@ async def parse_budget(
             ),
             MessageDTO(role="user", content=BUDGET_PARSE_PROMPT.format(query=query)),
         ],
-        model="gpt-4o-mini",
+        model=ai_settings.DEFAULT_MODEL,
         json_mode=True,
     )
     response = await provider.structured_output(request, dict[str, Any])

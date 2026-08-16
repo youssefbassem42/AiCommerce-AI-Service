@@ -2,14 +2,19 @@
 
 Each intent retrieves only the knowledge it needs:
 
-    support / escalation   — FAQ, policies, knowledge
-    recommendation / sales — products
-    bundle                 — products (plus business rules/promotions)
-    general / others       — unfiltered knowledge
+    support / escalation      — FAQ, policies, knowledge
+    product_information       — products
+    recommendation / sales    — products
+    bundle                    — products (plus business rules/promotions)
+    general / unknown         — support knowledge (safe fallback, never unfiltered)
 
 The plan drives the retrieval filters (entity_type, knowledge_scope) and the
 quality knobs (top_k, score_threshold, hybrid, MMR, rerank) so the router
 never retrieves everything for every request.
+
+MMR is disabled for catalog (product) plans: MMR maximizes document diversity,
+which promotes irrelevant products for exact product queries. It stays enabled
+for support knowledge plans where diversity across FAQ/policy topics helps.
 """
 
 from __future__ import annotations
@@ -41,7 +46,9 @@ class RetrievalPlan:
 def plan_for_intent(intent: str | None) -> RetrievalPlan:
     """Return the retrieval plan for a classified intent.
 
-    Unknown/None intents get the unfiltered knowledge plan (general answering).
+    Unknown/None intents get the support-knowledge plan (general answering) —
+    never an unfiltered retrieval that can leak FAQ or product text into
+    general answers (Fix: entity-type isolation).
     """
     if intent in ("support", "escalation"):
         return RetrievalPlan(
@@ -53,12 +60,12 @@ def plan_for_intent(intent: str | None) -> RetrievalPlan:
             include_business_summary=True,
             include_products=False,
         )
-    if intent in ("recommendation", "sales"):
+    if intent in ("recommendation", "sales", "product_information"):
         return RetrievalPlan(
             entity_types=PRODUCT_ENTITY_TYPES,
             top_k=10,
             use_hybrid=True,
-            use_mmr=True,
+            use_mmr=False,
             rerank=False,
             include_business_summary=False,
             include_products=True,
@@ -68,13 +75,13 @@ def plan_for_intent(intent: str | None) -> RetrievalPlan:
             entity_types=PRODUCT_ENTITY_TYPES,
             top_k=10,
             use_hybrid=True,
-            use_mmr=True,
+            use_mmr=False,
             rerank=False,
             include_business_summary=True,
             include_products=True,
         )
     return RetrievalPlan(
-        entity_types=None,
+        entity_types=SUPPORT_ENTITY_TYPES,
         top_k=6,
         use_hybrid=True,
         use_mmr=True,

@@ -172,8 +172,11 @@ class TestKnowledgeUnavailable:
 class TestBusinessRule:
     def test_always_escalate_categories(self):
         assert "account_security" in ALWAYS_ESCALATE_CATEGORIES
+        assert "payment_failure" in ALWAYS_ESCALATE_CATEGORIES
         assert detect_business_rule("account_security")
-        assert detect_business_rule("technical")
+        assert detect_business_rule("payment_failure")
+        assert not detect_business_rule("technical")
+        assert not detect_business_rule("account")
         assert not detect_business_rule("order_status")
         assert not detect_business_rule("general")
         assert not detect_business_rule(None)

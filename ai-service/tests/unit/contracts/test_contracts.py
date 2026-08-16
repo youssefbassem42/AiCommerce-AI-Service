@@ -35,7 +35,13 @@ class TestIntentVocabulary:
         assert Intent.GENERAL == "general"
 
     def test_executable_and_coming_soon_sets(self):
-        assert {i.value for i in EXECUTABLE_INTENTS} == {"bundle", "recommendation", "sales", "support", "escalation"}
+        assert {i.value for i in EXECUTABLE_INTENTS} == {
+            "bundle",
+            "recommendation",
+            "sales",
+            "support",
+            "product_information",
+        }
         assert {i.value for i in COMING_SOON_INTENTS} == {"marketing", "analytics"}
 
     def test_coerce_intent_normalizes(self):

@@ -13,6 +13,7 @@ from app.application.ticket.dto.escalation_dto import EscalationResponse
 from app.application.ticket.dto.ticket_dto import TicketCreateDTO
 from app.application.ticket.services.notification_service import TicketNotificationService
 from app.application.ticket.services.ticket_service import TicketService
+from app.core.ai_settings import ai_settings
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
 from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.base import BaseLLMProvider
@@ -58,7 +59,7 @@ async def summarize_conversation_node(
                         ).format(transcript=transcript, reason=reason),
                     ),
                 ],
-                model="gpt-4o-mini",
+                model=ai_settings.DEFAULT_MODEL,
             )
             response = await llm.chat(request)
             content = response.message.content

@@ -12,6 +12,7 @@ from app.application.recommendation.dto.recommendation_dto import (
     RecommendationIntent,
     ScoredProduct,
 )
+from app.core.ai_settings import ai_settings
 from app.domain.commerce.repositories import ProductRepository
 from app.infrastructure.providers.base import BaseLLMProvider
 from app.infrastructure.providers.factory import LLMProviderFactory
@@ -21,8 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 def _get_llm() -> BaseLLMProvider:
-    from app.core.ai_settings import ai_settings
-
     provider_name = ai_settings.DEFAULT_PROVIDER
     try:
         return LLMProviderFactory().get_provider(provider_name)
@@ -75,7 +74,7 @@ async def parse_intent(
                 ),
             ),
         ],
-        model="gpt-4o-mini",
+        model=ai_settings.DEFAULT_MODEL,
         json_mode=True,
     )
     response = await provider.structured_output(request, RecommendationIntent)
@@ -500,7 +499,7 @@ async def explain_recommendation(
                     content=EXPLANATION_PROMPT.format(structured=json.dumps(structured, indent=2, default=str)),
                 ),
             ],
-            model="gpt-4o-mini",
+            model=ai_settings.DEFAULT_MODEL,
             json_mode=False,
         )
         response = await provider.chat(request)

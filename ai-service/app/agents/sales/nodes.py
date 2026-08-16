@@ -3,6 +3,7 @@ from typing import Any
 
 from app.agents.sales.state import SalesState
 from app.agents.sales.tools import build_offer_payload, detect_objection, extract_needs
+from app.application.context.shopping_state import SESSION_STATE_KEY, shopping_state_from_context
 from app.application.recommendation.dto.sales_dto import SalesResponse
 from app.application.recommendation.promo_service import PromoCodeService
 from app.application.recommendation.services import RecommendationService
@@ -19,7 +20,12 @@ async def discover_needs_node(
     llm: BaseLLMProvider,
 ) -> dict[str, Any]:
     try:
-        needs = await extract_needs(state["user_query"], llm=llm)
+        shopping = shopping_state_from_context(state.get("context") or {})
+        needs = await extract_needs(
+            state["user_query"],
+            llm=llm,
+            current_state=shopping.to_dict() if not shopping.is_empty() else None,
+        )
         answers = {
             "budget": needs.get("budget"),
             "use_case": needs.get("use_case"),
@@ -52,17 +58,36 @@ async def recommend_products_node(
         return {"products": []}
 
     try:
+        context = _merge_sales_answers(state)
         result = await recommendation_service.recommend(
             query=state["user_query"],
             store_id=state["store_id"],
             customer_id=state.get("customer_id"),
-            context=state.get("context") or {},
+            context=context,
         )
         products = list(result.products)
         return {"stage": "recommendation", "products": products, "error": None}
     except Exception as exc:
         logger.error("Recommendation failed: %s", exc, exc_info=True)
         return {"stage": "recommendation", "products": [], "error": f"Recommendation failed: {exc}"}
+
+
+def _merge_sales_answers(state: SalesState) -> dict[str, Any]:
+    """Merge the sales-discovered needs into the shared shopping state.
+
+    The recommendation service reads the shopping state from the context dict,
+    so qualifying answers collected by the sales agent must be merged back into
+    ``context.conversation.shopping_state`` before recommending (Fix: sales
+    never loses the customer_answers it gathered).
+    """
+    context = dict(state.get("context") or {})
+    shopping = shopping_state_from_context(context)
+    merged = shopping.merge(state.get("customer_answers") or {})
+    if not merged.is_empty():
+        conversation = dict(context.get("conversation") or {})
+        conversation[SESSION_STATE_KEY] = merged.to_dict()
+        context["conversation"] = conversation
+    return context
 
 
 async def handle_objection_node(

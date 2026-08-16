@@ -181,6 +181,16 @@ async def classify_intent_node(
             history=context.get("history_text", ""),
             llm=llm,
         )
+        if intent == "escalation":
+            intent = "support"
+            log_flow_event(
+                "intent.normalized",
+                message_id=(state.get("metadata") or {}).get("message_id"),
+                store_id=state.get("store_id"),
+                conversation_id=state.get("conversation_id"),
+                intent="support",
+                reason="escalation label normalized to support",
+            )
         log_flow_event(
             "intent.classified",
             message_id=(state.get("metadata") or {}).get("message_id"),
@@ -200,6 +210,8 @@ async def route_to_agent_node(state: CoordinatorState) -> dict[str, Any]:
     intent = state.get("intent")
     if state.get("error") or not intent:
         return {"sub_agent": None, "needs_clarification": True}
+    if intent == "escalation":
+        intent = "support"
     return {"sub_agent": intent, "needs_clarification": False}
 
 

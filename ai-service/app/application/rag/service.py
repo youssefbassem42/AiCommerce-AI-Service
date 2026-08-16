@@ -69,7 +69,7 @@ class RagOrchestrationService:
 
         retrieval_config = RetrievalConfig(
             top_k=min(request.top_k, MAX_CHUNKS_IN_CONTEXT),
-            score_threshold=request.score_threshold,
+            score_threshold=request.score_threshold if request.score_threshold > 0 else 0.25,
             use_hybrid=request.use_hybrid,
             use_mmr=request.use_mmr,
             rerank=request.rerank,

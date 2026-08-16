@@ -25,7 +25,7 @@ COMING_SOON_INTENTS = {intent.value for intent in CANONICAL_COMING_SOON_INTENTS}
 
 
 def _get_llm() -> BaseLLMProvider:
-    return LLMProviderFactory().get_provider("openrouter")
+    return LLMProviderFactory().get_provider(ai_settings.DEFAULT_PROVIDER)
 
 
 def available_agents() -> list[dict[str, Any]]:

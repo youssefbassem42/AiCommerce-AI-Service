@@ -38,7 +38,7 @@ async def _select_best_model() -> tuple[BaseLLMProvider, str]:
                     return provider, model_name
         except Exception:
             continue
-    return factory.get_provider(ai_settings.DEFAULT_PROVIDER), "gpt-4o-mini"
+    return factory.get_provider(ai_settings.DEFAULT_PROVIDER), ai_settings.DEFAULT_MODEL
 
 
 def route_after_parse(state: IntegrationMappingState) -> str:

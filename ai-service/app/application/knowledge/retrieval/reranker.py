@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.application.knowledge.retrieval.dto import RetrievedChunkDTO
+from app.core.ai_settings import ai_settings
 from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.base import BaseLLMProvider
 
@@ -25,7 +26,7 @@ class LLMCrossEncoderReRanker(ReRanker):
     def __init__(
         self,
         provider: BaseLLMProvider,
-        model: str = "gpt-4o-mini",
+        model: str = ai_settings.DEFAULT_MODEL,
         temperature: float = 0.0,
         max_chars_per_doc: int = 1500,
     ):

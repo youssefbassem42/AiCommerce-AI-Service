@@ -121,3 +121,49 @@ class TestSalesAgent:
         }
         assert state["stage"] == "discovery"
         assert state["products"] == []
+
+
+class TestSalesShoppingStateHandoff:
+    async def test_customer_answers_merged_into_recommendation_context(self, agent, recommendation_service):
+        llm = agent._llm
+        llm.structured_output.return_value.message.content = (
+            '{"budget": 500, "use_case": "office", "preferences": ["laptop"], '
+            '"has_enough_info": true, "clarifying_question": null}'
+        )
+        context = {
+            "conversation": {
+                "shopping_state": {"category": "laptop", "use_case": "office"},
+            }
+        }
+        response = await agent.run(
+            query="my budget is 500",
+            store_id="store_1",
+            customer_id="cust_1",
+            context=context,
+        )
+        assert response.products
+        call_context = recommendation_service.recommend.await_args.kwargs["context"]
+        shopping = call_context["conversation"]["shopping_state"]
+        assert shopping["budget"] == 500
+        assert shopping["category"] == "laptop"
+        assert shopping["use_case"] == "office"
+
+    async def test_known_shopping_state_skips_clarifying_question(self, agent):
+        llm = agent._llm
+        llm.structured_output.return_value.message.content = (
+            '{"budget": null, "use_case": null, "preferences": [], '
+            '"has_enough_info": false, "clarifying_question": "What is your budget?"}'
+        )
+        context = {
+            "conversation": {
+                "shopping_state": {"category": "laptop", "budget": 1200},
+            }
+        }
+        response = await agent.run(
+            query="yes",
+            store_id="store_1",
+            customer_id="cust_1",
+            context=context,
+        )
+        assert response.clarifying_question is None
+        assert response.products

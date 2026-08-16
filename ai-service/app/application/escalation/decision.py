@@ -192,7 +192,12 @@ POLICY_QUESTION_PATTERNS: tuple[str, ...] = (
     "business hours",
 )
 
-ALWAYS_ESCALATE_CATEGORIES: frozenset[str] = frozenset({"account_security", "payment_failure", "technical", "account"})
+# Only account security and payment failures are always escalated. Technical
+# and account questions are ordinary support inquiries: the support agent
+# tries to resolve them first and the decision engine escalates only when
+# resolution fails or a hard signal fires (Fix: no auto-tickets for support
+# category questions).
+ALWAYS_ESCALATE_CATEGORIES: frozenset[str] = frozenset({"account_security", "payment_failure"})
 
 REPEAT_PATTERNS: tuple[str, ...] = (
     "asked before",

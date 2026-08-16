@@ -47,14 +47,27 @@ class TestRetrievalPlanner:
         assert plan.entity_types == ("product",)
         assert plan.include_business_summary is True
 
-    def test_general_plan_unfiltered(self):
+    def test_general_plan_safe_fallback(self):
         plan = plan_for_intent("general")
-        assert plan.entity_types is None
+        assert set(plan.entity_types) == {"knowledge", "policy", "faq"}
         assert plan.include_business_summary is True
+        assert plan.include_products is False
 
     def test_unknown_intent_uses_general_plan(self):
-        assert plan_for_intent(None).entity_types is None
-        assert plan_for_intent("weird").entity_types is None
+        assert set(plan_for_intent(None).entity_types) == {"knowledge", "policy", "faq"}
+        assert set(plan_for_intent("weird").entity_types) == {"knowledge", "policy", "faq"}
+
+    def test_catalog_plans_disable_mmr(self):
+        for intent in ("recommendation", "sales", "bundle", "product_information"):
+            assert plan_for_intent(intent).use_mmr is False, intent
+
+    def test_support_plan_keeps_mmr(self):
+        assert plan_for_intent("support").use_mmr is True
+
+    def test_product_information_plan_uses_products(self):
+        plan = plan_for_intent("product_information")
+        assert plan.entity_types == ("product",)
+        assert plan.include_products is True
 
 
 class TestContextBuilder:
@@ -77,18 +90,14 @@ class TestContextBuilder:
     @pytest.mark.asyncio
     async def test_support_intent_retrieves_policy_faq_only(self, builder):
         context_builder, retriever = builder
-        with patch(
-            "app.application.context.builder.classify_intent",
-            AsyncMock(return_value=("support", 0.95)),
-        ):
-            context = await context_builder.build(
-                "What is your return policy?",
-                store_id="store-1",
-                organization_id="org-1",
-            )
+        context = await context_builder.build(
+            "What is your return policy?",
+            store_id="store-1",
+            organization_id="org-1",
+        )
 
         assert context.intent == "support"
-        assert context.confidence == 0.95
+        assert context.confidence == 0.9
         filters = retriever.search.await_args.kwargs["filters"]
         assert set(filters.entity_types) == {"knowledge", "policy", "faq"}
         assert filters.store_id == "store-1"
@@ -112,7 +121,7 @@ class TestContextBuilder:
             filters_applied={},
         )
         with patch(
-            "app.application.context.builder.classify_intent",
+            "app.application.context.intent_resolver.classify_intent",
             AsyncMock(return_value=("recommendation", 0.9)),
         ):
             context = await context_builder.build(
@@ -126,12 +135,25 @@ class TestContextBuilder:
         assert filters.entity_type is None
         assert len(context.knowledge_context) == 1
         assert context.products[0]["product_id"] == "laptop-1"
+        config = retriever.search.await_args.kwargs["config"]
+        assert config.use_mmr is False
+
+    @pytest.mark.asyncio
+    async def test_support_plan_keeps_mmr_even_when_policy_requests_it(self, builder):
+        context_builder, retriever = builder
+        await context_builder.build(
+            "What is your return policy?",
+            store_id="store-1",
+            policy={"use_mmr": True},
+        )
+        config = retriever.search.await_args.kwargs["config"]
+        assert config.use_mmr is True
 
     @pytest.mark.asyncio
     async def test_faq_retrieval_never_leaks_products_for_support(self, builder):
         context_builder, retriever = builder
         with patch(
-            "app.application.context.builder.classify_intent",
+            "app.application.context.intent_resolver.classify_intent",
             AsyncMock(return_value=("support", 0.9)),
         ):
             await context_builder.build(
@@ -145,7 +167,7 @@ class TestContextBuilder:
     @pytest.mark.asyncio
     async def test_explicit_intent_is_reused_without_classification(self, builder):
         context_builder, retriever = builder
-        with patch("app.application.context.builder.classify_intent") as classify:
+        with patch("app.application.context.intent_resolver.classify_intent") as classify:
             context = await context_builder.build(
                 "What are the specs of this laptop?",
                 store_id="store-1",
@@ -160,13 +182,14 @@ class TestContextBuilder:
     async def test_classification_failure_falls_back_to_general(self, builder):
         context_builder, retriever = builder
         with patch(
-            "app.application.context.builder.classify_intent",
+            "app.application.context.intent_resolver.classify_intent",
             AsyncMock(side_effect=RuntimeError("boom")),
         ):
             context = await context_builder.build("hello", store_id="store-1")
 
         assert context.intent == "general"
-        assert retriever.search.await_args.kwargs["filters"].entity_types is None
+        assert context.conversation["routing"]["source"] == "fallback"
+        assert set(retriever.search.await_args.kwargs["filters"].entity_types) == {"knowledge", "policy", "faq"}
 
     @pytest.mark.asyncio
     async def test_business_rules_loaded_from_summary_repo(self, builder):
@@ -178,7 +201,7 @@ class TestContextBuilder:
         )
 
         with patch(
-            "app.application.context.builder.classify_intent",
+            "app.application.context.intent_resolver.classify_intent",
             AsyncMock(return_value=("general", 0.5)),
         ):
             context = await context_builder.build("hello", store_id="store-1")
@@ -203,7 +226,7 @@ class TestContextBuilder:
         )
 
         with patch(
-            "app.application.context.builder.classify_intent",
+            "app.application.context.intent_resolver.classify_intent",
             AsyncMock(return_value=("general", 0.5)),
         ):
             context = await context_builder.build(
@@ -224,7 +247,7 @@ class TestContextBuilder:
         context_builder._conversation_service.get_conversation_history = AsyncMock()
 
         with patch(
-            "app.application.context.builder.classify_intent",
+            "app.application.context.intent_resolver.classify_intent",
             AsyncMock(return_value=("general", 0.5)),
         ):
             context = await context_builder.build(
@@ -240,7 +263,7 @@ class TestContextBuilder:
     async def test_to_dict_roundtrip(self, builder):
         context_builder, _ = builder
         with patch(
-            "app.application.context.builder.classify_intent",
+            "app.application.context.intent_resolver.classify_intent",
             AsyncMock(return_value=("general", 0.5)),
         ):
             context = await context_builder.build("hello", store_id="store-1")

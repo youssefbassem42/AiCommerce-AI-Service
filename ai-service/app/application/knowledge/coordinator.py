@@ -16,6 +16,7 @@ from app.application.knowledge.services import (
     KnowledgeChunkService,
     KnowledgeDocumentService,
 )
+from app.core.ai_settings import ai_settings
 from app.core.celery_app import celery_app
 from app.domain.knowledge.entities.knowledge_document import KnowledgeDocument
 from app.domain.knowledge.repositories.knowledge_repository import KnowledgeRepository
@@ -109,7 +110,7 @@ class KnowledgeSyncCoordinator:
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
         chunk_strategy: str = "recursive",
-        summary_model: str = "gpt-4o-mini",
+        summary_model: str = ai_settings.DEFAULT_MODEL,
         enqueue_background: bool = True,
     ) -> SyncReport:
         report = SyncReport(self.tenant)

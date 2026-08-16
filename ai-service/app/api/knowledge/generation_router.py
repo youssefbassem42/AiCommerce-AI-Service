@@ -21,6 +21,7 @@ from app.application.knowledge.generation.config import GenerationConfig
 from app.application.knowledge.queries.list_business_summary_history_query import (
     ListBusinessSummaryHistoryQuery,
 )
+from app.core.ai_settings import ai_settings
 from app.core.knowledge_settings import knowledge_settings
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,7 @@ async def generate_business_summary(
     cfg = None
     if payload.model or payload.temperature is not None or payload.max_tokens is not None:
         cfg = GenerationConfig(
-            model=payload.model or "gpt-4o-mini",
+            model=payload.model or ai_settings.DEFAULT_MODEL,
             temperature=payload.temperature if payload.temperature is not None else 0.3,
             max_tokens=payload.max_tokens or 4096,
         )
@@ -85,7 +86,7 @@ async def regenerate_business_summary(
     cfg = None
     if payload.model or payload.temperature is not None or payload.max_tokens is not None:
         cfg = GenerationConfig(
-            model=payload.model or "gpt-4o-mini",
+            model=payload.model or ai_settings.DEFAULT_MODEL,
             temperature=payload.temperature if payload.temperature is not None else 0.3,
             max_tokens=payload.max_tokens or 4096,
         )

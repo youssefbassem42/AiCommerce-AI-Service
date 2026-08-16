@@ -471,13 +471,23 @@ Analyze the user's message and classify it into exactly one of the following int
 
 - sales: user wants to buy something or asks about products/pricing
 - support: user has a problem, needs help with an order, account, or technical issue
-- bundle: user wants a bundle deal, multiple products, or promo code discounts
+- bundle: user wants a bundle deal, multiple products together, or promo code discounts
 - recommendation: user wants product suggestions or advice on what to buy
+- product_information: user asks for details about a specific product (dimensions, specs, features, what's included, warranty, colors, materials)
 - marketing: user wants to create or manage marketing campaigns, discounts, or promotions
 - analytics: user wants reports, statistics, or business insights
-- escalation: user is frustrated, wants a human agent, or has a critical issue
 - integration: user asks about API connections, platforms, or technical integration
 - general: anything else (greetings, small talk, chit-chat)
+
+IMPORTANT:
+- Never classify a message as "escalation". Frustrated users, or users who ask to
+  talk to a human, are "support". The system decides whether to escalate.
+- "Tell me about X" or "what are the specs/features/dimensions of X" is
+  "product_information", not "sales" or "recommendation".
+- A message listing multiple products ("mouse and keyboard", "phone + charger")
+  is "bundle", not "recommendation".
+- Short follow-ups ("yes", "$50", "black", "for gaming") continue the previous
+  intent from the conversation history.
 
 Conversation history (previous messages, may be empty):
 {history}

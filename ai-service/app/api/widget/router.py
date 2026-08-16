@@ -250,14 +250,16 @@ async def _resolve_follow_up(
     conversation_id: str,
     store_id: str,
     conversation_service: ConversationService,
+    stored_context: dict | None = None,
 ) -> dict | None:
     """Resolve contextual follow-ups against the conversation's last recommendation.
 
     Returns a widget block (type/products/product) or None when the follow-up
     cannot be resolved from structured context (falls through to the coordinator).
     """
-    context = await conversation_service.get_conversation_context(conversation_id, store_id)
-    last_recommendation = (context or {}).get("last_recommendation") or {}
+    if stored_context is None:
+        stored_context = await conversation_service.get_conversation_context(conversation_id, store_id)
+    last_recommendation = (stored_context or {}).get("last_recommendation") or {}
     products = last_recommendation.get("products") or []
     if not products:
         return None
@@ -352,6 +354,7 @@ async def _persist_chat_context(
     store_id: str,
     user_input: str,
     response: ChatResponse,
+    previous_routing: dict | None = None,
 ) -> None:
     """Persist structured conversation context from an orchestrated chat turn."""
     metadata = response.metadata or {}
@@ -377,6 +380,15 @@ async def _persist_chat_context(
         or (metadata.get("escalation") or {}).get("should_escalate")
     ):
         context_update["last_escalation"] = {"requested": True}
+
+    active_intent = structured.get("intent") or metadata.get("intent")
+    if active_intent:
+        context_update["routing"] = {
+            "active_intent": active_intent,
+            "previous_intent": (previous_routing or {}).get("active_intent"),
+            "source": (previous_routing or {}).get("source"),
+            "reason": (previous_routing or {}).get("reason"),
+        }
 
     if context_update:
         await conversation_service.update_conversation_context(
@@ -454,6 +466,15 @@ async def widget_chat(
         metadata={"widget_id": widget_id, "path": "widget.chat"},
         store_id=tenant_context.store_id,
     )
+
+    stored_context: dict[str, Any] = {}
+    try:
+        stored_context = await conversation_service.get_conversation_context(
+            conversation_id,
+            tenant_context.store_id,
+        )
+    except Exception:
+        logger.debug("Conversation context unavailable (store=%s)", tenant_context.store_id, exc_info=True)
 
     message_id = payload.message_id or str(uuid.uuid4())
     widget_session_id = getattr(request.state, "widget_session_id", "")
@@ -588,6 +609,7 @@ async def widget_chat(
             conversation_id,
             tenant_context.store_id,
             conversation_service,
+            stored_context=stored_context,
         )
         if resolved:
             logger.info(
@@ -677,6 +699,7 @@ async def widget_chat(
             "store_id": tenant_context.store_id,
             "widget_id": widget_id,
         },
+        conversation_context=stored_context,
     )
     retrieval_latency_ms = (time.perf_counter() - retrieval_start) * 1000
     chunks = deduplicate_chunks(ai_context.chunks())
@@ -729,6 +752,7 @@ async def widget_chat(
             tenant_context.store_id,
             payload.message,
             response,
+            previous_routing=(stored_context or {}).get("routing"),
         )
         log_flow_event(
             "orchestration.complete",
@@ -774,7 +798,7 @@ async def widget_chat(
         response_type = "escalation"
     else:
         answer_text = scrub_internal_labels(answer_text)
-        if structured_result.get("products") and sub_agent in ("recommendation", "sales"):
+        if structured_result.get("products") and sub_agent in ("recommendation", "sales", "product_information"):
             product_payloads = [
                 ProductPayload.model_validate(p) for p in structured_result["products"] if isinstance(p, dict)
             ]

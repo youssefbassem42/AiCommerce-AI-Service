@@ -15,6 +15,7 @@ class Intent(StrEnum):
     SUPPORT = "support"
     BUNDLE = "bundle"
     RECOMMENDATION = "recommendation"
+    PRODUCT_INFORMATION = "product_information"
     MARKETING = "marketing"
     ANALYTICS = "analytics"
     ESCALATION = "escalation"
@@ -29,7 +30,7 @@ EXECUTABLE_INTENTS: frozenset[Intent] = frozenset(
         Intent.RECOMMENDATION,
         Intent.SALES,
         Intent.SUPPORT,
-        Intent.ESCALATION,
+        Intent.PRODUCT_INFORMATION,
     }
 )
 
@@ -37,7 +38,7 @@ EXECUTABLE_INTENTS: frozenset[Intent] = frozenset(
 COMING_SOON_INTENTS: frozenset[Intent] = frozenset({Intent.MARKETING, Intent.ANALYTICS})
 
 # Intents handled by fallback/general answering (no dedicated agent).
-FALLBACK_INTENTS: frozenset[Intent] = frozenset({Intent.INTEGRATION, Intent.GENERAL})
+FALLBACK_INTENTS: frozenset[Intent] = frozenset({Intent.INTEGRATION, Intent.GENERAL, Intent.ESCALATION})
 
 
 def coerce_intent(value: str | None) -> Intent | None:

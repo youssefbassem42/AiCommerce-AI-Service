@@ -92,7 +92,7 @@ def _select_best_provider() -> tuple[BaseLLMProvider, str]:
         except Exception as e:
             logger.debug("Provider %s (%s) unavailable: %s", provider_name, model_name, e)
             continue
-    return factory.get_provider(ai_settings.DEFAULT_PROVIDER), "gpt-4o-mini"
+    return factory.get_provider(ai_settings.DEFAULT_PROVIDER), ai_settings.DEFAULT_MODEL
 
 
 def _summarize_spec(spec: dict) -> dict:
@@ -324,7 +324,7 @@ async def analyze_spec_with_llm(
     if provider is None:
         provider, model = _select_best_provider()
     if model is None:
-        model = "gpt-4o-mini"
+        model = ai_settings.DEFAULT_MODEL
 
     summary = _summarize_spec(spec)
 
@@ -460,7 +460,7 @@ async def create_user_friendly_error(
     if provider is None:
         provider, model = _select_best_provider()
     if model is None:
-        model = "gpt-4o-mini"
+        model = ai_settings.DEFAULT_MODEL
 
     spec_dict = _ensure_dict(spec)
     spec_format = _extract_spec_format(spec)

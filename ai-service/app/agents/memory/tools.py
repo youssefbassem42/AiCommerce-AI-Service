@@ -21,7 +21,7 @@ _memory_repo: MemoryRepository | None = None
 
 
 def _get_llm() -> BaseLLMProvider:
-    return LLMProviderFactory().get_provider("openrouter")
+    return LLMProviderFactory().get_provider(ai_settings.DEFAULT_PROVIDER)
 
 
 def get_redis_client() -> RedisClient:

@@ -46,7 +46,7 @@ def generate_summary_task(
             )
 
             config = GenerationConfig(
-                model=model or "gpt-4o-mini",
+                model=model or ai_settings.DEFAULT_MODEL,
                 temperature=temperature or 0.3,
                 max_tokens=max_tokens or 4096,
             )

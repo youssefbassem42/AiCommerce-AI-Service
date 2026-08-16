@@ -4,6 +4,7 @@ from typing import Any
 
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
+from app.core.ai_settings import ai_settings
 from app.infrastructure.prompts.client import get_prompt_client
 from app.infrastructure.providers.base import BaseLLMProvider
 
@@ -70,7 +71,7 @@ async def categorize_issue(
                     content=prompt.format(query=query, history=history[:1500]),
                 ),
             ],
-            model="gpt-4o-mini",
+            model=ai_settings.DEFAULT_MODEL,
             json_mode=True,
         )
         response = await llm.structured_output(request, dict[str, Any])
@@ -137,7 +138,7 @@ async def detect_topic(
                     content=prompt.format(query=query, history=history[:1500]),
                 ),
             ],
-            model="gpt-4o-mini",
+            model=ai_settings.DEFAULT_MODEL,
             json_mode=True,
         )
         response = await llm.structured_output(request, dict[str, Any])

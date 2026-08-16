@@ -7,6 +7,7 @@ from app.application.recommendation.services import (
     BundleSuggestionService,
     RecommendationService,
 )
+from app.core.ai_settings import ai_settings
 from app.domain.recommendation.repositories.store_capabilities_repository import (
     StoreCapabilitiesRepository,
 )
@@ -24,7 +25,7 @@ from app.infrastructure.providers.factory import LLMProviderFactory
 
 
 def get_recommendation_llm() -> BaseLLMProvider:
-    return LLMProviderFactory().get_provider("openrouter")
+    return LLMProviderFactory().get_provider(ai_settings.DEFAULT_PROVIDER)
 
 
 def get_capabilities_repository() -> StoreCapabilitiesRepository:

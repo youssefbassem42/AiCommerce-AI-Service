@@ -11,6 +11,7 @@ from app.application.dto.ai_dto import ChatResponse
 from app.application.recommendation.promo_service import PromoCodeService
 from app.application.recommendation.services import BundleSuggestionService, RecommendationService
 from app.application.services.conversation_service import ConversationService
+from app.core.ai_settings import ai_settings
 from app.domain.commerce.repositories.order_repository import OrderRepository
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
 from app.domain.memory.repositories.memory_repository import MemoryRepository
@@ -69,7 +70,7 @@ class OrchestrationService:
         self._retriever_service = retriever_service
         self._product_repo = product_repo
         self._capabilities_repo = capabilities_repo or StoreCapabilitiesMongoRepository()
-        self._llm = llm or LLMProviderFactory().get_provider("openrouter")
+        self._llm = llm or LLMProviderFactory().get_provider(ai_settings.DEFAULT_PROVIDER)
         self._workflow: ConversationWorkflow | None = None
 
     @property
@@ -142,6 +143,7 @@ class OrchestrationService:
             product_repo=self._product_repo,
         )
         sub_agents["support"] = support_agent.run
+        sub_agents["product_information"] = support_agent.run
         sub_agents["escalation"] = escalation_agent.run
 
         coordinator = CoordinatorAgent(

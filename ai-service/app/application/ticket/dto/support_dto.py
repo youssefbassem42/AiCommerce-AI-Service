@@ -19,3 +19,7 @@ class SupportResponse(BaseModel):
     rationale: str | None = None
     latency_ms: float = 0.0
     error: str | None = Field(default=None, description="Non-fatal error encountered during support flow")
+    products: list[dict] = Field(
+        default_factory=list,
+        description="Product cards matched for product-information inquiries",
+    )

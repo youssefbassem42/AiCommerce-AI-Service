@@ -192,7 +192,11 @@ async def format_response_node(
             f"Found {total_count} product(s) matching your request. Top pick: {product_cards[0].title}."
         )
     else:
-        rationale = "No products matched your criteria. Try adjusting your requirements or browsing our full catalog."
+        rationale = (
+            "I couldn't find a product that matches what you described. "
+            "Could you share a bit more detail — like a budget, size, or what you'll use it for? "
+            "I can also show you our catalog if you'd like to browse."
+        )
 
     response = RecommendationResponse(
         type="recommendation",

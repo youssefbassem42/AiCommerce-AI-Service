@@ -24,9 +24,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.agents.coordinator.tools import classify_intent
 from app.application.context.ai_context import AIContext
-from app.application.context.retrieval_planner import RetrievalPlan, plan_for_intent
+from app.application.context.intent_resolver import resolve_intent
+from app.application.context.retrieval_planner import PRODUCT_ENTITY_TYPES, RetrievalPlan, plan_for_intent
+from app.application.context.shopping_state import shopping_state_from_context
 from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
 from app.application.knowledge.retrieval.dto import RetrievedChunkDTO
 from app.application.knowledge.retrieval.service import RetrieverService
@@ -95,11 +96,14 @@ def _config_for_plan(
 ) -> RetrievalConfig:
     """Build the retrieval config for a plan, honoring server policy bounds."""
     top_k = min(plan.top_k, policy_top_k or plan.top_k)
+    use_mmr = policy_use_mmr if policy_use_mmr is not None else plan.use_mmr
+    if plan.entity_types == PRODUCT_ENTITY_TYPES:
+        use_mmr = False
     return RetrievalConfig(
         top_k=top_k,
         score_threshold=policy_score_threshold if policy_score_threshold is not None else plan.score_threshold or 0.25,
         use_hybrid=policy_use_hybrid if policy_use_hybrid is not None else plan.use_hybrid,
-        use_mmr=policy_use_mmr if policy_use_mmr is not None else plan.use_mmr,
+        use_mmr=use_mmr,
         rerank=policy_rerank if policy_rerank is not None else plan.rerank,
         rerank_top_k=min(plan.top_k, 10),
     )
@@ -256,6 +260,7 @@ class ContextBuilder:
         intent: str | None = None,
         policy: dict[str, Any] | None = None,
         tenant: dict[str, Any] | None = None,
+        conversation_context: dict[str, Any] | None = None,
     ) -> AIContext:
         """Assemble the full canonical context for one message."""
         context = AIContext(
@@ -269,20 +274,36 @@ class ContextBuilder:
         context.customer = await self._load_customer(customer_id)
         context.business_rules = await _load_business_rules(self._summary_repo, store_id)
 
+        routing = (conversation_context or {}).get("routing") or {}
+        previous_intent = routing.get("active_intent") or routing.get("previous_intent")
+        shopping_state = shopping_state_from_context(conversation_context)
+
         if not intent:
-            try:
-                intent, confidence = await classify_intent(
-                    user_input=message,
-                    history="\n".join(f"{m.get('role')}: {m.get('content', '')}" for m in context.history[-8:]),
-                    llm=self._llm,
-                )
-                context.intent = intent
-                context.confidence = confidence
-            except Exception as exc:
-                logger.warning("Intent classification failed in context builder: %s", exc)
-                context.intent = "general"
+            resolution = await resolve_intent(
+                message,
+                llm=self._llm,
+                history="\n".join(
+                    f"{m.get('role')}: {m.get('content', '')}" for m in context.history[-8:]
+                ),
+                previous_intent=previous_intent,
+                shopping_state=shopping_state,
+            )
+            context.intent = resolution.intent
+            context.confidence = resolution.confidence
+            context.conversation["routing"] = {
+                "active_intent": resolution.intent,
+                "previous_intent": previous_intent,
+                "source": resolution.source,
+                "reason": resolution.reason,
+            }
         else:
             context.intent = intent
+            context.conversation["routing"] = {
+                "active_intent": intent,
+                "previous_intent": previous_intent,
+                "source": "provided",
+                "reason": "intent supplied by caller",
+            }
 
         plan = plan_for_intent(context.intent)
         context.knowledge_context, context.products = await self._retrieve(

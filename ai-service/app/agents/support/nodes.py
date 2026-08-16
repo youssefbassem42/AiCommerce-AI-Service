@@ -22,6 +22,7 @@ from app.application.escalation.decision import BUSINESS_RULE, evaluate_escalati
 from app.application.ticket.dto.support_dto import SupportResponse
 from app.application.ticket.dto.ticket_dto import TicketCreateDTO
 from app.application.ticket.services.ticket_service import TicketService
+from app.core.ai_settings import ai_settings
 from app.domain.commerce.repositories.order_repository import OrderRepository
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
 from app.infrastructure.prompts.client import get_prompt_client
@@ -409,7 +410,7 @@ async def _generate_grounded_reply(
             ),
             MessageDTO(role="user", content=state["user_query"]),
         ],
-        model="gpt-4o-mini",
+        model=ai_settings.DEFAULT_MODEL,
         temperature=0.4,
         max_tokens=500,
     )
@@ -447,5 +448,6 @@ def _build_response(
         eta=state.get("eta"),
         rationale=rationale,
         error=state.get("error"),
+        products=list(state.get("product_matches") or []),
     )
     return {"response": response}
