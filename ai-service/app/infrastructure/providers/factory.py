@@ -177,6 +177,10 @@ class LLMProviderFactory:
             from app.infrastructure.providers.mistral_provider import MistralProvider
 
             provider_instance = MistralProvider()
+        elif provider_key == "bedrock":
+            from app.infrastructure.providers.bedrock_provider import BedrockProvider
+
+            provider_instance = BedrockProvider()
         elif provider_key == "mock":
             from app.infrastructure.providers.mock_provider import MockProvider
 

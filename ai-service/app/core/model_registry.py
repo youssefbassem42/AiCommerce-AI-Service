@@ -243,6 +243,63 @@ class ModelRegistry:
             context_length=8192,
             pricing=ModelPricing(prompt_cost_per_1m=0.0, completion_cost_per_1m=0.0),
         ),
+        # Amazon Bedrock Models (streaming chat only; billed directly on AWS)
+        "deepseek.v3.2": ModelInfo(
+            name="deepseek.v3.2",
+            provider="bedrock",
+            capabilities=ModelCapabilities(streaming=True),
+            context_length=128000,
+            pricing=ModelPricing(prompt_cost_per_1m=0.0, completion_cost_per_1m=0.0),
+        ),
+        "openai.gpt-oss-safeguard-120b": ModelInfo(
+            name="openai.gpt-oss-safeguard-120b",
+            provider="bedrock",
+            capabilities=ModelCapabilities(streaming=True),
+            context_length=128000,
+            pricing=ModelPricing(prompt_cost_per_1m=0.0, completion_cost_per_1m=0.0),
+        ),
+        "openai.gpt-oss-safeguard-20b": ModelInfo(
+            name="openai.gpt-oss-safeguard-20b",
+            provider="bedrock",
+            capabilities=ModelCapabilities(streaming=True),
+            context_length=128000,
+            pricing=ModelPricing(prompt_cost_per_1m=0.0, completion_cost_per_1m=0.0),
+        ),
+        "openai.gpt-oss-120b-1:0": ModelInfo(
+            name="openai.gpt-oss-120b-1:0",
+            provider="bedrock",
+            capabilities=ModelCapabilities(streaming=True),
+            context_length=128000,
+            pricing=ModelPricing(prompt_cost_per_1m=0.0, completion_cost_per_1m=0.0),
+        ),
+        "openai.gpt-oss-20b-1:0": ModelInfo(
+            name="openai.gpt-oss-20b-1:0",
+            provider="bedrock",
+            capabilities=ModelCapabilities(streaming=True),
+            context_length=128000,
+            pricing=ModelPricing(prompt_cost_per_1m=0.0, completion_cost_per_1m=0.0),
+        ),
+        "qwen.qwen3-vl-235b-a22b": ModelInfo(
+            name="qwen.qwen3-vl-235b-a22b",
+            provider="bedrock",
+            capabilities=ModelCapabilities(vision=True, streaming=True),
+            context_length=128000,
+            pricing=ModelPricing(prompt_cost_per_1m=0.0, completion_cost_per_1m=0.0),
+        ),
+        "us.meta.llama3-3-70b-instruct-v1:0": ModelInfo(
+            name="us.meta.llama3-3-70b-instruct-v1:0",
+            provider="bedrock",
+            capabilities=ModelCapabilities(streaming=True),
+            context_length=128000,
+            pricing=ModelPricing(prompt_cost_per_1m=0.0, completion_cost_per_1m=0.0),
+        ),
+        "mistral.voxtral-small-24b-2507": ModelInfo(
+            name="mistral.voxtral-small-24b-2507",
+            provider="bedrock",
+            capabilities=ModelCapabilities(streaming=True),
+            context_length=128000,
+            pricing=ModelPricing(prompt_cost_per_1m=0.0, completion_cost_per_1m=0.0),
+        ),
     }
 
     @classmethod
