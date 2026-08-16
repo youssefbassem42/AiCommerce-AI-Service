@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.auth.dependencies import (
     get_current_organization_id,
@@ -23,6 +23,17 @@ router = APIRouter(
 )
 
 
+def build_install_snippet(base_url: str, widget_key: str) -> str:
+    """One-line CDN install snippet for the v1 loader.
+
+    ``base_url`` is the request base URL (scheme + host + optional port), so the
+    snippet always points at the origin that served the dashboard, including
+    custom domains and local development.
+    """
+    origin = base_url.rstrip("/")
+    return f'<script src="{origin}/widget/v1/widget.js" data-widget-key="{widget_key}"></script>'
+
+
 @router.post(
     "",
     response_model=WidgetInstallationCreateResponseSchema,
@@ -31,6 +42,7 @@ router = APIRouter(
 )
 async def create_widget_installation(
     payload: WidgetInstallationCreateRequestSchema,
+    request: Request,
     store_id: str = Depends(get_current_store_id),
     organization_id: str = Depends(get_current_organization_id),
     installation_service: WidgetInstallationService = Depends(get_widget_installation_service),
@@ -51,6 +63,7 @@ async def create_widget_installation(
         status=installation.status,
         allowed_origins=installation.allowed_origins,
         scopes=installation.scopes,
+        install_snippet=build_install_snippet(str(request.base_url), widget_key),
     )
 
 

@@ -1,0 +1,17 @@
+{
+  "name": "ai-commerce-widget-tooling",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Build tooling for the AICommerce CDN widget. Output artifacts are committed to app/static/widget/dist and served by the Python service.",
+  "scripts": {
+    "build:widget": "node scripts/build-widget.mjs",
+    "test:widget": "node scripts/build-widget.mjs && node --test tests/widget/loader.test.mjs tests/widget/runtime.test.mjs",
+    "test:widget:e2e": "node --test tests/widget/e2e-acceptance.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.7.0"
+  }
+}

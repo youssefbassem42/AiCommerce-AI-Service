@@ -238,7 +238,7 @@ curl -i -X POST https://<ai-service>/api/v1/admin/widget-installations \
       var originBadge = document.getElementById("origin-badge");
       originBadge.textContent = "origin: " + origin + (apiBase !== origin ? "  |  api: " + apiBase : "");
       document.querySelectorAll(".origin-code").forEach(function (el) { el.textContent = origin; });
-      document.getElementById("script-url").textContent = origin + "/widget.js";
+      document.getElementById("script-url").textContent = origin + "/widget/v1/widget.js";
       document.getElementById("curl-install").textContent =
         document.getElementById("curl-install").textContent.split("ORIGIN").join(origin);
 
@@ -250,14 +250,14 @@ curl -i -X POST https://<ai-service>/api/v1/admin/widget-installations \
 
       var embedCode = document.getElementById("embed-code");
       function renderEmbedCode(key) {
-        embedCode.textContent =
+        var snippet =
           '<!-- paste right before </body> on any page of your store -->\n' +
           '<script\n' +
-          '  src="' + origin + '/widget.js"\n' +
-          '  data-widget-key="' + key + '"\n' +
-          '  data-api-base-url="' + apiBase + '"\n' +
-          '>\n' +
-          '<\/script>';
+          '  src="' + origin + '/widget/v1/widget.js"\n' +
+          '  data-widget-key="' + key + '"\n';
+        if (apiBase !== origin) snippet += '  data-api-base-url="' + apiBase + '"\n';
+        snippet += '>\n<\/script>';
+        embedCode.textContent = snippet;
       }
 
       var keyInput = document.getElementById("widget-key");
@@ -277,9 +277,9 @@ curl -i -X POST https://<ai-service>/api/v1/admin/widget-installations \
           scriptEl = null;
         }
         scriptEl = document.createElement("script");
-        scriptEl.src = origin + "/widget.js";
+        scriptEl.src = origin + "/widget/v1/widget.js";
         scriptEl.setAttribute("data-widget-key", key);
-        scriptEl.setAttribute("data-api-base-url", apiBase);
+        if (apiBase !== origin) scriptEl.setAttribute("data-api-base-url", apiBase);
         document.body.appendChild(scriptEl);
 
         selectedKey = key;

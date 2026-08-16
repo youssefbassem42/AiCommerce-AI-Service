@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AICommerce Widget — E2E Test Storefront</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f5f6f8; color: #1f2430; }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 16px 120px; }
+    h1 { font-size: 22px; }
+    .snippet { background: #111827; color: #e5e7eb; padding: 12px 14px; border-radius: 8px;
+               font-family: ui-monospace, monospace; font-size: 12px; overflow-x: auto; white-space: pre; }
+    .card { background: #fff; border: 1px solid #e3e6ec; border-radius: 10px; padding: 16px; margin-top: 16px; }
+    #widget-status { margin-top: 16px; font-size: 13px; color: #374151; min-height: 18px; }
+    .ok { color: #15803d; } .err { color: #b91c1c; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px;
+             background: #eef2ff; color: #3730a3; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>AICommerce Widget — Test Storefront <span class="badge">E2E</span></h1>
+    <p>This page is the <a href="#snippet">one-line install</a> target used by the widget
+       acceptance tests. The widget mounts in Shadow DOM below-right.</p>
+
+    <div class="card">
+      <h2>One-line install</h2>
+      <div class="snippet" id="snippet">&lt;script src="/widget/v1/widget.js" data-widget-key="wi_&hellip;"&gt;&lt;/script&gt;</div>
+      <p style="font-size: 13px; color: #6b7280;">Copy the snippet from the dashboard response
+         (<code>install_snippet</code>) and paste it before <code>&lt;/body&gt;</code> of any
+         storefront page. No framework, no build step.</p>
+    </div>
+
+    <div id="widget-status">widget status: <span id="widget-state">waiting&hellip;</span></div>
+  </main>
+
+  <!--
+    E2E convenience: when ?key=wi_... is present, re-inject the loader with that key
+    (lets the acceptance tests provision fresh installations without a page rebuild).
+    The shipped one-liner below is the default install.
+  -->
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var key = params.get("key");
+      if (!key) return;
+      var injected = document.createElement("script");
+      injected.src = "/widget/v1/widget.js";
+      injected.setAttribute("data-widget-key", key);
+      injected.setAttribute("data-debug", "true");
+      document.body.appendChild(injected);
+    })();
+  </script>
+  <script src="/widget/v1/widget.js" data-widget-key="wi_nZ-s32DtJS1R1F2HrNAtW1DKZpjShmHuAK2D9Ofe5UI"></script>
+  <script>
+    (function () {
+      var el = document.getElementById("widget-state");
+      var tick = function () {
+        try {
+          var slot = window.__AICommerce__;
+          if (slot && slot.session) {
+            el.textContent = "bootstrap ok (widget " + slot.session.widget_id + ")";
+            el.className = "ok";
+            return;
+          }
+          var w = window.AiCommerceWidget;
+          if (w && w.current) {
+            el.textContent = "runtime mounted";
+            el.className = "ok";
+            return;
+          }
+        } catch (e) { /* noop */ }
+        el.textContent = "idle";
+        el.className = "";
+      };
+      tick();
+      window.setInterval(tick, 500);
+    })();
+  </script>
+</body>
+</html>

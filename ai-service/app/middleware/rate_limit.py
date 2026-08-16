@@ -17,7 +17,11 @@ WIDGET_PREFIX = "/api/v1/widget/"
 # Public static widget artifacts (embed script + demo page). No
 # authentication is involved and they are cheap static files; whitelisting
 # avoids charging the visitor's IP against API rate limits.
-PUBLIC_STATIC_PATHS = ("/widget.js", "/demo", "/demo/")
+PUBLIC_STATIC_PATHS = ("/widget.js", "/demo", "/demo/", "/widget/test-store")
+
+# Versioned CDN widget assets live under /widget/v1/ (loader + hashed runtime);
+# they are public static files and must not count against API rate limits.
+WIDGET_CDN_PREFIX = "/widget/v1/"
 
 # Cost-heavy routes: LLM generation per request. These share a tighter tier than
 # the default, keyed by the same identity (store when authenticated, else IP).
@@ -190,7 +194,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return self._is_rate_limited_memory(rate_limit_key, limit_per_minute)
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        if request.url.path in self.whitelist_paths or request.url.path in PUBLIC_STATIC_PATHS:
+        if (
+            request.url.path in self.whitelist_paths
+            or request.url.path in PUBLIC_STATIC_PATHS
+            or request.url.path.startswith(WIDGET_CDN_PREFIX)
+        ):
             return await call_next(request)
 
         checks = self._resolve_checks(request)

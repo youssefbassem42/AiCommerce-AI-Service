@@ -21,6 +21,10 @@ WHITELIST_PATHS = {
     "/widget.js",
     "/demo",
     "/demo/",
+    "/widget/test-store",
+    # Versioned CDN widget assets (loader + runtime) are public static files.
+    "/widget/v1/widget.js",
+    "/widget/v1/runtime.js",
     # Widget bootstrap exchanges the public widget key for a scoped session
     # token, so it must be reachable without a Bearer token even when
     # JWT_REQUIRED is enabled (its own key + origin checks still apply).
@@ -71,7 +75,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in WHITELIST_PATHS:
+        if request.url.path in WHITELIST_PATHS or request.url.path.startswith("/widget/v1/"):
             return await call_next(request)
 
         auth_header = request.headers.get("Authorization", "")

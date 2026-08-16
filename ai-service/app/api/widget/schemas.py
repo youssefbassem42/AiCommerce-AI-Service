@@ -111,6 +111,7 @@ class WidgetInstallationCreateResponseSchema(BaseModel):
     status: str
     allowed_origins: list[str]
     scopes: list[str]
+    install_snippet: str
 
 
 class WidgetInstallationListResponseSchema(BaseModel):

@@ -11,6 +11,15 @@ __pycache__/
 dist/
 build/
 
+# The widget CDN build artifacts (app/static/widget/dist) ARE committed —
+# the Docker image serves them without Node. The generic dist/ rule above must
+# not exclude them.
+!app/static/widget/dist/
+!app/static/widget/dist/**
+
+# Node tooling (widget build)
+node_modules/
+
 # Virtual environment
 .venv/
 venv/
