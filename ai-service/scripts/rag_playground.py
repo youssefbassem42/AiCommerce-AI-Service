@@ -736,9 +736,10 @@ async def step10_interactive_mode(
 ) -> None:
     print_header("STEP 10: Interactive Mode")
 
+    from app.application.rag.prompt_builder import PromptBuilder
+
     from app.application.dto.ai_dto import ChatRequest
     from app.application.rag.context_builder import ContextBuilder
-    from app.application.rag.prompt_builder import PromptBuilder
     from app.infrastructure.mongodb.repositories.business_summary_repository import (
         BusinessSummaryRepository,
     )
