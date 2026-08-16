@@ -1,11 +1,21 @@
 """Static CDN widget routes: versioned assets, cache headers, snippet builder."""
 
+import json
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app.api.widget.admin_router import build_install_snippet
 from app.middleware.auth import WHITELIST_PATHS
 from app.middleware.rate_limit import WIDGET_CDN_PREFIX
+
+DIST_MANIFEST = Path(__file__).resolve().parents[3] / "app" / "static" / "widget" / "dist" / "build-manifest.json"
+
+
+def _runtime_hash() -> str:
+    with open(DIST_MANIFEST, encoding="utf-8") as fh:
+        return json.load(fh)["runtimeHash"]
 
 
 @pytest.fixture(scope="module")
@@ -38,7 +48,7 @@ class TestVersionedRoutes:
         assert resp.headers["content-type"].startswith("application/javascript")
 
     def test_v1_hashed_runtime_is_served_immutable(self, client):
-        resp = client.get("/widget/v1/runtime.f99dc960d61c.js")
+        resp = client.get(f"/widget/v1/runtime.{_runtime_hash()}.js")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("application/javascript")
         assert "immutable" in _cache_control(resp)
@@ -46,7 +56,7 @@ class TestVersionedRoutes:
 
     def test_v1_hashed_runtime_rejects_unknown_hashes(self, client):
         assert client.get("/widget/v1/runtime.zzz.js").status_code == 404
-        assert client.get("/widget/v1/runtime.1234567890ab.js").status_code == 404
+        assert client.get(f"/widget/v1/runtime.{_runtime_hash()[:11]}x.js").status_code == 404
 
     def test_v1_loader_and_hashed_runtime_are_whitelisted(self):
         assert "/widget/v1/widget.js" in WHITELIST_PATHS
