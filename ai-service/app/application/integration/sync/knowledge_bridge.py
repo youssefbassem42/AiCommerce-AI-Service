@@ -207,8 +207,13 @@ class CommerceKnowledgeBridge:
                 request = EmbeddingRequest(input=batch, model=self._embedding_model)
                 response = await self._llm_provider.embeddings(request)
                 for j, emb in enumerate(response.embeddings):
+                    if j >= len(batch_records):
+                        # Provider returned fewer embeddings than the batch
+                        # (e.g. a partial rate-limit failure): stop here instead
+                        # of indexing out of range.
+                        break
+                    rec = batch_records[j]
                     rec_idx = i + j
-                    rec = batch_records[rec_idx]
                     entity_key = _entity_key(rec)
                     all_points.append(
                         VectorRecord(

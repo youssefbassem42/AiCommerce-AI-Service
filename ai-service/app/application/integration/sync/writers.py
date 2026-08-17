@@ -350,7 +350,12 @@ WRITER_MAP: dict[str, EntityWriter] = {
 
 
 def get_writer(entity_type: str) -> EntityWriter | None:
-    writer = WRITER_MAP.get(entity_type)
+    # Entity types arrive capitalized from the mapping agent ("Product") while
+    # WRITER_MAP keys are lowercase: match case-insensitively so dedicated
+    # writers are used. Otherwise everything silently falls through to the
+    # DynamicEntityWriter and lands in the generic `entities` collection
+    # instead of products/customers/categories/orders/inventory.
+    writer = WRITER_MAP.get((entity_type or "").lower())
     if writer is not None:
         return writer
     logger.info("No dedicated writer for '%s' — using DynamicEntityWriter.", entity_type)

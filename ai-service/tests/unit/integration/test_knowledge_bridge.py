@@ -224,6 +224,54 @@ class TestCommerceKnowledgeBridge:
         assert len(result.errors) > 0
 
     @pytest.mark.asyncio
+    async def test_sync_entity_multiple_batches_indexes_within_batch(self, bridge, mock_vector_store, mock_llm):
+        """REGRESSION: 51 records span 2 batches; the second batch indexed the
+        absolute record index into the batch slice -> 'list index out of range'."""
+        def _embeddings(request):
+            n = len(request.input)
+            return MagicMock(
+                embeddings=[[0.1, 0.2, 0.3] for _ in range(n)],
+                model="gemini-embedding-001",
+                provider="mock",
+                usage=MagicMock(),
+            )
+
+        mock_llm.embeddings = AsyncMock(side_effect=_embeddings)
+        records = [{"title": f"P{i}", "external_id": f"p{i}"} for i in range(51)]
+        result = await bridge.sync_entity(
+            store_id="s1",
+            organization_id="o1",
+            entity_type="product",
+            records=records,
+        )
+        assert result.total_embedded == 51
+        assert result.total_synced == 51
+        assert result.errors == []
+
+    @pytest.mark.asyncio
+    async def test_sync_entity_partial_embedding_response(self, bridge, mock_vector_store, mock_llm):
+        """A provider returning fewer embeddings than the batch (partial rate
+        limit failure) must not crash and must sync what was embedded."""
+        mock_llm.embeddings = AsyncMock(
+            return_value=MagicMock(
+                embeddings=[[0.1, 0.2, 0.3]],
+                model="gemini-embedding-001",
+                provider="mock",
+                usage=MagicMock(),
+            )
+        )
+        records = [{"title": "A", "external_id": "a"}, {"title": "B", "external_id": "b"}]
+        result = await bridge.sync_entity(
+            store_id="s1",
+            organization_id="o1",
+            entity_type="product",
+            records=records,
+        )
+        assert result.total_embedded == 1
+        assert result.total_synced == 1
+        assert result.errors == []
+
+    @pytest.mark.asyncio
     async def test_sync_entity_vector_store_upsert_failure(self, bridge, mock_vector_store):
         mock_vector_store.upsert = AsyncMock(side_effect=RuntimeError("Qdrant down"))
         records = [{"title": "Product A", "external_id": "p1"}]

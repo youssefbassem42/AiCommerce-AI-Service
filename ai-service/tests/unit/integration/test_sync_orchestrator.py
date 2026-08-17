@@ -6,6 +6,7 @@ from app.application.integration.sync.orchestrator import EntitySyncResult, Sync
 from app.application.integration.sync.writers import (
     CategoryWriter,
     CustomerWriter,
+    DynamicEntityWriter,
     InventoryWriter,
     OrderWriter,
     ProductWriter,
@@ -52,6 +53,21 @@ class FakePagination:
             exc, self._exc = self._exc, None
             raise exc
         raise StopAsyncIteration
+
+
+class TestGetWriter:
+    def test_dedicated_writers_match_case_insensitively(self):
+        """REGRESSION: entity types arrive capitalized from the mapping agent
+        ('Product'), but WRITER_MAP keys are lowercase — mismatched entities
+        silently fell through to DynamicEntityWriter (generic `entities`
+        collection) instead of products/customers/categories/orders/inventory."""
+        assert isinstance(get_writer("Product"), ProductWriter)
+        assert isinstance(get_writer("product"), ProductWriter)
+        assert isinstance(get_writer("Customer"), CustomerWriter)
+        assert isinstance(get_writer("Category"), CategoryWriter)
+        assert isinstance(get_writer("Order"), OrderWriter)
+        assert isinstance(get_writer("Inventory"), InventoryWriter)
+        assert isinstance(get_writer("Discount"), DynamicEntityWriter)
 
 
 class TestEntityWriters:
