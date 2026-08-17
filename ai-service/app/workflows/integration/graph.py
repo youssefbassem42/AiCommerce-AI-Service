@@ -256,7 +256,10 @@ class IntegrationWorkflow:
             entity_mappings=entity_mappings,
         )
 
-        response = await self._integration_service.create_connection(dto)
+        # Re-running the full integration for the same store/spec must replace
+        # the previous connection instead of failing with a 500
+        # (DuplicateConnectionException).
+        response = await self._integration_service.create_connection(dto, replace_existing=True)
 
         connection = IntegrationConnection(
             id=response.id,
