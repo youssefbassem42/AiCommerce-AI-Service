@@ -1,20 +1,26 @@
-"""Amazon Bedrock provider — streaming chat ONLY (converse-stream HTTP API).
+"""SBG gateway provider — Bedrock-hosted models, streaming chat ONLY.
 
-Credentials come from the standard AWS env vars (``AWS_ACCESS_KEY_ID``,
-``AWS_SECRET_ACCESS_KEY``, ``AWS_REGION``, default region ``us-east-1``).
-Requests are signed with AWS Signature Version 4 and sent with httpx
-(no boto3 dependency). Embeddings are not supported by this provider.
+Accesses Bedrock-hosted models through the ITI SBG gateway (an
+OpenAI-style portal exposing Bedrock model IDs). The gateway does NOT
+support SSE streaming — it returns a single JSON response per request —
+so ``stream()`` makes one request and yields the full text as one chunk
+(the widget renders chunks identically).
+
+Config (env):
+    SBG_API_KEY        (required, via KeyManager)
+    SBG_API_BASE_URL   (default http://apiaccess.iti.net.eg/api/v1)
+
+POST {base_url}/student/chat
+    Authorization: Bearer <SBG_API_KEY>
+    Body: {"model_id", "messages": [{"role","content"}], "system_prompt"}
+    Response: {"request_id", "model_id", "output_text", "usage": {...},
+               "estimated_cost_usd", "actual_cost_usd", "status"}
 """
 
-import base64
-import hashlib
-import hmac
-import json
 import logging
 import os
 import time
 from collections.abc import AsyncGenerator
-from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -28,217 +34,132 @@ from app.application.dto.ai_dto import (
     StreamingChunkDTO,
     UsageDTO,
 )
-from app.core.ai_exceptions import ProviderCredentialsError
-from app.core.ai_settings import ai_settings
 from app.infrastructure.providers.base import BaseLLMProvider
-from app.utils.token_utils import calculate_cost
+from app.infrastructure.security.key_manager import KeyManager
+from app.utils.ai_error_handler import map_provider_exception
 
 logger = logging.getLogger("ai_service")
 
-_SERVICE = "bedrock-runtime"
-_DEFAULT_REGION = "us-east-1"
-
-
-def _sha256_hex(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def _hmac(key: bytes, msg: str) -> bytes:
-    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
-
-
-def sigv4_headers(
-    method: str,
-    url: str,
-    region: str,
-    access_key: str,
-    secret_key: str,
-    payload: bytes,
-    now: datetime | None = None,
-) -> dict[str, str]:
-    """Build AWS Signature Version 4 request headers for the given payload."""
-    now = now or datetime.now(UTC)
-    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
-    date_stamp = now.strftime("%Y%m%d")
-    payload_hash = _sha256_hex(payload)
-    host = url.split("://", 1)[1].split("/", 1)[0]
-    path = url.split("://", 1)[1].split("?", 1)[0]
-
-    canonical_headers = (
-        f"content-type:application/json\nhost:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
-    )
-    signed_headers = "content-type;host;x-amz-content-sha256;x-amz-date"
-    canonical_request = "\n".join([method.upper(), path, "", canonical_headers, signed_headers, payload_hash])
-    scope = f"{date_stamp}/{region}/{_SERVICE}/aws4_request"
-    string_to_sign = "\n".join(["AWS4-HMAC-SHA256", amz_date, scope, _sha256_hex(canonical_request.encode("utf-8"))])
-    k_date = _hmac(("AWS4" + secret_key).encode("utf-8"), date_stamp)
-    k_region = _hmac(k_date, region)
-    k_service = _hmac(k_region, _SERVICE)
-    k_signing = _hmac(k_service, "aws4_request")
-    signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
-
-    return {
-        "Authorization": (
-            f"AWS4-HMAC-SHA256 Credential={access_key}/{scope}, SignedHeaders={signed_headers}, Signature={signature}"
-        ),
-        "content-type": "application/json",
-        "host": host,
-        "x-amz-content-sha256": payload_hash,
-        "x-amz-date": amz_date,
-    }
-
-
-def _message_text(message: Any) -> str:
-    """Flatten a message's content to plain text (text parts only)."""
-    if isinstance(message.content, str):
-        return message.content
-    if isinstance(message.content, list):
-        parts = []
-        for item in message.content:
-            if isinstance(item, dict) and item.get("type") == "text":
-                parts.append(item.get("text", ""))
-        return " ".join(parts)
-    return str(message.content)
+DEFAULT_BASE_URL = "http://apiaccess.iti.net.eg/api/v1"
+DEFAULT_TIMEOUT = 120.0
+_ENDPOINT = "/student/chat"
 
 
 def _build_body(request: ChatRequest) -> dict[str, Any]:
-    """Map a ChatRequest to the Bedrock Converse API body (text only)."""
-    system: list[str] = []
-    messages: list[dict[str, Any]] = []
+    """Map a ChatRequest to the SBG gateway payload (system prompts split out)."""
+    system_parts: list[str] = []
+    messages: list[dict[str, str]] = []
     for msg in request.messages:
         if msg.role == "system":
-            system.append(_message_text(msg))
+            if msg.content:
+                system_parts.append(msg.content if isinstance(msg.content, str) else str(msg.content))
             continue
-        text = _message_text(msg)
-        if not text.strip():
+        content = msg.content
+        if isinstance(content, list):
+            text_parts = []
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text_parts.append(item["text"])
+                elif isinstance(item, dict) and item.get("type") == "image_url":
+                    text_parts.append(f"[Image URL: {item['image_url']['url']}]")
+                else:
+                    text_parts.append(str(item))
+            content = " ".join(text_parts)
+        if not str(content).strip():
             continue
-        role = "user" if msg.role == "user" else "assistant"
-        messages.append({"role": role, "content": [{"text": text}]})
+        messages.append({"role": msg.role, "content": str(content)})
 
-    body: dict[str, Any] = {"messages": messages}
-    if system:
-        body["system"] = [{"text": t} for t in system if t.strip()]
-    inference_config: dict[str, Any] = {}
-    if request.max_tokens is not None:
-        inference_config["maxTokens"] = request.max_tokens
-    if request.temperature is not None:
-        inference_config["temperature"] = request.temperature
-    if request.top_p is not None:
-        inference_config["topP"] = request.top_p
-    if inference_config:
-        body["inferenceConfig"] = inference_config
+    body: dict[str, Any] = {"model_id": request.model, "messages": messages}
+    if system_parts:
+        joined = "\n\n".join(p for p in system_parts if p.strip())
+        if joined:
+            body["system_prompt"] = joined
     return body
 
 
-def _parse_event(line: str) -> dict[str, Any] | None:
-    """Parse one SSE line of the converse-stream response."""
-    line = line.strip()
-    if not line.startswith("data:"):
-        return None
-    try:
-        payload = json.loads(line[5:].strip())
-    except (ValueError, TypeError):
-        return None
-    if isinstance(payload, dict) and "bytes" in payload:
-        try:
-            payload = json.loads(base64.b64decode(payload["bytes"]))
-        except (ValueError, TypeError):
-            return None
-    return payload if isinstance(payload, dict) else None
+def _parse_response(payload: dict[str, Any], request_id: str, model: str) -> StreamingChunkDTO:
+    """Convert the SBG gateway JSON response into a final streaming chunk."""
+    usage_raw = payload.get("usage") or {}
+    usage = UsageDTO(
+        prompt_tokens=int(usage_raw.get("input_tokens", 0)),
+        completion_tokens=int(usage_raw.get("output_tokens", 0)),
+        total_tokens=int(usage_raw.get("total_tokens", 0)),
+        cost=float(payload.get("actual_cost_usd") or 0.0),
+    )
+    finish_reason = usage_raw.get("stop_reason") or "stop"
+    return StreamingChunkDTO(
+        id=payload.get("request_id") or request_id,
+        model=payload.get("model_id") or model,
+        provider="bedrock",
+        content=payload.get("output_text") or "",
+        finish_reason=finish_reason,
+        usage=usage,
+    )
 
 
 class BedrockProvider(BaseLLMProvider):
-    """Bedrock chat via ``converse-stream`` — streaming only."""
+    """
+    Bedrock models via the SBG gateway — streaming chat only (single-shot
+    JSON response, no SSE). Chat/embeddings/structured output/tool calling
+    are not supported.
+    """
 
-    def __init__(self):
-        self.region = os.getenv("AWS_REGION") or _DEFAULT_REGION
-
-    def _credentials(self) -> tuple[str, str]:
-        access_key = os.getenv("AWS_ACCESS_KEY_ID")
-        secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-        if not access_key or not secret_key:
-            raise ProviderCredentialsError(
-                "bedrock",
-                "AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY",
-                extra_hint="set the standard AWS env vars (region: AWS_REGION, default us-east-1)",
-            )
-        return access_key, secret_key
+    def __init__(self, api_key: str | None = None, base_url: str | None = None):
+        self.api_key = api_key or KeyManager().require_provider_api_key("bedrock", env_var="SBG_API_KEY")
+        self.base_url = (base_url or os.getenv("SBG_API_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
+        self.client = httpx.AsyncClient(
+            timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=20.0),
+            headers={"Authorization": f"Bearer {self.api_key}"},
+        )
 
     async def chat(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
-        raise NotImplementedError("Bedrock provider supports streaming only")
+        raise NotImplementedError("Bedrock gateway provider supports streaming only")
 
     async def stream(
         self, request: ChatRequest, timeout: float | None = None
     ) -> AsyncGenerator[StreamingChunkDTO, None]:
-        access_key, secret_key = self._credentials()
-        model = request.model
-        url = f"https://{_SERVICE}.{self.region}.amazonaws.com/model/{model}/converse-stream"
-        payload = json.dumps(_build_body(request)).encode("utf-8")
-        headers = sigv4_headers("POST", url, self.region, access_key, secret_key, payload)
-        actual_timeout = timeout or ai_settings.REQUEST_TIMEOUT
+        url = f"{self.base_url}{_ENDPOINT}"
         request_id = f"bedrock-{int(time.time() * 1000)}"
-        finish_reason: str | None = None
-        usage: UsageDTO | None = None
-
-        async with (
-            httpx.AsyncClient(timeout=httpx.Timeout(actual_timeout)) as client,
-            client.stream("POST", url, content=payload, headers=headers) as resp,
-        ):
+        try:
+            resp = await self.client.post(url, json=_build_body(request), timeout=timeout or DEFAULT_TIMEOUT)
             if resp.status_code != 200:
-                error_body = (await resp.aread()).decode("utf-8", "replace")
-                raise RuntimeError(f"Bedrock error {resp.status_code}: {error_body[:300]}")
-            async for line in resp.aiter_lines():
-                event = _parse_event(line)
-                if event is None:
-                    continue
-                if event.get("type") == "contentBlockDelta":
-                    text = event.get("delta", {}).get("text") or ""
-                    if text:
-                        yield StreamingChunkDTO(
-                            id=request_id,
-                            model=model,
-                            provider="bedrock",
-                            content=text,
-                        )
-                elif event.get("type") == "messageStop":
-                    finish_reason = event.get("stopReason") or "stop"
-                elif event.get("type") == "metadata":
-                    u = event.get("usage") or {}
-                    prompt_tokens = u.get("inputTokens", 0)
-                    completion_tokens = u.get("outputTokens", 0)
-                    usage = UsageDTO(
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens,
-                        total_tokens=u.get("totalTokens", prompt_tokens + completion_tokens),
-                        cost=calculate_cost(prompt_tokens, completion_tokens, model),
-                    )
+                raise RuntimeError(f"SBG gateway error {resp.status_code}: {resp.text[:300]}")
+            payload = resp.json()
+        except Exception as e:
+            raise map_provider_exception("bedrock", e)
 
+        chunk = _parse_response(payload, request_id, request.model)
+        if chunk.content:
+            yield StreamingChunkDTO(
+                id=chunk.id,
+                model=chunk.model,
+                provider="bedrock",
+                content=chunk.content,
+            )
         yield StreamingChunkDTO(
-            id=request_id,
-            model=model,
+            id=chunk.id,
+            model=chunk.model,
             provider="bedrock",
             content="",
-            finish_reason=finish_reason or "stop",
-            usage=usage,
+            finish_reason=chunk.finish_reason,
+            usage=chunk.usage,
         )
 
     async def embeddings(self, request: EmbeddingRequest, timeout: float | None = None) -> EmbeddingResponse:
-        raise NotImplementedError("Bedrock provider supports streaming only")
+        raise NotImplementedError("Bedrock gateway provider supports streaming only")
 
     async def health_check(self) -> HealthDTO:
         start_time = time.perf_counter()
         try:
-            self._credentials()
-            return HealthDTO(
-                status="healthy",
-                provider="bedrock",
-                latency_ms=round((time.perf_counter() - start_time) * 1000, 3),
-            )
+            await self.client.get(self.base_url, timeout=httpx.Timeout(10.0, connect=10.0))
+            latency = (time.perf_counter() - start_time) * 1000
+            return HealthDTO(status="healthy", provider="bedrock", latency_ms=latency)
         except Exception as e:
+            latency = (time.perf_counter() - start_time) * 1000
             return HealthDTO(
                 status="unhealthy",
                 provider="bedrock",
-                latency_ms=round((time.perf_counter() - start_time) * 1000, 3),
+                latency_ms=latency,
                 details=str(e),
             )
 
@@ -250,7 +171,7 @@ class BedrockProvider(BaseLLMProvider):
     async def structured_output(
         self, request: ChatRequest, response_schema: Any, timeout: float | None = None
     ) -> ChatResponse:
-        raise NotImplementedError("Bedrock provider supports streaming only")
+        raise NotImplementedError("Bedrock gateway provider supports streaming only")
 
     async def tool_call(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
-        raise NotImplementedError("Bedrock provider supports streaming only")
+        raise NotImplementedError("Bedrock gateway provider supports streaming only")

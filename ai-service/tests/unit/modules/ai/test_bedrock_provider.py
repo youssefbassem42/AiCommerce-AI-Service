@@ -1,115 +1,85 @@
-"""Bedrock provider tests: SigV4 signing, Converse body mapping, SSE parsing.
-
-The provider is streaming-only by design (chat/embeddings/structured
+"""SBG gateway provider tests: payload mapping, response parsing,
+registry wiring, and streaming-only guardrails (chat/embeddings/structured
 output/tool calls raise NotImplementedError).
 """
 
-import base64
 import json
-from datetime import UTC, datetime
 
 import pytest
 
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
 from app.infrastructure.providers.bedrock_provider import (
+    DEFAULT_BASE_URL,
     BedrockProvider,
     _build_body,
-    _parse_event,
-    sigv4_headers,
+    _parse_response,
 )
 
-FIXED_NOW = datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
+
+def test_default_base_url_points_to_sbg_gateway():
+    assert DEFAULT_BASE_URL == "http://apiaccess.iti.net.eg/api/v1"
 
 
-def test_sigv4_headers_shape_and_signature():
-    url = "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.meta.llama3-3-70b-instruct-v1:0/converse-stream"
-    headers = sigv4_headers(
-        "POST",
-        url,
-        "us-east-1",
-        "AKIAEXAMPLEACCESSKEY",
-        "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-        b'{"messages":[]}',
-        now=FIXED_NOW,
+def test_build_body_splits_system_prompts_and_flattens_content():
+    body = _build_body(
+        ChatRequest(
+            model="us.meta.llama3-3-70b-instruct-v1:0",
+            messages=[
+                MessageDTO(role="system", content="You are a store assistant."),
+                MessageDTO(role="system", content="Answer in Arabic."),
+                MessageDTO(
+                    role="user",
+                    content=[{"type": "text", "text": "Describe"}, {"type": "image_url", "image_url": {"url": "x"}}],
+                ),
+                MessageDTO(role="assistant", content="Hi there"),
+            ],
+        )
     )
-    assert headers["host"] == "bedrock-runtime.us-east-1.amazonaws.com"
-    assert headers["x-amz-date"] == "20260817T120000Z"
-    assert (
-        headers["x-amz-content-sha256"] == ("3b6b2e2a2e5d9e8f5c9c2b1a4d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5")
-        or len(headers["x-amz-content-sha256"]) == 64
-    )
-    auth = headers["Authorization"]
-    assert auth.startswith(
-        "AWS4-HMAC-SHA256 Credential=AKIAEXAMPLEACCESSKEY/20260817/us-east-1/bedrock-runtime/aws4_request, "
-    )
-    assert "SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date, " in auth
-    signature = auth.rsplit("Signature=", 1)[1]
-    assert len(signature) == 64
-    assert all(c in "0123456789abcdef" for c in signature)
-
-
-def test_sigv4_is_deterministic_for_fixed_clock():
-    url = "https://bedrock-runtime.us-east-1.amazonaws.com/model/deepseek.v3.2/converse-stream"
-    a = sigv4_headers("POST", url, "us-east-1", "AK", "SK", b"{}", now=FIXED_NOW)
-    b = sigv4_headers("POST", url, "us-east-1", "AK", "SK", b"{}", now=FIXED_NOW)
-    assert a == b
-
-
-def test_build_body_maps_roles_and_system():
-    request = ChatRequest(
-        model="us.meta.llama3-3-70b-instruct-v1:0",
-        messages=[
-            MessageDTO(role="system", content="You are a store assistant."),
-            MessageDTO(role="user", content="Hello"),
-            MessageDTO(role="assistant", content="Hi there"),
-        ],
-        temperature=0.3,
-        max_tokens=512,
-    )
-    body = _build_body(request)
-    assert body["system"] == [{"text": "You are a store assistant."}]
+    assert body["model_id"] == "us.meta.llama3-3-70b-instruct-v1:0"
+    assert body["system_prompt"] == "You are a store assistant.\n\nAnswer in Arabic."
     assert body["messages"] == [
-        {"role": "user", "content": [{"text": "Hello"}]},
-        {"role": "assistant", "content": [{"text": "Hi there"}]},
+        {"role": "user", "content": "Describe [Image URL: x]"},
+        {"role": "assistant", "content": "Hi there"},
     ]
-    assert body["inferenceConfig"] == {"temperature": 0.3, "maxTokens": 512}
 
 
-def test_build_body_extracts_text_from_content_parts():
-    request = ChatRequest(
-        model="qwen.qwen3-vl-235b-a22b",
-        messages=[
-            MessageDTO(
-                role="user",
-                content=[{"type": "text", "text": "Describe"}, {"type": "image_url", "image_url": {"url": "x"}}],
-            )
-        ],
+def test_build_body_omits_empty_parts():
+    body = _build_body(
+        ChatRequest(
+            model="deepseek.v3.2",
+            messages=[MessageDTO(role="system", content="  "), MessageDTO(role="user", content="hello")],
+        )
     )
-    body = _build_body(request)
-    assert body["messages"] == [{"role": "user", "content": [{"text": "Describe"}]}]
+    assert "system_prompt" not in body
+    assert body["messages"] == [{"role": "user", "content": "hello"}]
 
 
-def test_parse_event_plain_json():
-    event = _parse_event('data: {"type":"messageStop","stopReason":"end_turn"}')
-    assert event == {"type": "messageStop", "stopReason": "end_turn"}
-
-
-def test_parse_event_base64_bytes():
-    envelope = json.dumps({"type": "contentBlockDelta", "delta": {"type": "textDelta", "text": "hello"}})
-    line = f"data: {json.dumps({'bytes': base64.b64encode(envelope.encode()).decode()})}"
-    event = _parse_event(line)
-    assert event["type"] == "contentBlockDelta"
-    assert event["delta"]["text"] == "hello"
-
-
-def test_parse_event_ignores_other_lines():
-    assert _parse_event("event: contentBlockDelta") is None
-    assert _parse_event("") is None
+def test_parse_response_maps_output_and_usage():
+    payload = {
+        "request_id": "req-123",
+        "model_id": "qwen.qwen3-vl-235b-a22b",
+        "output_text": "OK",
+        "usage": {
+            "input_tokens": 24,
+            "output_tokens": 2,
+            "total_tokens": 26,
+            "stop_reason": "end_turn",
+        },
+        "actual_cost_usd": "0.000018",
+    }
+    chunk = _parse_response(payload, "fallback-id", "qwen.qwen3-vl-235b-a22b")
+    assert chunk.id == "req-123"
+    assert chunk.content == "OK"
+    assert chunk.finish_reason == "end_turn"
+    assert chunk.usage.prompt_tokens == 24
+    assert chunk.usage.completion_tokens == 2
+    assert chunk.usage.total_tokens == 26
+    assert chunk.usage.cost == 0.000018
 
 
 @pytest.mark.asyncio
 async def test_streaming_only_provider_raises_for_chat_and_embeddings():
-    provider = BedrockProvider()
+    provider = BedrockProvider(api_key="test-key")
     with pytest.raises(NotImplementedError):
         await provider.chat(ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="hi")]))
     with pytest.raises(NotImplementedError):
@@ -120,6 +90,53 @@ async def test_streaming_only_provider_raises_for_chat_and_embeddings():
         )
     with pytest.raises(NotImplementedError):
         await provider.tool_call(ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="hi")]))
+
+
+@pytest.mark.asyncio
+async def test_stream_yields_text_then_final_chunk_with_usage():
+    import httpx
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("/student/chat")
+        assert request.headers["Authorization"] == "Bearer test-key"
+        body = json.loads(request.content)
+        assert body["model_id"] == "deepseek.v3.2"
+        assert body["messages"] == [{"role": "user", "content": "hi"}]
+        return httpx.Response(
+            200,
+            json={
+                "request_id": "req-1",
+                "model_id": "deepseek.v3.2",
+                "output_text": "Hello!",
+                "usage": {"input_tokens": 10, "output_tokens": 3, "total_tokens": 13, "stop_reason": "end_turn"},
+                "actual_cost_usd": "0.000010",
+            },
+        )
+
+    provider = BedrockProvider(api_key="test-key")
+    provider.client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        headers={"Authorization": "Bearer test-key"},
+    )
+    request = ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="hi")])
+    chunks = [c async for c in provider.stream(request)]
+    assert len(chunks) == 2
+    assert chunks[0].content == "Hello!"
+    assert chunks[0].finish_reason is None
+    assert chunks[1].content == ""
+    assert chunks[1].finish_reason == "end_turn"
+    assert chunks[1].usage.total_tokens == 13
+
+
+@pytest.mark.asyncio
+async def test_factory_constructs_bedrock_provider(monkeypatch):
+    from app.infrastructure.providers.factory import LLMProviderFactory
+
+    monkeypatch.setenv("SBG_API_KEY", "test-key")
+    factory = LLMProviderFactory()
+    factory.clear_cache()
+    provider = factory.get_provider("bedrock")
+    assert isinstance(provider._provider, BedrockProvider)
 
 
 def test_registry_models_belong_to_bedrock_provider():
