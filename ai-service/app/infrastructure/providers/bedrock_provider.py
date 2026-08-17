@@ -1,10 +1,12 @@
-"""SBG gateway provider — Bedrock-hosted models, streaming chat ONLY.
+"""SBG gateway provider — Bedrock-hosted models, single-shot JSON responses.
 
 Accesses Bedrock-hosted models through the ITI SBG gateway (an
 OpenAI-style portal exposing Bedrock model IDs). The gateway does NOT
 support SSE streaming — it returns a single JSON response per request —
 so ``stream()`` makes one request and yields the full text as one chunk
-(the widget renders chunks identically).
+(the widget renders chunks identically). ``structured_output()`` makes
+the same single request with the canonical JSON schema injected into the
+user prompt.
 
 Config (env):
     SBG_API_KEY        (required, via KeyManager)
@@ -31,10 +33,12 @@ from app.application.dto.ai_dto import (
     EmbeddingRequest,
     EmbeddingResponse,
     HealthDTO,
+    MessageDTO,
     StreamingChunkDTO,
     UsageDTO,
 )
 from app.infrastructure.providers.base import BaseLLMProvider
+from app.infrastructure.providers.schema_utils import schema_description
 from app.infrastructure.security.key_manager import KeyManager
 from app.utils.ai_error_handler import map_provider_exception
 
@@ -99,9 +103,9 @@ def _parse_response(payload: dict[str, Any], request_id: str, model: str) -> Str
 
 class BedrockProvider(BaseLLMProvider):
     """
-    Bedrock models via the SBG gateway — streaming chat only (single-shot
-    JSON response, no SSE). Chat/embeddings/structured output/tool calling
-    are not supported.
+    Bedrock models via the SBG gateway — single-shot JSON responses.
+    ``stream()`` and ``structured_output()`` are supported; plain
+    ``chat()``, embeddings and tool calling are not.
     """
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None):
@@ -171,7 +175,47 @@ class BedrockProvider(BaseLLMProvider):
     async def structured_output(
         self, request: ChatRequest, response_schema: Any, timeout: float | None = None
     ) -> ChatResponse:
-        raise NotImplementedError("Bedrock gateway provider supports streaming only")
+        """
+        Generate structured output. The gateway has no native structured
+        mode, so the canonical JSON schema is injected into the user prompt
+        and the raw ``output_text`` is returned for callers to parse —
+        exactly the contract the other prompt-based providers follow.
+        """
+        start_time = time.perf_counter()
+        request_copy = ChatRequest(**request.model_dump())
+        request_copy.json_mode = True
+
+        instruction = (
+            "\nReturn a JSON object matching this schema (the data itself, "
+            "NOT the schema definition):\n"
+            f"{schema_description(response_schema)}"
+        )
+        if request_copy.messages:
+            last_msg = request_copy.messages[-1]
+            if isinstance(last_msg.content, str):
+                last_msg.content += instruction
+            else:
+                last_msg.content.append({"type": "text", "text": instruction})
+
+        url = f"{self.base_url}{_ENDPOINT}"
+        request_id = f"bedrock-{int(time.time() * 1000)}"
+        try:
+            resp = await self.client.post(url, json=_build_body(request_copy), timeout=timeout or DEFAULT_TIMEOUT)
+            if resp.status_code != 200:
+                raise RuntimeError(f"SBG gateway error {resp.status_code}: {resp.text[:300]}")
+            payload = resp.json()
+        except Exception as e:
+            raise map_provider_exception("bedrock", e)
+
+        chunk = _parse_response(payload, request_id, request.model)
+        return ChatResponse(
+            id=chunk.id,
+            model=chunk.model,
+            provider="bedrock",
+            message=MessageDTO(role="assistant", content=chunk.content),
+            usage=chunk.usage,
+            latency_ms=(time.perf_counter() - start_time) * 1000,
+        )
 
     async def tool_call(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
         raise NotImplementedError("Bedrock gateway provider supports streaming only")

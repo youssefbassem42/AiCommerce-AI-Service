@@ -18,6 +18,7 @@ from app.application.dto.ai_dto import (
 )
 from app.core.ai_settings import ai_settings
 from app.infrastructure.providers.base import BaseLLMProvider
+from app.infrastructure.providers.schema_utils import schema_description
 from app.infrastructure.security.key_manager import KeyManager
 from app.utils.ai_error_handler import execute_with_retry, map_provider_exception
 from app.utils.token_utils import calculate_cost
@@ -242,19 +243,10 @@ class DeepSeekProvider(BaseLLMProvider):
         Generate structured output. For DeepSeek, we prompt the model with the schema description
         and enforce JSON format, as DeepSeek doesn't natively support beta.chat.completions.parse yet.
         """
-        import json
-
-        if hasattr(response_schema, "model_json_schema"):
-            schema_desc = json.dumps(response_schema.model_json_schema())
-        elif hasattr(response_schema, "schema"):
-            schema_desc = json.dumps(response_schema.schema())
-        else:
-            schema_desc = str(response_schema)
-
         request_copy = ChatRequest(**request.model_dump())
         request_copy.json_mode = True
 
-        instruction = f"\nReturn a JSON object matching this schema:\n{schema_desc}"
+        instruction = f"\nReturn a JSON object matching this schema:\n{schema_description(response_schema)}"
         if request_copy.messages:
             last_msg = request_copy.messages[-1]
             if isinstance(last_msg.content, str):

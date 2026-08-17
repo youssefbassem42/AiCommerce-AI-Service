@@ -135,6 +135,71 @@ async def test_openai_structured_output(mock_openai_client):
 
 
 @pytest.mark.asyncio
+async def test_openai_structured_output_generic_alias_wrapped_as_json_schema(mock_openai_client):
+    from typing import Any
+
+    provider = OpenAIProvider(api_key="test-key")
+
+    mock_choice = MagicMock()
+    mock_choice.message.role = "assistant"
+    mock_choice.message.content = '{"name": "test"}'
+    mock_choice.message.tool_calls = None
+
+    mock_usage = MagicMock(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+    mock_response = MagicMock(id="struct-2", model="gpt-4o-mini", choices=[mock_choice], usage=mock_usage)
+
+    mock_openai_client.beta.chat.completions.parse = AsyncMock(return_value=mock_response)
+
+    request = ChatRequest(
+        messages=[MessageDTO(role="user", content="Give me JSON")],
+        model="gpt-4o-mini",
+    )
+
+    response = await provider.structured_output(request, dict[str, Any])
+    assert response.message.content == '{"name": "test"}'
+
+    call_kwargs = mock_openai_client.beta.chat.completions.parse.call_args[1]
+    assert call_kwargs["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "structured_output",
+            "schema": {"type": "object", "additionalProperties": True},
+            "strict": False,
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_openai_structured_output_plain_json_schema_wrapped(mock_openai_client):
+    provider = OpenAIProvider(api_key="test-key")
+
+    mock_choice = MagicMock()
+    mock_choice.message.role = "assistant"
+    mock_choice.message.content = '{"name": "test"}'
+    mock_choice.message.tool_calls = None
+
+    mock_usage = MagicMock(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+    mock_response = MagicMock(id="struct-3", model="gpt-4o-mini", choices=[mock_choice], usage=mock_usage)
+
+    mock_openai_client.beta.chat.completions.parse = AsyncMock(return_value=mock_response)
+
+    request = ChatRequest(
+        messages=[MessageDTO(role="user", content="Give me JSON")],
+        model="gpt-4o-mini",
+    )
+
+    response = await provider.structured_output(request, {"type": "object", "properties": {"name": {"type": "string"}}})
+    assert response.message.content == '{"name": "test"}'
+
+    call_kwargs = mock_openai_client.beta.chat.completions.parse.call_args[1]
+    assert call_kwargs["response_format"]["type"] == "json_schema"
+    assert call_kwargs["response_format"]["json_schema"]["schema"] == {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+    }
+
+
+@pytest.mark.asyncio
 async def test_openai_tool_call(mock_openai_client):
     provider = OpenAIProvider(api_key="test-key")
 

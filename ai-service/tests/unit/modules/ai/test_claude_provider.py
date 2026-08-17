@@ -71,7 +71,7 @@ async def test_claude_structured_output(mock_claude_client):
 
     mock_block = MagicMock()
     mock_block.type = "tool_use"
-    mock_block.name = "structured_output_schema"  # matches default schema_name in Claude provider
+    mock_block.name = "structured_output"  # matches default schema_name in Claude provider
     mock_block.input = {"name": "test", "value": 42}
 
     mock_usage = MagicMock(input_tokens=20, output_tokens=15)
@@ -92,6 +92,41 @@ async def test_claude_structured_output(mock_claude_client):
     response = await provider.structured_output(request, {"type": "object", "properties": {"name": {"type": "string"}}})
     assert response.provider == "claude"
     assert '"name"' in response.message.content or "name" in response.message.content
+
+
+@pytest.mark.asyncio
+async def test_claude_structured_output_generic_alias_uses_permissive_input_schema(mock_claude_client):
+    from typing import Any
+
+    provider = ClaudeProvider(api_key="test-key")
+
+    mock_block = MagicMock()
+    mock_block.type = "tool_use"
+    mock_block.name = "structured_output"
+    mock_block.input = {"cart": []}
+
+    mock_usage = MagicMock(input_tokens=20, output_tokens=15)
+    mock_response = MagicMock(
+        id="struct-2",
+        model="claude-3-5-sonnet-latest",
+        content=[mock_block],
+        usage=mock_usage,
+    )
+
+    mock_claude_client.messages.create = AsyncMock(return_value=mock_response)
+
+    request = ChatRequest(
+        messages=[MessageDTO(role="user", content="Extract cart state")],
+        model="claude-3-5-sonnet-latest",
+    )
+
+    response = await provider.structured_output(request, dict[str, Any])
+    assert response.provider == "claude"
+    assert response.message.content == '{"cart": []}'
+
+    create_kwargs = mock_claude_client.messages.create.call_args[1]
+    assert create_kwargs["tool_choice"] == {"type": "tool", "name": "structured_output"}
+    assert create_kwargs["tools"][0]["input_schema"] == {"type": "object", "additionalProperties": True}
 
 
 @pytest.mark.asyncio

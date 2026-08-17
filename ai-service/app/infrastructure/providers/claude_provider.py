@@ -20,6 +20,7 @@ from app.application.dto.ai_dto import (
 )
 from app.core.ai_settings import ai_settings
 from app.infrastructure.providers.base import BaseLLMProvider
+from app.infrastructure.providers.schema_utils import extract_json_schema, schema_name
 from app.infrastructure.security.key_manager import KeyManager
 from app.utils.ai_error_handler import execute_with_retry, map_provider_exception
 from app.utils.token_utils import calculate_cost
@@ -320,26 +321,13 @@ class ClaudeProvider(BaseLLMProvider):
         """
         import json
 
-        schema_name = "structured_output_schema"
-
-        # Extract schema parameters
-        if hasattr(response_schema, "model_json_schema"):
-            schema_params = response_schema.model_json_schema()
-            schema_name = response_schema.__name__
-        elif hasattr(response_schema, "schema"):
-            schema_params = response_schema.schema()
-            schema_name = response_schema.__name__
-        else:
-            schema_params = response_schema
-
-        # Convert/ensure it's a dict
-        if not isinstance(schema_params, dict):
-            raise ValueError("response_schema must be a valid Pydantic model or JSON Schema dict.")
+        schema_params = extract_json_schema(response_schema)
+        structured_name = schema_name(response_schema)
 
         # Create structured output request using Claude tool calling
         structured_tool = {
-            "name": schema_name,
-            "description": f"Outputs data adhering to the {schema_name} schema.",
+            "name": structured_name,
+            "description": f"Outputs data adhering to the {structured_name} schema.",
             "input_schema": schema_params,
         }
 
@@ -352,7 +340,7 @@ class ClaudeProvider(BaseLLMProvider):
                 "messages": messages,
                 "max_tokens": request.max_tokens or 4096,
                 "tools": [structured_tool],
-                "tool_choice": {"type": "tool", "name": schema_name},
+                "tool_choice": {"type": "tool", "name": structured_name},
             }
             if system_prompt:
                 kwargs["system"] = system_prompt
@@ -368,7 +356,7 @@ class ClaudeProvider(BaseLLMProvider):
             # Find the tool call chunk
             json_output = ""
             for block in response.content:
-                if block.type == "tool_use" and block.name == schema_name:
+                if block.type == "tool_use" and block.name == structured_name:
                     json_output = json.dumps(block.input)
                     break
 

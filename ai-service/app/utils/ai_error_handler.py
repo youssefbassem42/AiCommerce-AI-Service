@@ -78,6 +78,17 @@ def map_provider_exception(provider: str, e: Exception) -> Exception:
         if "ConnectionRefused" in err_class or "404" in err_msg or "50" in err_msg:
             return ProviderUnavailableException(provider, f"Ollama is unreachable: {err_msg}")
 
+    # 6. Bedrock (SBG gateway — plain HTTP, no SDK error classes)
+    if provider == "bedrock":
+        if "401" in err_msg or "403" in err_msg:
+            return AuthenticationException(provider, err_msg)
+        if "429" in err_msg:
+            return RateLimitException(provider, err_msg)
+        if "timeout" in err_msg.lower():
+            return ProviderUnavailableException(provider, f"Timeout: {err_msg}")
+        if "50" in err_msg or "gateway error" in err_msg:
+            return ProviderUnavailableException(provider, f"SBG gateway error: {err_msg}")
+
     # Generic HTTP Exceptions from httpx
     if "Timeout" in err_class or "ConnectTimeout" in err_class or "ReadTimeout" in err_class:
         return ProviderUnavailableException(provider, f"HTTP Timeout: {err_msg}")

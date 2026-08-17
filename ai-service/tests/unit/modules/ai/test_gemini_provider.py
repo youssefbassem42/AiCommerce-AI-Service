@@ -54,6 +54,30 @@ async def test_gemini_chat_success(mock_genai_client):
 
 
 @pytest.mark.asyncio
+async def test_gemini_structured_output_generic_alias_uses_permissive_schema(mock_genai_client):
+    from typing import Any
+
+    provider = GeminiProvider(api_key="test-api-key")
+
+    mock_candidate = MagicMock()
+    mock_candidate.content.parts = [MagicMock(text='{"intent": "buy"}', function_call=None)]
+
+    mock_response = MagicMock()
+    mock_response.candidates = [mock_candidate]
+    mock_response.usage_metadata = MagicMock(prompt_token_count=5, candidates_token_count=3, total_token_count=8)
+
+    mock_genai_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+
+    request = ChatRequest(messages=[MessageDTO(role="user", content="classify")], model="gemini-2.5-flash")
+
+    response = await provider.structured_output(request, dict[str, Any])
+
+    assert response.message.content == '{"intent": "buy"}'
+    call_kwargs = mock_genai_client.aio.models.generate_content.call_args[1]
+    assert call_kwargs["config"].response_schema == {"type": "object", "additionalProperties": True}
+
+
+@pytest.mark.asyncio
 async def test_gemini_embeddings(mock_genai_client):
     provider = GeminiProvider(api_key="test-api-key")
 

@@ -76,3 +76,33 @@ async def test_deepseek_structured_output(mock_deepseek_client):
 
     response = await provider.structured_output(request, {"type": "object"})
     assert response.message.content == '{"result": "success"}'
+
+
+@pytest.mark.asyncio
+async def test_deepseek_structured_output_generic_alias_injects_permissive_schema(mock_deepseek_client):
+    from typing import Any
+
+    provider = DeepSeekProvider(api_key="test-key")
+
+    mock_choice = MagicMock()
+    mock_choice.message.role = "assistant"
+    mock_choice.message.content = '{"cart": []}'
+    mock_choice.message.tool_calls = None
+
+    mock_usage = MagicMock(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+    mock_response = MagicMock(id="struct-2", model="deepseek-chat", choices=[mock_choice], usage=mock_usage)
+
+    mock_deepseek_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    request = ChatRequest(
+        messages=[MessageDTO(role="user", content="Extract cart state")],
+        model="deepseek-chat",
+    )
+
+    response = await provider.structured_output(request, dict[str, Any])
+    assert response.message.content == '{"cart": []}'
+
+    sent_messages = mock_deepseek_client.chat.completions.create.call_args[1]["messages"]
+    last_content = sent_messages[-1]["content"]
+    assert '"additionalProperties"' in last_content
+    assert '{"type": "object", "additionalProperties": true}' in last_content

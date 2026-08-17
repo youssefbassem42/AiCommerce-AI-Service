@@ -22,6 +22,7 @@ from app.application.dto.ai_dto import (
 )
 from app.core.ai_settings import ai_settings
 from app.infrastructure.providers.base import BaseLLMProvider
+from app.infrastructure.providers.schema_utils import extract_json_schema
 from app.infrastructure.security.key_manager import KeyManager
 from app.utils.ai_error_handler import execute_with_retry, map_provider_exception
 from app.utils.token_utils import calculate_cost
@@ -308,14 +309,8 @@ class GeminiProvider(BaseLLMProvider):
 
             config_kwargs: dict[str, Any] = {
                 "response_mime_type": "application/json",
+                "response_schema": extract_json_schema(response_schema),
             }
-            # If it's a Pydantic model, extract JSON schema
-            if hasattr(response_schema, "model_json_schema"):
-                config_kwargs["response_schema"] = response_schema.model_json_schema()
-            elif isinstance(response_schema, dict):
-                config_kwargs["response_schema"] = response_schema
-            else:
-                config_kwargs["response_schema"] = response_schema
 
             if request.temperature is not None:
                 config_kwargs["temperature"] = request.temperature

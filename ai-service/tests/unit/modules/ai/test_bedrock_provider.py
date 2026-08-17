@@ -1,9 +1,10 @@
 """SBG gateway provider tests: payload mapping, response parsing,
-registry wiring, and streaming-only guardrails (chat/embeddings/structured
-output/tool calls raise NotImplementedError).
+registry wiring, and streaming-only guardrails (chat/embeddings/tool
+calls raise NotImplementedError; structured output is supported).
 """
 
 import json
+from typing import Any
 
 import pytest
 
@@ -78,16 +79,12 @@ def test_parse_response_maps_output_and_usage():
 
 
 @pytest.mark.asyncio
-async def test_streaming_only_provider_raises_for_chat_and_embeddings():
+async def test_streaming_only_guardrails_for_chat_embeddings_and_tool_call():
     provider = BedrockProvider(api_key="test-key")
     with pytest.raises(NotImplementedError):
         await provider.chat(ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="hi")]))
     with pytest.raises(NotImplementedError):
         await provider.embeddings(type("R", (), {"texts": ["x"]})())  # type: ignore[arg-type]
-    with pytest.raises(NotImplementedError):
-        await provider.structured_output(
-            ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="hi")]), {}
-        )
     with pytest.raises(NotImplementedError):
         await provider.tool_call(ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="hi")]))
 
@@ -126,6 +123,96 @@ async def test_stream_yields_text_then_final_chunk_with_usage():
     assert chunks[1].content == ""
     assert chunks[1].finish_reason == "end_turn"
     assert chunks[1].usage.total_tokens == 13
+
+
+@pytest.mark.asyncio
+async def test_structured_output_injects_pydantic_json_schema_and_returns_chat_response():
+    import httpx
+    import pydantic
+
+    class IntentModel(pydantic.BaseModel):
+        intent: str
+        confidence: float
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["model_id"] == "deepseek.v3.2"
+        instruction = body["messages"][-1]["content"]
+        assert '"properties"' in instruction
+        assert "intent" in instruction
+        assert "confidence" in instruction
+        return httpx.Response(
+            200,
+            json={
+                "request_id": "req-1",
+                "model_id": "deepseek.v3.2",
+                "output_text": '{"intent": "buy", "confidence": 0.9}',
+                "usage": {"input_tokens": 10, "output_tokens": 3, "total_tokens": 13, "stop_reason": "end_turn"},
+                "actual_cost_usd": "0.000010",
+            },
+        )
+
+    provider = BedrockProvider(api_key="test-key")
+    provider.client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        headers={"Authorization": "Bearer test-key"},
+    )
+    request = ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="classify: buy now")])
+    response = await provider.structured_output(request, IntentModel)
+    assert response.provider == "bedrock"
+    assert response.message.content == '{"intent": "buy", "confidence": 0.9}'
+    assert response.usage.total_tokens == 13
+    assert response.usage.cost == 0.000010
+    assert response.latency_ms >= 0
+
+
+@pytest.mark.asyncio
+async def test_structured_output_generic_alias_uses_permissive_object_schema():
+    import httpx
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        instruction = body["messages"][-1]["content"]
+        assert '"additionalProperties"' in instruction
+        assert '{"type": "object", "additionalProperties": true}' in instruction
+        return httpx.Response(
+            200,
+            json={
+                "request_id": "req-2",
+                "model_id": "deepseek.v3.2",
+                "output_text": '{"shopping_cart": ["laptop"]}',
+                "usage": {"input_tokens": 5, "output_tokens": 2, "total_tokens": 7, "stop_reason": "end_turn"},
+            },
+        )
+
+    provider = BedrockProvider(api_key="test-key")
+    provider.client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        headers={"Authorization": "Bearer test-key"},
+    )
+    request = ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="what is in my cart?")])
+    response = await provider.structured_output(request, dict[str, Any])
+    assert response.message.content == '{"shopping_cart": ["laptop"]}'
+    assert response.usage.total_tokens == 7
+
+
+@pytest.mark.asyncio
+async def test_structured_output_non_200_maps_to_unified_exception():
+    import httpx
+
+    from app.core.ai_exceptions import ProviderUnavailableException
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="gateway exploded")
+
+    provider = BedrockProvider(api_key="test-key")
+    provider.client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        headers={"Authorization": "Bearer test-key"},
+    )
+    request = ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="hi")])
+    with pytest.raises(ProviderUnavailableException):
+        await provider.structured_output(request, dict[str, Any])
 
 
 @pytest.mark.asyncio

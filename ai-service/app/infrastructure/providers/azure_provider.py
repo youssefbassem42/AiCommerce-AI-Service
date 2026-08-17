@@ -19,6 +19,12 @@ from app.application.dto.ai_dto import (
 from app.core.ai_exceptions import ProviderCredentialsError
 from app.core.ai_settings import ai_settings
 from app.infrastructure.providers.base import BaseLLMProvider
+from app.infrastructure.providers.schema_utils import (
+    extract_json_schema,
+    is_full_response_format,
+    is_pydantic_schema,
+    schema_name,
+)
 from app.infrastructure.security.key_manager import KeyManager
 from app.utils.ai_error_handler import execute_with_retry, map_provider_exception
 from app.utils.token_utils import calculate_cost
@@ -308,9 +314,21 @@ class AzureOpenAIProvider(BaseLLMProvider):
 
         async def _run():
             start_time = time.perf_counter()
+            response_format: Any = response_schema
+            if not is_pydantic_schema(response_schema):
+                schema = extract_json_schema(response_schema)
+                if not is_full_response_format(schema):
+                    response_format = {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": schema_name(response_schema),
+                            "schema": schema,
+                            "strict": False,
+                        },
+                    }
             kwargs: dict[str, Any] = {
                 "messages": self._map_messages(request.messages),
-                "response_format": response_schema,
+                "response_format": response_format,
             }
             if self.deployment:
                 kwargs["model"] = self.deployment
