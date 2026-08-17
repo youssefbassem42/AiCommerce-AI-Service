@@ -119,3 +119,39 @@ class TestRuntimeLogFields:
         assert log.store_id == "store_a"
         assert log.session_id == "session_1"
         assert log.organization_id == "org_a"
+
+    async def test_logger_emits_document_persistable_id(self):
+        """Regression: logger ids must survive AIRuntimeLogDocument -> to_mongo_dict.
+
+        to_mongo_dict() maps _id through ObjectId(); a UUID id raised
+        InvalidId and silently dropped every runtime usage record (usage
+        never counted in the dashboard).
+        """
+        from unittest.mock import AsyncMock, MagicMock
+
+        from bson import ObjectId
+
+        from app.application.dto.ai_dto import UsageDTO
+        from app.application.quota.runtime_usage_logger import RuntimeUsageLogger
+        from app.infrastructure.mongodb.documents.runtime_log_document import AIRuntimeLogDocument
+
+        repo = MagicMock()
+        repo.create = AsyncMock()
+        logger_service = RuntimeUsageLogger(repo)
+
+        await logger_service.log(
+            conversation_id="conv_1",
+            model="gpt-4o-mini",
+            store_id="store_a",
+            organization_id="org_a",
+            billing_period="2026-01",
+            provider="openai",
+            usage=UsageDTO(prompt_tokens=100, completion_tokens=50, total_tokens=150, cost=0.0001),
+            latency_ms=10.0,
+            session_id="session_1",
+        )
+
+        entity = repo.create.call_args.args[0]
+        assert ObjectId.is_valid(entity.id), f"logger id must be an ObjectId, got {entity.id!r}"
+        doc = AIRuntimeLogDocument.from_entity(entity)
+        assert ObjectId.is_valid(doc.to_mongo_dict()["_id"])

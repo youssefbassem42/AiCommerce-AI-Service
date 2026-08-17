@@ -9,7 +9,8 @@ token breakdown.
 from __future__ import annotations
 
 import logging
-import uuid
+
+from bson import ObjectId
 
 from app.application.dto.ai_dto import UsageDTO
 from app.domain.analytics.entities.runtime_log import AIRuntimeLog
@@ -41,7 +42,7 @@ class RuntimeUsageLogger:
         details: dict | None = None,
     ) -> None:
         entity = AIRuntimeLog(
-            id=str(uuid.uuid4()),
+            id=str(ObjectId()),
             conversation_id=conversation_id or "",
             model=model,
             prompt_tokens=str(max(0, int(usage.prompt_tokens or 0))),
