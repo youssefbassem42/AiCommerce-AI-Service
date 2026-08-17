@@ -227,6 +227,7 @@ class TestCommerceKnowledgeBridge:
     async def test_sync_entity_multiple_batches_indexes_within_batch(self, bridge, mock_vector_store, mock_llm):
         """REGRESSION: 51 records span 2 batches; the second batch indexed the
         absolute record index into the batch slice -> 'list index out of range'."""
+
         def _embeddings(request):
             n = len(request.input)
             return MagicMock(
