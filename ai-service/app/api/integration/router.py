@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 
 from app.agents.integration.agent import IntegrationMappingAgent
@@ -179,6 +179,16 @@ async def agent_sync(
         connection_name=payload.name,
         auto_sync=payload.auto_sync,
     )
+
+    if result.error or (result.sync_result and result.sync_result.get("status") == "error"):
+        # A failed full integration must surface as a failure: a 200 here made
+        # setup failures (bad credentials, unparseable spec, empty mappings,
+        # sync errors) indistinguishable from success — the caller saw "all
+        # 200 codes" while nothing was fetched or stored.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.user_friendly_error or result.error or "Integration failed.",
+        )
 
     response = AgentSyncResponseSchema(
         connection_id=result.connection_id,
@@ -393,6 +403,15 @@ async def sync_connection(
             ) from e
 
     result = await orchestrator.sync_connection(connection_id, auth_token=auth_token, entity_types=payload.entity_types)
+    if result.status == "error" or result.error is not None:
+        # A sync that reports an error (inactive connection, no entity
+        # mappings, no base URL, …) must surface as a failure, not a silent
+        # 200 — otherwise the caller cannot distinguish "synced" from "did
+        # nothing" and the platform data is silently never fetched.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.error or "Sync failed.",
+        )
     return SyncResponseSchema(**result.to_dict())
 
 

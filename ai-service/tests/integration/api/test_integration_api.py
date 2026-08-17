@@ -7,6 +7,7 @@ from app.api.auth.dependencies import require_admin_role
 from app.api.integration.dependencies import (
     get_ecommerce_authenticator,
     get_integration_service,
+    get_integration_workflow,
     get_sync_orchestrator,
 )
 from app.application.integration.sync.orchestrator import SyncResult
@@ -135,6 +136,13 @@ def mock_authenticator():
 
 
 @pytest.fixture
+def mock_workflow():
+    wf = MagicMock()
+    wf.run = AsyncMock()
+    return wf
+
+
+@pytest.fixture
 def claims_client():
     with patch.object(AuditMiddleware, "_log_audit_entry", AsyncMock()):
         yield TestClient(
@@ -164,6 +172,13 @@ def override_deps_with_auth(override_deps, mock_authenticator):
     app.dependency_overrides[get_ecommerce_authenticator] = lambda: mock_authenticator
     yield override_deps
     app.dependency_overrides.pop(get_ecommerce_authenticator, None)
+
+
+@pytest.fixture
+def override_workflow(client, mock_workflow):
+    app.dependency_overrides[get_integration_workflow] = lambda: mock_workflow
+    yield mock_workflow
+    app.dependency_overrides.pop(get_integration_workflow, None)
 
 
 class TestIntegrationAPI:
@@ -287,6 +302,23 @@ class TestIntegrationAPI:
         assert data["status"] == "completed"
         assert "started_at" in data
 
+    def test_sync_connection_error_surfaces_500(self, client, mock_service, mock_sync_orchestrator, override_deps):
+        """REGRESSION: a sync that failed (e.g. deleted e-commerce account —
+        every endpoint rejected) must not come back as a silent 200."""
+        result = SyncResult(connection_id="conn1", store_id="s1")
+        result.status = "error"
+        result.error = (
+            "Sync completed but no data was fetched — every endpoint failed "
+            "(first error: Skipped: endpoint requires admin authentication (HTTP 401))."
+        )
+        result.completed_at = result.started_at
+        mock_service.get_connection = AsyncMock(return_value=connection_dto())
+        mock_sync_orchestrator.sync_connection = AsyncMock(return_value=result)
+
+        resp = client.post("/api/v1/integration/connections/conn1/sync", json={})
+        assert resp.status_code == 500
+        assert "no data was fetched" in resp.json()["detail"]
+
     def test_sync_connection_not_found(self, client, mock_service, mock_sync_orchestrator, override_deps):
         from app.domain.integration.exceptions import IntegrationConnectionNotFoundException
 
@@ -341,6 +373,57 @@ class TestIntegrationAPI:
         resp = client.delete("/api/v1/integration/connections/conn1")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
+
+
+class TestAgentSyncSurfacesFailures:
+    def test_agent_sync_error_returns_500(self, client, override_workflow):
+        """REGRESSION: a failed full integration (e.g. deleted e-commerce
+        account) must surface as a failure — not a 200 with errors buried in
+        the body (the 'all 200 codes but nothing happened' bug)."""
+        from app.workflows.integration.graph import IntegrationSyncResult
+
+        result = IntegrationSyncResult()
+        result.connection_id = "conn1"
+        result.error = (
+            "Sync completed but no data was fetched — every endpoint failed "
+            "(first error: Skipped: endpoint requires admin authentication (HTTP 401))."
+        )
+        result.user_friendly_error = result.error
+        result.sync_result = {"status": "error", "error": result.error}
+        result.completed_at = result.started_at
+        override_workflow.run = AsyncMock(return_value=result)
+
+        resp = client.post(
+            "/api/v1/integration/agent-sync",
+            json={
+                "platform_name": "ecommerce",
+                "raw_spec": ECOMMERCE_SPEC,
+                "store_id": STORE_ID,
+                "credentials": {"email": "deleted@shop.com", "password": "old-password"},
+            },
+        )
+        assert resp.status_code == 500
+        assert "no data was fetched" in resp.json()["detail"]
+
+    def test_agent_sync_success_returns_200(self, client, override_workflow):
+        from app.workflows.integration.graph import IntegrationSyncResult
+
+        result = IntegrationSyncResult()
+        result.connection_id = "conn1"
+        result.sync_result = {"status": "completed", "entity_results": [], "error": None}
+        result.completed_at = result.started_at
+        override_workflow.run = AsyncMock(return_value=result)
+
+        resp = client.post(
+            "/api/v1/integration/agent-sync",
+            json={
+                "platform_name": "ecommerce",
+                "raw_spec": ECOMMERCE_SPEC,
+                "store_id": STORE_ID,
+                "credentials": {"email": "a@shop.com", "password": "p"},
+            },
+        )
+        assert resp.status_code == 200
 
 
 class TestSyncNowLoginGate:

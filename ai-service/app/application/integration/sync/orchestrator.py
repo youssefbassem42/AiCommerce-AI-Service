@@ -237,13 +237,37 @@ class SyncOrchestrator:
         finally:
             await client.close()
 
+        total_fetched = sum(r.total_fetched for r in result.entity_results)
+        if result.entity_results and total_fetched == 0 and any(r.errors for r in result.entity_results):
+            # Nothing was fetched AND every entity reported an error (e.g. the
+            # e-commerce account was deleted and each endpoint rejects the
+            # credentials with 401/403). This is a failure, not an empty sync:
+            # reporting "completed" made the API look successful (all 200
+            # responses) while zero records were stored.
+            first_error = next((r.errors[0] for r in result.entity_results if r.errors), "")
+            result.status = "error"
+            result.error = (
+                "Sync completed but no data was fetched — every endpoint failed "
+                f"(first error: {first_error}). The e-commerce account may have "
+                "been deleted or its credentials are no longer valid."
+            )
+            try:
+                connection.mark_error(result.error)
+            except IntegrationValidationException:
+                logger.warning(
+                    "Skipped error-marking for connection '%s' (inactive with stored credentials).",
+                    connection.id,
+                )
+            await self._repository.update(connection)
+            return
+
         try:
-            if all(r.errors or r.total_fetched > 0 for r in result.entity_results):
-                connection.mark_synced()
-            elif any(r.errors for r in result.entity_results):
+            if any(r.errors for r in result.entity_results):
                 connection.mark_synced("partial_error")
-            else:
+            elif total_fetched == 0:
                 connection.mark_synced("no_data")
+            else:
+                connection.mark_synced()
             if connection.status == ConnectionStatus.ERROR and not is_anonymous:
                 connection.activate()
         except IntegrationValidationException:

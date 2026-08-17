@@ -255,12 +255,29 @@ class TestSyncOrchestrator:
 
     @pytest.mark.asyncio
     async def test_sync_error_status_with_credentials_is_self_healing(self, orchestrator, mock_repo, connection):
+        from app.infrastructure.http.pagination import PagePayload
         from app.infrastructure.security.key_manager import KeyManager
 
         connection.status = ConnectionStatus.ERROR
         connection.encrypted_credentials = KeyManager().encrypt_secret('{"token": "real-value"}')
-        connection.entity_mappings[0].list_path = None
-        await orchestrator.sync_connection("conn1")
+        orchestrator._vector_sync_enabled = False
+        llm = AsyncMock()
+        llm.fingerprint.return_value = "fp"
+        llm.build_entity_mapping = AsyncMock(return_value=None)
+        orchestrator._llm_mapper = llm
+        writer = AsyncMock(spec=ProductWriter)
+        writer.upsert = AsyncMock(return_value=True)
+        page = PagePayload(data=[{"id": 1, "name": "Chair", "price": 10.0}], page_number=1, raw_response={})
+        with (
+            patch("app.application.integration.sync.orchestrator.get_writer", return_value=writer),
+            patch(
+                "app.application.integration.sync.orchestrator.PaginationIterator",
+                return_value=FakePagination(pages=[page]),
+            ),
+        ):
+            result = await orchestrator.sync_connection("conn1")
+        assert result.status == "completed"
+        assert result.error is None
         assert connection.status == ConnectionStatus.ACTIVE
 
     @pytest.mark.asyncio
@@ -269,7 +286,7 @@ class TestSyncOrchestrator:
         connection.encrypted_credentials = None
         connection.entity_mappings[0].list_path = None
         result = await orchestrator.sync_connection("conn1")
-        assert result.status == "completed"
+        assert result.status == "error"
         assert "not active" not in (result.error or "")
 
     @pytest.mark.asyncio
@@ -280,7 +297,7 @@ class TestSyncOrchestrator:
         connection.encrypted_credentials = KeyManager().encrypt_secret("{}")
         connection.entity_mappings[0].list_path = None
         result = await orchestrator.sync_connection("conn1")
-        assert result.status == "completed"
+        assert result.status == "error"
         assert "not active" not in (result.error or "")
 
     @pytest.mark.asyncio
@@ -317,9 +334,8 @@ class TestSyncOrchestrator:
         connection.entity_mappings[0].list_path = None
         connection.encrypted_credentials = None
         result = await orchestrator.sync_connection("conn1")
-        assert result.status == "completed"
-        errs = result.entity_results[0].errors
-        assert any("no list_path" in e.lower() for e in errs)
+        assert result.status == "error"
+        assert "no data was fetched" in (result.error or "")
 
     def test_entity_sync_result_to_dict(self):
         esr = EntitySyncResult("product")
@@ -500,6 +516,48 @@ class TestSyncNowAuthModes:
         entities = {r.entity_type: r for r in result.entity_results}
         assert entities["product"].total_upserted == 1
         assert any("Skipped" in e and "403" in e for e in entities["customer"].errors)
+
+    @pytest.mark.asyncio
+    async def test_all_entities_401_does_not_silently_succeed(self, orchestrator, writer):
+        """REGRESSION: a deleted e-commerce account rejects every endpoint with
+        401. The sync must surface this as a failure — not a "completed" result
+        that the API returns as 200 while zero records are stored."""
+        protected_paginator = FakePagination(
+            exc=IntegrationApiException("HTTP 401 from /api/Products — expected a JSON API.", status_code=401)
+        )
+        with (
+            patch("app.application.integration.sync.orchestrator.get_writer", return_value=writer),
+            patch(
+                "app.application.integration.sync.orchestrator.PaginationIterator",
+                side_effect=[protected_paginator, protected_paginator],
+            ),
+        ):
+            result = await orchestrator.sync_connection("conn1", auth_token="stale-token")
+
+        assert result.status == "error", (
+            f"All endpoints rejected with 401 but sync reported '{result.status}' — "
+            "the API would return 200 while fetching nothing (deleted-account bug)."
+        )
+        assert result.error is not None
+        entities = {r.entity_type: r for r in result.entity_results}
+        assert entities["product"].total_fetched == 0
+        assert entities["customer"].total_fetched == 0
+
+    @pytest.mark.asyncio
+    async def test_empty_200_without_errors_is_no_data_not_error(self, orchestrator, connection, mock_repo):
+        """A legitimately empty store (200 + empty arrays, no errors) must stay
+        'completed' with a no_data marker — it is not a failure."""
+        connection.encrypted_credentials = None
+        connection.status = ConnectionStatus.INACTIVE
+        with patch(
+            "app.application.integration.sync.orchestrator.PaginationIterator",
+            side_effect=[FakePagination(), FakePagination()],
+        ):
+            result = await orchestrator.sync_connection("conn1")
+
+        assert result.status == "completed"
+        assert result.error is None
+        assert connection.last_sync_status == "no_data"
 
     @pytest.mark.asyncio
     async def test_public_fallback_client_is_unauthenticated(self, orchestrator):

@@ -171,6 +171,11 @@ class IntegrationWorkflow:
             ):
                 sync = await self._sync_orchestrator.sync_connection(connection.id)
                 result.sync_result = sync.to_dict()
+                if sync.status == "error" and not result.error:
+                    # Surface the sync failure (e.g. connection not active,
+                    # no entity mappings) instead of burying it in a 200 body.
+                    result.error = sync.error or "Integration sync failed."
+                    result.user_friendly_error = result.error
 
         except Exception as e:
             logger.exception("Integration workflow failed")
@@ -231,6 +236,13 @@ class IntegrationWorkflow:
                         for fm in entity.field_mappings
                     ],
                 )
+            )
+
+        if not entity_mappings:
+            raise ValueError(
+                "No entity mappings could be built from the analyzed specification: "
+                "the analyzed entities have no list or detail endpoints. "
+                "Check the specification and try again."
             )
 
         dto = ConnectionCreateDTO(
