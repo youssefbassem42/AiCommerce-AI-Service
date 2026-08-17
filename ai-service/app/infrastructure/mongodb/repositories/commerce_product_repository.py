@@ -20,3 +20,7 @@ class CommerceProductRepository(BaseMongoRepository[ProductDocument, Product], I
 
     async def search(self, store_id: str, query: str, limit: int = 20) -> list[Product]:
         return await self.find_many({"store_id": store_id, "$text": {"$search": query}}, limit=limit)
+
+    async def distinct_field_values(self, store_id: str, field: str) -> list[str]:
+        values = await self.collection.distinct(field, {"store_id": store_id})
+        return [str(v) for v in values if v is not None]

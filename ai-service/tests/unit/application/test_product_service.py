@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -57,6 +57,38 @@ class TestProductService:
         assert result.title == "Test Product"
         assert result.store_id == "store1"
         mock_repo.create.assert_awaited_once()
+
+    async def test_create_product_enqueues_vector_sync(self, service, mock_repo):
+        data = ProductCreateDTO(
+            store_id="store1",
+            organization_id="org1",
+            title="Test Product",
+            variants=[
+                VariantDTO(
+                    id="v1",
+                    sku="SKU-001",
+                    title="V1",
+                    price=MoneyDTO(amount=Decimal("10"), currency="USD"),
+                )
+            ],
+        )
+        mock_repo.create.return_value = Product(
+            id="new-id",
+            store_id="store1",
+            organization_id="org1",
+            title="Test Product",
+            status="draft",
+            variants=[],
+            external_id="ext-1",
+        )
+        with patch("app.application.integration.sync.hooks.enqueue_sync_record") as enqueue:
+            await service.create(data)
+        enqueue.assert_called_once()
+        kwargs = enqueue.call_args.kwargs
+        assert kwargs["store_id"] == "store1"
+        assert kwargs["organization_id"] == "org1"
+        assert kwargs["entity_type"] == "product"
+        assert kwargs["record"]["_id"] == "new-id"
 
     async def test_get_product_found(self, service, mock_repo):
         mock_repo.find_by_id.return_value = Product(

@@ -16,3 +16,12 @@ class ProductRepository(AsyncRepository[Product, str], ABC):
     @abstractmethod
     async def search(self, store_id: str, query: str, limit: int = 20) -> list[Product]:
         pass
+
+    @abstractmethod
+    async def distinct_field_values(self, store_id: str, field: str) -> list[str]:
+        """Distinct non-null values of a product field within one store.
+
+        Used by the recommendation catalog to resolve a parsed category phrase
+        against the store's own taxonomy values (``product_type``, ``category_id``).
+        """
+        pass

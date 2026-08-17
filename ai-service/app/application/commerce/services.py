@@ -76,6 +76,15 @@ class ProductService:
             metadata=data.metadata,
         )
         created = await self.repository.create(entity)
+        from app.application.integration.sync.hooks import enqueue_sync_record
+        from app.application.integration.sync.records import product_to_record
+
+        enqueue_sync_record(
+            store_id=created.store_id,
+            organization_id=created.organization_id,
+            entity_type="product",
+            record=product_to_record(created),
+        )
         return self._to_dto(created)
 
     async def get_by_id(self, product_id: str) -> ProductDTO:

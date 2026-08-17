@@ -8,6 +8,7 @@ Covers:
 - Fix 4.5: structured recommendation result + LLM explanation
 """
 
+import re
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
@@ -200,13 +201,33 @@ class TestDeterministicRetrieval:
         out_of_stock = make_product("p3", "Sold Out Laptop", "laptop", Decimal("600"), in_stock=0)
         other_category = make_product("p4", "Gaming Mouse", "mouse", Decimal("100"))
         all_products = [laptop_cheap, laptop_expensive, out_of_stock, other_category]
-        product_repo.find_many.side_effect = lambda filters, limit=30: [
-            p
-            for p in all_products
-            if p.store_id == filters["store_id"]
-            and p.status == filters["status"]
-            and (filters.get("product_type") is None or p.product_type == filters["product_type"]["$regex"])
-        ]
+        product_repo.distinct_field_values = AsyncMock(
+            side_effect=lambda store, field: ["laptop", "mouse"] if field == "product_type" else []
+        )
+
+        def simulate(filters, limit=30):
+            result = []
+            for p in all_products:
+                if p.store_id != filters["store_id"] or p.status != filters["status"]:
+                    continue
+                if "vendor" in filters and not re.search(filters["vendor"]["$regex"], p.vendor or "", re.IGNORECASE):
+                    continue
+                or_clause = filters.get("$or")
+                if or_clause:
+                    matched = any(
+                        (cond.get("product_type") and p.product_type in cond["product_type"]["$in"])
+                        or (cond.get("category_id") and p.category_id in cond["category_id"]["$in"])
+                        for cond in or_clause
+                    )
+                    if not matched:
+                        continue
+                title = filters.get("title")
+                if title and not re.search(title["$regex"], p.title or "", re.IGNORECASE):
+                    continue
+                result.append(p)
+            return result
+
+        product_repo.find_many.side_effect = simulate
 
         intent = RecommendationIntent(product_type="laptop", max_budget=800, currency="USD")
         candidates = await RecommendationCatalogService.retrieve_candidates(intent, "store-1", product_repo)
@@ -215,6 +236,7 @@ class TestDeterministicRetrieval:
         filters = product_repo.find_many.await_args.args[0]
         assert filters["store_id"] == "store-1"
         assert filters["status"] == "active"
+        assert filters["$or"] == [{"product_type": {"$in": ["laptop"]}}]
 
     async def test_brand_is_a_hard_filter(self, product_repo):
         product_repo.find_many.return_value = [

@@ -3,6 +3,8 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from bson import ObjectId
+
 from app.application.dto.ai_dto import EmbeddingRequest
 from app.application.integration.sync.formatters import format_record
 from app.infrastructure.providers.base import BaseLLMProvider
@@ -20,6 +22,13 @@ SUPPORTED_ENTITY_TYPES: set[str] | None = None  # None means all types are accep
 
 # Resolver signature: (store_id, organization_id) -> current knowledge version.
 KnowledgeVersionResolver = Callable[[str, str], Awaitable[int]]
+
+# Resolver signature: (store_id, external_id) -> canonical Mongo product id or None.
+ProductIdentityResolver = Callable[[str, str], Awaitable[str | None]]
+
+
+def _is_mongo_object_id(value: Any) -> bool:
+    return isinstance(value, str) and ObjectId.is_valid(value)
 
 
 class EntityVectorSyncResult:
@@ -47,11 +56,41 @@ class CommerceKnowledgeBridge:
         llm_provider: BaseLLMProvider | None = None,
         embedding_model: str = EMBEDDING_MODEL,
         knowledge_version_resolver: KnowledgeVersionResolver | None = None,
+        product_identity_resolver: ProductIdentityResolver | None = None,
     ):
         self._vector_store = vector_store
         self._llm_provider = llm_provider
         self._embedding_model = embedding_model
         self._knowledge_version_resolver = knowledge_version_resolver or self._resolve_knowledge_version
+        self._product_identity_resolver = product_identity_resolver or self._resolve_product_identity
+
+    async def _resolve_product_identity(self, store_id: str, external_id: str) -> str | None:
+        """Resolve the canonical Mongo product id for an externally-synced record.
+
+        Integration payloads carry ``external_id`` but not the Mongo ``_id``;
+        the vector identity must be the canonical Mongo product id so the
+        recommendation pipeline can resolve candidates against the catalog.
+        Returns None when the product is not in the catalog or the lookup
+        fails (callers then keep the external id as a best-effort fallback).
+        """
+        try:
+            from app.infrastructure.mongodb.collections import get_products_collection
+
+            doc = await get_products_collection().find_one(
+                {"store_id": store_id, "external_id": external_id},
+                {"_id": 1},
+            )
+            if doc is None or doc.get("_id") is None:
+                return None
+            return str(doc["_id"])
+        except Exception as exc:
+            logger.warning(
+                "Product identity lookup failed (store=%s external_id=%s): %s",
+                store_id,
+                external_id,
+                exc,
+            )
+            return None
 
     async def _ensure_providers(self) -> None:
         if not self._vector_store:
@@ -144,6 +183,12 @@ class CommerceKnowledgeBridge:
         except Exception as e:
             logger.warning("Failed to delete stale vectors for %s/%s: %s", store_id, entity_type, e)
 
+        records = await self._resolve_product_identities(store_id, entity_type, records, result)
+        if not records:
+            logger.warning("No indexable records for entity '%s' (store=%s)", entity_type, store_id)
+            return result
+        result.total_records = len(records)
+
         formatted = []
         for rec in records:
             text = format_record(entity_type, rec)
@@ -230,6 +275,76 @@ class CommerceKnowledgeBridge:
                 {"key": "store_id", "value": store_id},
                 {"key": "entity_type", "value": entity_type},
                 {"key": "document_id", "value": entity_key},
+            ],
+            must_not=None,
+        )
+
+    async def _resolve_product_identities(
+        self,
+        store_id: str,
+        entity_type: str,
+        records: list[dict[str, Any]],
+        result: EntityVectorSyncResult,
+    ) -> list[dict[str, Any]]:
+        """Enforce the canonical product vector identity (Mongo ``_id``).
+
+        Only product records are rewritten. A record that already carries a
+        valid Mongo ObjectId is kept untouched; one with an external identity
+        is resolved against the catalog; one with no usable identity at all
+        is skipped and reported so payloads never index an empty key.
+        """
+        if entity_type != "product":
+            return records
+
+        enriched: list[dict[str, Any]] = []
+        for rec in records:
+            if _is_mongo_object_id(_entity_key(rec)):
+                enriched.append(rec)
+                continue
+            external_id = rec.get("external_id") or rec.get("id")
+            if not external_id:
+                result.errors.append(f"Skipped product with no canonical id: {rec.get('title') or '(untitled)'}")
+                logger.warning("Skipping product without canonical id (store=%s)", store_id)
+                continue
+            resolved = await self._product_identity_resolver(store_id, str(external_id))
+            if resolved and _is_mongo_object_id(resolved):
+                enriched.append({**rec, "_id": resolved})
+                continue
+            if rec.get("_id"):
+                # Best effort: keep the existing identity so the sync is not
+                # lost; the canonical-id reindex will repair the payload.
+                logger.warning(
+                    "Product identity not canonical (store=%s external_id=%s) — kept existing _id",
+                    store_id,
+                    external_id,
+                )
+                enriched.append(rec)
+                continue
+            enriched.append({**rec, "_id": str(external_id)})
+            logger.warning(
+                "Product identity not resolvable (store=%s external_id=%s) — indexed under external id",
+                store_id,
+                external_id,
+            )
+        return enriched
+
+    async def purge_entity_vectors(self, store_id: str, entity_type: str) -> int:
+        """Delete all vector points of one entity type for a store (any source).
+
+        Used by the store reindex path: product vectors are rebuilt entirely
+        from the current Mongo catalog, so stale points (e.g. indexed under a
+        legacy external-id identity) must be removed first. Strictly
+        store-scoped and entity-scoped — never a collection drop.
+        """
+        await self._ensure_providers()
+        collection = f"kb_{store_id}"
+        if not await self._vector_store.collection_exists(collection):
+            return 0
+        return await self._vector_store.delete_by_filter(
+            collection,
+            must=[
+                {"key": "store_id", "value": store_id},
+                {"key": "entity_type", "value": entity_type},
             ],
             must_not=None,
         )

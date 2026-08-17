@@ -93,6 +93,11 @@ async def search_candidates_node(
         )
         if products:
             candidates = RecommendationCatalogService.build_scored_candidates(products)
+            logger.info(
+                "search_candidates store=%s catalog_candidates=%d",
+                state["store_id"],
+                len(candidates),
+            )
             return {"candidates": candidates}
 
         # Fuzzy fallback: vector search only when the catalog could not
@@ -101,6 +106,11 @@ async def search_candidates_node(
             intent=intent,
             retriever_service=retriever_service,
             store_id=state["store_id"],
+        )
+        logger.info(
+            "search_candidates store=%s vector_candidates=%d",
+            state["store_id"],
+            len(candidates),
         )
         return {"candidates": candidates}
     except Exception as exc:
@@ -127,6 +137,13 @@ async def filter_inventory_node(
             state["store_id"],
         )
         with_discounts = RecommendationCatalogService.apply_discount_strategy(within_budget, max_budget)
+        logger.info(
+            "filter_inventory store=%s candidates=%d resolved_in_stock=%d within_budget=%d",
+            state["store_id"],
+            len(candidates),
+            len(in_stock),
+            len(within_budget),
+        )
         return {"filtered": with_discounts}
     except Exception as exc:
         logger.error("Inventory filtering failed: %s", exc, exc_info=True)

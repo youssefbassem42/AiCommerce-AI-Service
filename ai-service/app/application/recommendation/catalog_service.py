@@ -80,30 +80,63 @@ class RecommendationCatalogService:
     ) -> list[Product]:
         """Requirements -> catalog -> hard filters -> candidate products (Fix 4.2).
 
-        Hard constraints: store, availability, category, price, and explicit
-        user requirements (brand, option-style specs, attributes).
+        Retrieval is semantic but deterministic:
+
+        1. Taxonomy retrieval — the parsed category phrase is resolved against
+           the store's own product taxonomy values (``product_type`` and
+           ``category_id`` distinct values). The catalog stores category names
+           on ``product_type`` (e.g. "Electronics"), so "electronics" matches
+           records whose taxonomy says "Electronics"; "home appliances"
+           matches "Home Appliances". Records that carry no ``product_type``
+           but a ``category_id`` are still reachable through the category
+           reference.
+        2. Product-title matching — only when taxonomy retrieval provided no
+           candidates, the escaped phrase is matched against product titles
+           ("laptop" -> "Gaming Laptop RTX"). Bounded, meaningful, and never
+           a regex across every field.
+
+        Hard constraints applied to both sets: store, availability, category,
+        price, and explicit user requirements (brand, option-style specs,
+        attributes). Every candidate set is store-scoped.
         """
         if not intent.product_type:
             return []
 
-        filters: dict[str, Any] = {
+        base_filters: dict[str, Any] = {
             "store_id": store_id,
             "status": "active",
         }
-        category = intent.product_type.strip()
-        if category:
-            filters["product_type"] = {"$regex": re.escape(category), "$options": "i"}
         if intent.brand:
-            filters["vendor"] = {"$regex": re.escape(intent.brand.strip()), "$options": "i"}
+            base_filters["vendor"] = {"$regex": re.escape(intent.brand.strip()), "$options": "i"}
+
+        phrase = intent.product_type.strip()
+        products: list[Product] = []
+        source = "none"
 
         try:
-            products = await product_repo.find_many(filters, limit=limit)
+            type_keys, category_keys = await cls._resolve_taxonomy_keys(phrase, store_id, product_repo)
+            if type_keys or category_keys:
+                or_conditions: list[dict[str, Any]] = []
+                if type_keys:
+                    or_conditions.append({"product_type": {"$in": type_keys}})
+                if category_keys:
+                    or_conditions.append({"category_id": {"$in": category_keys}})
+                products = await cls._find_products(product_repo, {**base_filters, "$or": or_conditions}, limit)
+                source = "taxonomy"
         except Exception:
-            logger.warning("Deterministic catalog retrieval failed (store=%s)", store_id, exc_info=True)
-            return []
-        if not isinstance(products, list):
-            logger.warning("Catalog repository returned unexpected type: %s", type(products).__name__)
-            return []
+            logger.warning("Taxonomy retrieval failed (store=%s)", store_id, exc_info=True)
+
+        if not products:
+            try:
+                products = await cls._find_products(
+                    product_repo,
+                    {**base_filters, "title": {"$regex": re.escape(phrase), "$options": "i"}},
+                    limit,
+                )
+                source = "title"
+            except Exception:
+                logger.warning("Title retrieval failed (store=%s)", store_id, exc_info=True)
+                return []
 
         budget = Decimal(str(intent.max_budget)) if intent.max_budget is not None else None
 
@@ -120,7 +153,64 @@ class RecommendationCatalogService:
                 continue
             candidates.append(product)
 
+        logger.info(
+            "catalog_retrieval store=%s intent=%s source=%s fetched=%d candidates=%d budget=%s brand=%s",
+            store_id,
+            phrase,
+            source,
+            len(products),
+            len(candidates),
+            budget,
+            intent.brand,
+        )
         return candidates
+
+    @staticmethod
+    async def _find_products(
+        product_repo: ProductRepository,
+        filters: dict[str, Any],
+        limit: int,
+    ) -> list[Product]:
+        try:
+            products = await product_repo.find_many(filters, limit=limit)
+        except Exception:
+            logger.warning("Deterministic catalog retrieval failed", exc_info=True)
+            return []
+        if not isinstance(products, list):
+            logger.warning("Catalog repository returned unexpected type: %s", type(products).__name__)
+            return []
+        return products
+
+    @classmethod
+    async def _resolve_taxonomy_keys(
+        cls,
+        phrase: str,
+        store_id: str,
+        product_repo: ProductRepository,
+    ) -> tuple[list[str], list[str]]:
+        """Resolve a parsed category phrase against the store's taxonomy values.
+
+        Returns ``(product_type_keys, category_id_keys)`` — the real values
+        present on the store's product records that the phrase refers to.
+        Exact, containment (plural/suffix), and shared-token matches qualify;
+        the phrase never matches values it has no semantic relation to.
+        """
+        type_keys: list[str] = []
+        category_keys: list[str] = []
+        for field in ("product_type", "category_id"):
+            try:
+                values = await product_repo.distinct_field_values(store_id, field)
+            except Exception:
+                logger.debug("distinct_field_values failed for '%s' (store=%s)", field, store_id, exc_info=True)
+                continue
+            if not isinstance(values, list):
+                continue
+            keys = [v for v in values if isinstance(v, str) and _taxonomy_match(phrase, v)]
+            if field == "product_type":
+                type_keys = keys
+            else:
+                category_keys = keys
+        return type_keys, category_keys
 
     @classmethod
     def build_scored_candidates(cls, products: list[Product]) -> list[ScoredProduct]:
@@ -357,6 +447,30 @@ def _option_values(product: Product, name: str) -> set[str]:
 
 def _tokenize(text: str) -> set[str]:
     return {token for token in re.findall(r"[a-z0-9]+", text.lower()) if len(token) > 1}
+
+
+def _taxonomy_match(phrase: str, value: str) -> bool:
+    """Match a parsed category phrase against a store taxonomy value.
+
+    Exact equality, then containment in either direction (handles
+    pluralization like "laptops" vs "laptop" and suffixed names), then
+    shared-token overlap. Matching is case-insensitive and conservative:
+    values with no semantic relation to the phrase never match.
+    """
+    phrase_lower = phrase.lower().strip()
+    value_lower = value.lower().strip()
+    if not phrase_lower or not value_lower:
+        return False
+    if phrase_lower == value_lower:
+        return True
+    # Degenerate containment on tiny strings matches everything; require
+    # both sides to be meaningful before trying it. Exact ids ("1") passed
+    # above. Token overlap needs 2+ char tokens by construction.
+    if len(phrase_lower) < 2 or len(value_lower) < 2:
+        return False
+    if phrase_lower in value_lower or value_lower in phrase_lower:
+        return True
+    return bool(_tokenize(phrase) & _tokenize(value))
 
 
 def _candidate_text(candidate: ScoredProduct) -> str:

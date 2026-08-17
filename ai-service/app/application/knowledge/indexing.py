@@ -66,6 +66,16 @@ class StoreIndexer:
         return summary
 
     async def _index_products(self, store_id: str) -> dict[str, Any]:
+        # The product vector set is rebuilt entirely from the current Mongo
+        # catalog: purge stale product points (e.g. indexed under a legacy
+        # external-id identity) first so the reindex is idempotent and the
+        # canonical product_id contract is restored. Store- and entity-scoped.
+        try:
+            purged = await self._bridge.purge_entity_vectors(store_id, "product")
+            if purged:
+                logger.info("Purged %s product vector group(s) for store %s before reindex", purged, store_id)
+        except Exception as exc:
+            logger.warning("Product vector purge skipped for store %s: %s", store_id, exc)
         return await self._sync_entity_type(store_id, "product", self._iter_products)
 
     async def _index_categories(self, store_id: str) -> dict[str, Any]:
