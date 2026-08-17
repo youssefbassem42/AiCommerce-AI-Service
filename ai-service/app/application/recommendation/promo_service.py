@@ -18,6 +18,9 @@ shows NO promo code to the customer.
 """
 
 import logging
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
@@ -46,8 +49,39 @@ COUPON_ENTITY_TYPES = {"coupon", "discount", "promotion"}
 # Platform coupon schemas use different field names; each canonical field maps
 # onto the accepted aliases, in preference order.
 _CODE_FIELD_ALIASES = ("code", "coupon_code", "promo_code", "name")
-_PERCENTAGE_FIELD_ALIASES = ("percentage", "percent", "discount_percentage", "discount_pct", "value")
+_PERCENTAGE_FIELD_ALIASES = (
+    "percentage",
+    "percent",
+    "discountPercentage",
+    "discount_percentage",
+    "discount_pct",
+    "value",
+)
 _PRODUCT_SCOPE_ALIASES = ("product_ids", "applies_to_ids", "applies_to", "variant_ids")
+_EXPIRY_FIELD_ALIASES = ("expiryDate", "expires_at", "expiration_date", "valid_until", "end_date")
+
+# Response shapes accepted as "promo code is valid" from the platform checkout
+# (L4): key -> truthy values (boolean True or case-insensitive strings).
+_VALID_RESPONSE_KEYS = ("valid", "isValid", "success", "is_valid", "isValidPromo")
+_DISCOUNT_RESPONSE_KEYS = ("discountAmount", "discount_amount", "discount", "amount")
+_REASON_RESPONSE_KEYS = ("message", "error", "reason", "detail")
+
+
+@dataclass(frozen=True)
+class PromoValidationResult:
+    """Outcome of validating a promo code against the platform checkout (L4).
+
+    ``status`` is one of:
+    - "valid": the checkout endpoint explicitly confirmed the code.
+    - "invalid": the checkout endpoint explicitly rejected the code.
+    - "unavailable": the code could not be verified (no connection, no
+      endpoint, transport failure, or an unrecognized response shape). This
+      status is never presented as a verified success.
+    """
+
+    status: str
+    discount_amount: Decimal | None = None
+    reason: str | None = None
 
 
 class PromoCodeService:
@@ -178,7 +212,7 @@ class PromoCodeService:
             {"store_id": store_id, "status": ConnectionStatus.ACTIVE.value}
         )
         for connection in connections:
-            entity_types = {em.entity_type for em in (connection.entity_mappings or [])}
+            entity_types = {em.entity_type.lower() for em in (connection.entity_mappings or [])}
             if entity_types & COUPON_ENTITY_TYPES:
                 return connection
         return None
@@ -227,6 +261,14 @@ class PromoCodeService:
         if scope_key:
             payload[scope_key] = product_ids
 
+        expiry_key = next((a for a in _EXPIRY_FIELD_ALIASES if a in schema_fields), None)
+        if expiry_key:
+            # CreateCouponDto-style contracts declare expiryDate as required;
+            # a coupon without an expiry would be rejected (400). Send a
+            # platform-compliant expiry: now + PROMO_CODE_VALID_DAYS.
+            valid_until = datetime.now(UTC) + timedelta(days=ai_settings.PROMO_CODE_VALID_DAYS)
+            payload[expiry_key] = valid_until.isoformat()
+
         if not schema_fields:
             # Unknown schema: best-effort canonical payload. `code` must be set
             # (validated by the caller) or no promo code is shown.
@@ -234,6 +276,129 @@ class PromoCodeService:
             payload.setdefault("value", discount_pct)
 
         return payload
+
+    async def validate_code(
+        self,
+        store_id: str,
+        code: str,
+        subtotal: Decimal | float,
+    ) -> PromoValidationResult:
+        """Ask the platform checkout to validate a promo code against a real
+        bundle subtotal (L4).
+
+        Deterministic and honest: only an explicit positive response from the
+        platform is ``valid``; an explicit rejection is ``invalid``; everything
+        else (disabled, no connection, no endpoint, transport failure,
+        unrecognized response shape) is ``unavailable``.
+        """
+        if not ai_settings.PROMO_CODES_ENABLED:
+            log_flow_event(
+                "promo.validate_skipped",
+                store_id=store_id,
+                code=code,
+                reason="promo_codes_enabled is false",
+            )
+            return PromoValidationResult(status="unavailable", reason="promo codes disabled")
+
+        connection = await self._find_coupon_connection(store_id)
+        if connection is None:
+            log_flow_event(
+                "promo.validate_unavailable",
+                store_id=store_id,
+                code=code,
+                reason="no coupon-capable platform connection",
+            )
+            return PromoValidationResult(status="unavailable", reason="no coupon-capable platform connection")
+
+        endpoint = self._find_validate_endpoint(connection)
+        if endpoint is None:
+            log_flow_event(
+                "promo.validate_unavailable",
+                store_id=store_id,
+                code=code,
+                reason="platform has no validate-promo endpoint",
+            )
+            return PromoValidationResult(status="unavailable", reason="platform has no validate-promo endpoint")
+
+        schema_fields = self._coupon_schema_fields(connection, endpoint)
+        body: dict[str, Any] = {"promoCode": code, "subtotal": float(subtotal)}
+        if "code" in schema_fields:
+            body["code"] = code
+        if "promo_code" in schema_fields:
+            body["promo_code"] = code
+        if "couponCode" in schema_fields:
+            body["couponCode"] = code
+
+        try:
+            client = self._build_client(connection)
+            try:
+                response = await client.post(endpoint["path"], body=body)
+            finally:
+                await client.close()
+        except Exception as exc:
+            logger.error("Promo validation failed for store %s: %s", store_id, exc, exc_info=True)
+            log_flow_event(
+                "promo.validate_unavailable",
+                store_id=store_id,
+                code=code,
+                reason="validation request failed",
+            )
+            return PromoValidationResult(status="unavailable", reason="validation request failed")
+
+        return self._normalize_validation_response(response)
+
+    def _find_validate_endpoint(self, connection: IntegrationConnection) -> dict | None:
+        """Locate the checkout promo-validation POST endpoint (deterministic)."""
+        for ep in connection.discovered_endpoints or []:
+            if not isinstance(ep, dict):
+                continue
+            method = str(ep.get("method", "")).upper()
+            path = str(ep.get("path", ""))
+            if method != "POST" or not path:
+                continue
+            lowered = path.lower()
+            if ("validate" in lowered or "check" in lowered or "verify" in lowered) and any(
+                keyword in lowered for keyword in ("promo", "coupon", "discount")
+            ):
+                return ep
+        return None
+
+    @staticmethod
+    def _normalize_validation_response(response: Any) -> PromoValidationResult:
+        """Map an arbitrary platform response onto a PromoValidationResult."""
+        if not isinstance(response, dict):
+            return PromoValidationResult(status="unavailable", reason="unrecognized validation response")
+
+        discount_amount: Decimal | None = None
+        for key in _DISCOUNT_RESPONSE_KEYS:
+            value = response.get(key)
+            if value is not None:
+                try:
+                    discount_amount = Decimal(str(value))
+                except (TypeError, ValueError, ArithmeticError):
+                    discount_amount = None
+                break
+
+        reason: str | None = None
+        for key in _REASON_RESPONSE_KEYS:
+            value = response.get(key)
+            if isinstance(value, str) and value.strip():
+                reason = value.strip()
+                break
+
+        for key in _VALID_RESPONSE_KEYS:
+            if key in response:
+                value = response[key]
+                if isinstance(value, bool):
+                    if value:
+                        return PromoValidationResult(status="valid", discount_amount=discount_amount, reason=None)
+                    return PromoValidationResult(status="invalid", discount_amount=discount_amount, reason=reason)
+                if isinstance(value, str) and value.strip().lower() in ("true", "yes", "valid", "success"):
+                    return PromoValidationResult(status="valid", discount_amount=discount_amount, reason=None)
+                if isinstance(value, str) and value.strip().lower() in ("false", "no", "invalid", "expired"):
+                    return PromoValidationResult(status="invalid", discount_amount=discount_amount, reason=reason)
+
+        return PromoValidationResult(status="unavailable", reason=reason or "unrecognized validation response")
 
     def _coupon_schema_fields(self, connection: IntegrationConnection, endpoint: dict) -> set[str]:
         discovered = connection.discovered_schemas or {}

@@ -89,7 +89,7 @@ class BundleSuggestionService:
         customer_id: str | None = None,
         history: list | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
         conversation_id: str | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
-        context: dict | None = None,  # noqa: ARG002 - kept for uniform sub-agent runner contract
+        context: dict | None = None,
     ) -> BundleResponse:
         logger.info(
             "Bundle suggestion requested: query='%s', store_id='%s', customer_id='%s'",
@@ -97,6 +97,13 @@ class BundleSuggestionService:
             store_id,
             customer_id,
         )
+
+        from app.application.context.shopping_state import shopping_state_from_context
+
+        shopping_state = shopping_state_from_context(context)
+        shopping_state_dict = shopping_state.to_dict() if not shopping_state.is_empty() else None
+
+        category_names = await self._load_category_names(store_id)
 
         caps = await self._capabilities_repo.get_or_detect(store_id)
         store_capabilities = dict(caps.capabilities)
@@ -106,14 +113,39 @@ class BundleSuggestionService:
             store_id=store_id,
             customer_id=customer_id,
             store_capabilities=store_capabilities,
+            category_names=category_names,
+            shopping_state=shopping_state_dict,
         )
 
-        await self._persist_top_bundle(result)
+        await self._persist_selected_bundle(result)
 
         return result
 
-    async def _persist_top_bundle(self, result: BundleResponse) -> None:
-        top = next((b for b in result.bundles if b.rank == 0), None)
+    async def _load_category_names(self, store_id: str) -> dict[str, str]:
+        """Store taxonomy: category_id -> name (external_id for flat-schema catalogs).
+
+        Lookup failures degrade to an empty map: bundle discovery still works
+        on product_type/title matches; only category-name search is lost.
+        """
+        try:
+            from app.infrastructure.mongodb.repositories.commerce_category_repository import (
+                CommerceCategoryRepository,
+            )
+
+            categories = await CommerceCategoryRepository().find_root(store_id)
+        except Exception as exc:
+            logger.warning("Category name lookup failed for store %s: %s", store_id, exc)
+            return {}
+        names: dict[str, str] = {}
+        for category in categories:
+            key = str(getattr(category, "external_id", "") or getattr(category, "id", "") or "")
+            name = getattr(category, "name", "") or ""
+            if key and name:
+                names[key] = name
+        return names
+
+    async def _persist_selected_bundle(self, result: BundleResponse) -> None:
+        top = next((b for b in result.bundles if b.rank == 1), None)
         if top is None or not top.products:
             return
         total_original = float(top.total_original)
@@ -125,6 +157,7 @@ class BundleSuggestionService:
             product_ids=[p.product_id for p in top.products],
             total_price=float(top.total_after_discount),
             discount_percentage=round(discount_pct, 2),
+            rank=top.rank,
         )
         try:
             await self._recommendation_repo.save_bundle_suggestion(bundle)

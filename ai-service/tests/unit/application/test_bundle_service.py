@@ -60,14 +60,14 @@ def _bundle_response(**overrides):
                 total_original=Decimal("200"),
                 total_discount=Decimal("40"),
                 total_after_discount=Decimal("160"),
-                rank=0,
+                rank=1,
             ),
             BundleCandidate(
                 products=[DiscountInfo(product_id="p2", product_title="Mouse")],
                 total_original=Decimal("50"),
                 total_discount=Decimal("5"),
                 total_after_discount=Decimal("45"),
-                rank=1,
+                rank=2,
             ),
         ],
     )
@@ -110,7 +110,7 @@ class TestBundleSuggestionService:
         assert saved.status == "active"
 
     async def test_suggest_skips_persistence_without_products(self, service, recommendation_repo):
-        service._workflow.run = AsyncMock(return_value=_bundle_response(bundles=[BundleCandidate(products=[], rank=0)]))
+        service._workflow.run = AsyncMock(return_value=_bundle_response(bundles=[BundleCandidate(products=[], rank=1)]))
         await service.suggest(query="nothing", store_id="store_1")
         recommendation_repo.save_bundle_suggestion.assert_not_awaited()
 

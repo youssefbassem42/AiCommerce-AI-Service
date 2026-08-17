@@ -27,6 +27,10 @@ class BundlePayload(BaseModel):
     total_original: str = ""
     total_discount: str = ""
     promo_code: str | None = None
+    promo_status: str | None = Field(
+        default=None,
+        description="Promotion lifecycle state: validated | unverified | invalid (L4)",
+    )
     currency: str = "USD"
     within_budget: bool = True
 
@@ -55,6 +59,7 @@ def bundle_payload_from_candidates(bundles: list[Any]) -> BundlePayload | None:
         total_original=str(getattr(candidate, "total_original", "") or ""),
         total_discount=str(getattr(candidate, "total_discount", "") or ""),
         promo_code=getattr(candidate, "promo_code", None),
+        promo_status=getattr(candidate, "promo_status", None),
         currency=str(getattr(candidate, "currency", "USD") or "USD"),
         within_budget=bool(getattr(candidate, "within_budget", True)),
     )

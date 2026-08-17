@@ -19,6 +19,7 @@ def _product(pid: str, price: float, discount: float = 0.0) -> Product:
         organization_id="o1",
         title=f"{pid.title()} product",
         product_type="keyboard" if "keyboard" in pid else "mouse",
+        status="active",
         variants=[
             Variant(
                 id=f"v-{pid}",

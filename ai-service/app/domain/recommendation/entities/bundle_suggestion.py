@@ -13,6 +13,7 @@ class BundleSuggestion(Entity[str]):
     product_ids: list[str] = Field(..., description="Product IDs included in the bundle")
     total_price: float = Field(..., description="Total price of the bundle")
     discount_percentage: float = Field(..., description="Discount if bought together")
+    rank: int = Field(default=1, description="Selection rank of the bundle (1 = the presented bundle, B17)")
     status: str = Field(default="active", description="Bundle status (active, draft, expired)")
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

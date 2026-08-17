@@ -63,6 +63,7 @@ def _product(
         product_type=product_type,
         tags=tags,
         images=[],
+        status="active",
         variants=[
             Variant(
                 id=f"v-{pid}",

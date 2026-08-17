@@ -13,6 +13,7 @@ from app.agents.bundle.nodes import (
     select_best_node,
 )
 from app.agents.bundle.state import BundleState
+from app.agents.bundle.tools import promo_capable
 from app.application.recommendation.dto.recommendation_dto import BundleResponse
 from app.application.recommendation.promo_service import PromoCodeService
 from app.domain.commerce.repositories import ProductRepository
@@ -40,8 +41,7 @@ def route_after_bundles(state: BundleState) -> str:
 
 
 def route_after_select(state: BundleState) -> str:
-    capabilities = state.get("store_capabilities") or {}
-    if capabilities.get("has_promo_codes", False):
+    if promo_capable(state.get("store_capabilities")):
         return "handle_promo"
     return "format_response"
 
@@ -128,6 +128,8 @@ class BundleSuggestionAgent:
         store_id: str,
         customer_id: str | None = None,
         store_capabilities: dict[str, bool] | None = None,
+        category_names: dict[str, str] | None = None,
+        shopping_state: dict[str, Any] | None = None,
     ) -> BundleResponse:
         start = time.perf_counter()
 
@@ -143,9 +145,12 @@ class BundleSuggestionAgent:
             "bundles": [],
             "selected": [],
             "promo_code": None,
+            "promo_status": None,
             "response": None,
             "error": None,
             "store_capabilities": store_capabilities or {},
+            "category_names": category_names,
+            "shopping_state": shopping_state,
         }
 
         result = await self._graph.ainvoke(initial_state)

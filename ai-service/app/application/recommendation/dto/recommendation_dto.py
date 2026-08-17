@@ -150,6 +150,26 @@ class BundleCandidate(BaseModel):
     within_budget: bool = True
     promo_code: str | None = None
     rank: int = 0
+    compatibility_score: float = Field(
+        default=0.0,
+        description="Deterministic complementarity of the bundle (0..1, B16)",
+    )
+    relevance_score: float = Field(
+        default=0.0,
+        description="Relevance of the bundle to the user's stated/inferred primary need",
+    )
+    score: float = Field(
+        default=0.0,
+        description="Deterministic overall ranking score (complementarity-dominant)",
+    )
+    complementarity_labels: list[str] = Field(
+        default_factory=list,
+        description="Relationship labels explaining why the products belong together (B16)",
+    )
+    promo_status: str | None = Field(
+        default=None,
+        description="Promotion lifecycle state: validated | unverified | invalid (L4)",
+    )
 
 
 class BundleProductCard(BaseModel):
@@ -170,5 +190,9 @@ class BundleResponse(BaseModel):
     budget: float = 0.0
     bundles: list[BundleCandidate] = Field(default_factory=list)
     promo_code: str | None = None
+    promo_status: str | None = Field(
+        default=None,
+        description="Promotion lifecycle state: validated | unverified | invalid (L4)",
+    )
     rationale: str | None = None
     latency_ms: float = 0.0

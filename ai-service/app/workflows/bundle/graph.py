@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from app.agents.bundle.agent import BundleSuggestionAgent
 from app.application.recommendation.dto.recommendation_dto import BundleResponse
@@ -28,10 +29,14 @@ class BundleSuggestionWorkflow:
         store_id: str,
         customer_id: str | None = None,
         store_capabilities: dict[str, bool] | None = None,
+        category_names: dict[str, str] | None = None,
+        shopping_state: dict[str, Any] | None = None,
     ) -> BundleResponse:
         return await self._agent.run(
             query=query,
             store_id=store_id,
             customer_id=customer_id,
             store_capabilities=store_capabilities,
+            category_names=category_names,
+            shopping_state=shopping_state,
         )

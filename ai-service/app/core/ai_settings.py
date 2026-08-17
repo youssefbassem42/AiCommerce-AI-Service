@@ -24,6 +24,10 @@ class AISettings(BaseSettings):
     # e-commerce platform. Enabled by default; when no coupon-capable
     # integration exists the flow degrades gracefully (no code is shown).
     PROMO_CODES_ENABLED: bool = Field(default=True)
+    PROMO_CODE_VALID_DAYS: int = Field(
+        default=30,
+        description="Days a generated promo code stays valid (CreateCouponDto expiryDate, L4)",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=True)
 

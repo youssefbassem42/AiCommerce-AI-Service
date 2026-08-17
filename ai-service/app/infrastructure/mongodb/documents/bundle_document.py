@@ -12,6 +12,7 @@ class BundleSuggestionDocument(BaseMongoDocument):
     product_ids: list[str] = Field(...)
     total_price: float = Field(...)
     discount_percentage: float = Field(...)
+    rank: int = Field(default=1, description="Selection rank of the bundle (1 = the presented bundle, B17)")
     status: str = Field(default="active")
 
     def to_entity(self) -> BundleSuggestion:
@@ -23,6 +24,7 @@ class BundleSuggestionDocument(BaseMongoDocument):
             product_ids=self.product_ids,
             total_price=self.total_price,
             discount_percentage=self.discount_percentage,
+            rank=self.rank,
             status=self.status,
             created_at=self.created_at,
             updated_at=self.updated_at,
@@ -38,6 +40,7 @@ class BundleSuggestionDocument(BaseMongoDocument):
             product_ids=entity.product_ids,
             total_price=entity.total_price,
             discount_percentage=entity.discount_percentage,
+            rank=entity.rank,
             status=entity.status,
             created_at=entity.created_at,
             updated_at=entity.updated_at,
