@@ -1,8 +1,8 @@
-# AiCommerce — AI Service
+# Navi — AI Service
 
 **Multi-provider AI orchestration, RAG, and agentic commerce platform.**
 
-AiCommerce is a tenant-aware AI backend for e-commerce stores. It powers a conversational storefront widget and SaaS APIs with intent-driven agent routing, grounded RAG answers over store knowledge bases, budget-aware bundle recommendations, support-ticket automation, and deep integration with third-party e-commerce platforms — all behind a plan-based quota system and strict tenant isolation.
+Navi is a tenant-aware AI backend for e-commerce stores. It powers a conversational storefront widget and SaaS APIs with intent-driven agent routing, grounded RAG answers over store knowledge bases, budget-aware bundle recommendations, support-ticket automation, and deep integration with third-party e-commerce platforms — all behind a plan-based quota system and strict tenant isolation.
 
 > The service is a **JWT resource server**: it never issues SaaS credentials. It validates access tokens signed by the .NET e-commerce backend (shared secret, HS256) and issues its own short-lived, scoped tokens for the storefront widget.
 
@@ -62,7 +62,7 @@ flowchart LR
         A[SaaS Frontend / Admin]
     end
 
-    subgraph AiCommerce AI Service
+    subgraph Navi AI Service
         API[FastAPI App<br/>18 routers + middleware]
         MW[Middleware Chain<br/>RequestContext · CORS · Tracing · RateLimit · Auth · Audit]
         AG[LangGraph Agents<br/>Coordinator · Sales · Support · Bundle · Recommendation · Escalation · Memory · Integration]
