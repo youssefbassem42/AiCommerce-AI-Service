@@ -126,7 +126,7 @@ async def list_providers() -> list[Any]:
     """
     List all supported providers with their registered models and capabilities.
     """
-    providers = ["openai", "azure", "gemini", "claude", "ollama", "deepseek", "mistral"]
+    providers = ["openai", "azure", "gemini", "claude", "ollama", "deepseek", "mistral", "bedrock"]
     result = []
     for p in providers:
         models = ModelRegistry.list_models_by_provider(p)
