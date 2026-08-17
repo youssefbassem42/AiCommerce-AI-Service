@@ -137,6 +137,8 @@ class ConversationWorkflow:
         response = result.get("response") or {}
         escalation = result.get("escalation")
 
+        shopping_state = ((result.get("context") or {}).get("conversation") or {}).get("shopping_state")
+
         return ChatResponse(
             id=str(uuid.uuid4()),
             model=ai_settings.DEFAULT_MODEL,
@@ -155,6 +157,7 @@ class ConversationWorkflow:
                 "trace": result.get("agent_trace", []),
                 "message_id": (metadata or {}).get("message_id"),
                 "request_id": get_request_id(),
+                "shopping_state": shopping_state,
                 "escalation": escalation,
             },
         )
@@ -250,6 +253,11 @@ async def update_shopping_state_node(
     memory = context.get("memory") or {}
     entries = memory.get("entries") if isinstance(memory, dict) else None
     current = ShoppingState.from_dict(entries.get(SESSION_STATE_KEY) if isinstance(entries, dict) else None)
+    if current.is_empty():
+        # Session memory (Redis) is the freshest source, but the conversation
+        # record is the durable one: fall back to it when memory is unavailable
+        # so the shopping goal survives memory loss (Phase 4).
+        current = ShoppingState.from_dict((context.get("conversation") or {}).get(SESSION_STATE_KEY))
 
     messages = list(state.get("messages") or [])
     history_text = "\n".join(f"{m.get('role')}: {m.get('content', '')}" for m in messages[-6:])

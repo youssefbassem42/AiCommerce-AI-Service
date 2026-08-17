@@ -390,6 +390,10 @@ async def _persist_chat_context(
             "reason": (previous_routing or {}).get("reason"),
         }
 
+    shopping_state = metadata.get("shopping_state")
+    if shopping_state:
+        context_update["shopping_state"] = shopping_state
+
     if context_update:
         await conversation_service.update_conversation_context(
             conversation_id,

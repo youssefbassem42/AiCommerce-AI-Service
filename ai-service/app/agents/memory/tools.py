@@ -179,6 +179,15 @@ async def recall_all(session_id: str, user_id: str, store_id: str) -> dict[str, 
     merged.update(store_defaults)
     merged.update(user_mem)
     merged.update(session_mem)
+
+    # Session summaries are user-scoped but per-conversation: only the current
+    # session's summary is recalled, so parallel conversations of the same
+    # customer+store never see each other's summaries (Phase 4). The legacy
+    # un-scoped "session_summary" key is kept for backward compatibility.
+    own_summary_key = f"session_summary:{session_id}" if session_id else None
+    for key in [k for k in merged if k.startswith("session_summary:")]:
+        if key != own_summary_key:
+            del merged[key]
     return merged
 
 

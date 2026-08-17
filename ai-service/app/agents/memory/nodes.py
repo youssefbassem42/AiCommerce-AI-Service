@@ -138,8 +138,12 @@ async def summarize_session_node(state: MemoryState, **deps: Any) -> dict[str, A
     summary = await summarize_transcript(transcript, llm)
 
     if user_id and store_id:
-        entry = await write_user_memory(user_id, store_id, "session_summary", summary)
+        # Key the summary per conversation: parallel conversations of the
+        # same customer+store must not overwrite each other's summaries
+        # (Phase 4). `recall_all` filters out other sessions' summaries.
+        summary_key = f"session_summary:{session_id}" if session_id else "session_summary"
+        entry = await write_user_memory(user_id, store_id, summary_key, summary)
         if entry:
-            return {"summarized": summary, "result": {"stored": True, "key": "session_summary"}}
+            return {"summarized": summary, "result": {"stored": True, "key": summary_key}}
 
     return {"summarized": summary, "result": {"stored": False}}

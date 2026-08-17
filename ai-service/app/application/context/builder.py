@@ -27,7 +27,7 @@ from typing import Any
 from app.application.context.ai_context import AIContext
 from app.application.context.intent_resolver import resolve_intent
 from app.application.context.retrieval_planner import PRODUCT_ENTITY_TYPES, RetrievalPlan, plan_for_intent
-from app.application.context.shopping_state import shopping_state_from_context
+from app.application.context.shopping_state import SESSION_STATE_KEY, shopping_state_from_context
 from app.application.knowledge.retrieval.config import RetrievalConfig, RetrievalFilters
 from app.application.knowledge.retrieval.dto import RetrievedChunkDTO
 from app.application.knowledge.retrieval.service import RetrieverService
@@ -273,6 +273,14 @@ class ContextBuilder:
         context.memory = await self._load_memory(conversation_id, customer_id, store_id)
         context.customer = await self._load_customer(customer_id)
         context.business_rules = await _load_business_rules(self._summary_repo, store_id)
+
+        # Seed the durable shopping state from the conversation record when
+        # session memory (Redis) does not already carry it, so the shopping
+        # goal survives memory loss/expiry (Phase 4). Recalled memory wins.
+        stored_shopping_state = (conversation_context or {}).get(SESSION_STATE_KEY) or {}
+        memory_entries = context.memory.get("entries") if isinstance(context.memory, dict) else None
+        if stored_shopping_state and not (isinstance(memory_entries, dict) and memory_entries.get(SESSION_STATE_KEY)):
+            context.conversation[SESSION_STATE_KEY] = stored_shopping_state
 
         routing = (conversation_context or {}).get("routing") or {}
         previous_intent = routing.get("active_intent") or routing.get("previous_intent")

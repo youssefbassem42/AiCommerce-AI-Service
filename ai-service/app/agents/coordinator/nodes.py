@@ -64,12 +64,16 @@ async def chat_via_streaming_provider(
         messages=[
             MessageDTO(role="system", content=system_content),
             *[MessageDTO(role=m.get("role", "user"), content=m.get("content", "")) for m in messages],
-            MessageDTO(role="user", content=user_input),
         ],
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
     )
+    # The current user message may already be the last entry of `messages`
+    # (the workflow appends it before the coordinator runs). Never send it
+    # twice to the model.
+    if not request.messages or request.messages[-1].role != "user" or request.messages[-1].content != user_input:
+        request.messages.append(MessageDTO(role="user", content=user_input))
 
     parts: list[str] = []
     chunk_id = ""

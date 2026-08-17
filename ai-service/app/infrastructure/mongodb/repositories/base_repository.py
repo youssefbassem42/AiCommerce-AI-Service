@@ -121,9 +121,14 @@ class BaseMongoRepository[DocType: BaseMongoDocument, EntityType: Entity](AsyncR
             self._handle_db_error(e)
             raise
 
-    async def find_many(self, filters: dict, limit: int = 100, skip: int = 0, session: Any = None) -> list[EntityType]:
+    async def find_many(
+        self, filters: dict, limit: int = 100, skip: int = 0, sort: list[tuple] | None = None, session: Any = None
+    ) -> list[EntityType]:
         try:
-            cursor = self.collection.find(filters, session=session).skip(skip).limit(limit)
+            cursor = self.collection.find(filters, session=session)
+            if sort:
+                cursor = cursor.sort(sort)
+            cursor = cursor.skip(skip).limit(limit)
             results = []
             async for data in cursor:
                 doc = self.doc_class.from_mongo_dict(data)
