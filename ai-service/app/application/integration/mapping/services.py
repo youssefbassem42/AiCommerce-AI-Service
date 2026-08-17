@@ -226,7 +226,7 @@ class IntegrationApplicationService:
             organization_id=data.organization_id,
             name=data.name,
             platform_name=data.platform_name,
-            status=ConnectionStatus.INACTIVE,
+            status=ConnectionStatus.ACTIVE if encrypted else ConnectionStatus.INACTIVE,
             spec_version=integration_schema.api_version,
             raw_spec=raw_spec_dict,
             auth_config=auth_config,
