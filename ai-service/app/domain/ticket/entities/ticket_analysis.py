@@ -37,3 +37,6 @@ class TicketAnalysis(AggregateRoot[str]):
     messages: list[TicketMessage] = Field(default_factory=list, description="Ticket thread messages")
     assigned_to: str | None = Field(default=None, description="Human agent/team the ticket is assigned to")
     eta: datetime | None = Field(default=None, description="Expected resolution time communicated to the customer")
+    conversation_id: str | None = Field(
+        default=None, description="Store conversation the ticket was escalated from (idempotency key)"
+    )

@@ -16,6 +16,7 @@ def ticket_repo():
     repo.find_by_ticket_id = AsyncMock()
     repo.find_by_store = AsyncMock()
     repo.update = AsyncMock()
+    repo.find_open_by_conversation = AsyncMock(return_value=None)
     return repo
 
 

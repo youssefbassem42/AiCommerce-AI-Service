@@ -26,6 +26,33 @@ async def ensure_knowledge_upload_indexes(db) -> None:
         logger.exception("Failed to reconcile knowledge_uploads indexes")
 
 
+async def ensure_ticket_idempotency_index(db) -> None:
+    """Reconcile the ticket_analysis idempotency index.
+
+    Enforces at most one OPEN ticket per (store_id, conversation_id) so concurrent
+    escalations of the same conversation cannot create duplicates. The partial filter
+    scopes uniqueness to active statuses (resolved/closed tickets do not block new
+    escalations) and to documents that actually carry a conversation_id, so pre-existing
+    records are never rejected. Idempotent and safe to run at startup.
+    """
+    try:
+        await db["ticket_analysis"].create_indexes(
+            [
+                IndexModel(
+                    [("store_id", ASCENDING), ("conversation_id", ASCENDING)],
+                    unique=True,
+                    partialFilterExpression={
+                        "conversation_id": {"$type": "string"},
+                        "status": {"$in": ["open", "in_progress"]},
+                    },
+                )
+            ]
+        )
+        logger.info("ticket_analysis idempotency index reconciled (open ticket per conversation).")
+    except Exception:
+        logger.exception("Failed to reconcile ticket_analysis idempotency index")
+
+
 async def setup_database_indexes(db) -> None:
     """Create all indexes on collections for fast lookup and query optimization."""
     logger.info("Initializing database indexes...")

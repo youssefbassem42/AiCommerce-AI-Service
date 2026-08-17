@@ -23,6 +23,7 @@ class TicketAnalysisDocument(BaseMongoDocument):
     messages: list[dict] = Field(default_factory=list)
     assigned_to: str | None = Field(default=None)
     eta: datetime | None = Field(default=None)
+    conversation_id: str | None = Field(default=None)
 
     def to_entity(self) -> TicketAnalysis:
         """Map document to domain Entity."""
@@ -42,6 +43,7 @@ class TicketAnalysisDocument(BaseMongoDocument):
             messages=[TicketMessage(**msg) for msg in (self.messages or [])],
             assigned_to=self.assigned_to,
             eta=self.eta,
+            conversation_id=self.conversation_id,
         )
 
     @classmethod
@@ -62,4 +64,5 @@ class TicketAnalysisDocument(BaseMongoDocument):
             messages=[msg.model_dump(mode="json") for msg in entity.messages],
             assigned_to=entity.assigned_to,
             eta=entity.eta,
+            conversation_id=entity.conversation_id,
         )

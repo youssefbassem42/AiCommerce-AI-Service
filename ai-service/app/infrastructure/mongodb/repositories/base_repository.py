@@ -88,6 +88,7 @@ class BaseMongoRepository[DocType: BaseMongoDocument, EntityType: Entity](AsyncR
         try:
             doc = self.doc_class.from_entity(entity)
             data = doc.to_mongo_dict()
+            data.pop("_id", None)  # _id is identity (the filter), never a mutable replacement field
             await self.collection.replace_one({"_id": ObjectId(entity.id)}, data, upsert=True, session=session)
             await self._flush_domain_events(entity)
             return entity
@@ -171,6 +172,7 @@ class BaseMongoRepository[DocType: BaseMongoDocument, EntityType: Entity](AsyncR
                     raise ValueError(f"Entity contains an invalid ObjectId format: {e.id}")
                 doc = self.doc_class.from_entity(e)
                 data = doc.to_mongo_dict()
+                data.pop("_id", None)  # _id is identity (the filter), never a mutable replacement field
                 operations.append(ReplaceOne({"_id": ObjectId(e.id)}, data))
             result = await self.collection.bulk_write(operations, session=session)
             for entity in entities:

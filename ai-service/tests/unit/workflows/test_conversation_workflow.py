@@ -163,6 +163,8 @@ class TestEvaluateEscalationNode:
             eta=None,
             notification_message=f"Your request has been escalated (ticket {ticket_id}).",
             summary="summary",
+            persistence_success=True,
+            error=None,
         )
         return agent
 
@@ -281,6 +283,8 @@ class TestConversationWorkflowEscalation:
             assigned_to="support",
             eta=None,
             notification_message="Your request has been escalated (ticket ticket-7).",
+            persistence_success=True,
+            error=None,
         )
         workflow = ConversationWorkflow(
             coordinator=coordinator,
@@ -323,6 +327,8 @@ class TestConversationWorkflowEscalation:
             assigned_to="fulfillment",
             eta=None,
             notification_message="Your request has been escalated (ticket ticket-8).",
+            persistence_success=True,
+            error=None,
         )
         workflow = ConversationWorkflow(
             coordinator=coordinator,

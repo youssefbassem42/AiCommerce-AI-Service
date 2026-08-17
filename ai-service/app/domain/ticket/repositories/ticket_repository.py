@@ -21,3 +21,8 @@ class TicketRepository(AsyncRepository[TicketAnalysis, str], ABC):
     async def find_open_by_customer(self, store_id: str, customer_id: str) -> TicketAnalysis | None:
         """Fetch the most recent open ticket for a customer in a store."""
         pass
+
+    @abstractmethod
+    async def find_open_by_conversation(self, store_id: str, conversation_id: str) -> TicketAnalysis | None:
+        """Fetch the most recent open ticket escalated from a store conversation (idempotency lookup)."""
+        pass

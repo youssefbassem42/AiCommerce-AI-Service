@@ -488,6 +488,7 @@ class TestPart4_TicketService:
 
         repo = AsyncMock()
         repo.create = AsyncMock(return_value=entity)
+        repo.find_open_by_conversation = AsyncMock(return_value=None)
 
         sentiment = AsyncMock()
         sentiment.analyze = AsyncMock(

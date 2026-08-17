@@ -433,9 +433,12 @@ async def evaluate_escalation_node(
     """
     response = dict(state.get("response") or {})
     data = response.get("data") or {}
+    result = response.get("result") or {}
     already_escalated = bool(
         response.get("escalation_needed")
         or response.get("ticket_id")
+        or result.get("escalation_needed")
+        or result.get("ticket_id")
         or data.get("escalation_needed")
         or data.get("ticket_id")
     )
@@ -445,20 +448,65 @@ async def evaluate_escalation_node(
         return {}
 
     if already_escalated:
+        ticket_id = response.get("ticket_id") or result.get("ticket_id") or data.get("ticket_id")
+        persistence_success = response.get("persistence_success")
+        if persistence_success is None:
+            persistence_success = result.get("persistence_success")
+        if persistence_success is None:
+            persistence_success = data.get("persistence_success")
+        if persistence_success is None:
+            persistence_success = bool(ticket_id)
+
+        trace = list(state.get("agent_trace") or [])
+        if persistence_success:
+            decision = {
+                "should_escalate": True,
+                "reason": (
+                    response.get("escalation_reason")
+                    or result.get("escalation_reason")
+                    or data.get("escalation_reason")
+                    or "Escalated by sub-agent."
+                ),
+                "confidence": 1.0,
+                "priority": response.get("priority") or result.get("priority") or data.get("priority"),
+                "signals": [],
+                "summary": None,
+                "category": response.get("intent"),
+                "ticket_id": ticket_id,
+                "assigned_to": response.get("assigned_to") or result.get("assigned_to") or data.get("assigned_to"),
+                "eta": response.get("eta") or result.get("eta") or data.get("eta"),
+            }
+            trace.append({"step": "evaluate_escalation", "should_escalate": True, "source": "sub_agent"})
+            return {"escalation": decision, "agent_trace": trace}
+
+        # Escalation was attempted but NOT durably persisted: never claim a
+        # transfer that did not happen. Keep the sub-agent's honest reply and
+        # record the pending decision for observability only.
         decision = {
-            "should_escalate": True,
-            "reason": response.get("escalation_reason") or data.get("escalation_reason") or "Escalated by sub-agent.",
-            "confidence": 1.0,
-            "priority": response.get("priority") or data.get("priority"),
+            "should_escalate": False,
+            "reason": (
+                response.get("escalation_reason")
+                or result.get("escalation_reason")
+                or data.get("escalation_reason")
+                or "Escalation attempted but ticket could not be persisted."
+            ),
+            "confidence": 0.0,
+            "priority": response.get("priority") or result.get("priority") or data.get("priority"),
             "signals": [],
             "summary": None,
             "category": response.get("intent"),
-            "ticket_id": response.get("ticket_id") or data.get("ticket_id"),
-            "assigned_to": response.get("assigned_to") or data.get("assigned_to"),
-            "eta": response.get("eta") or data.get("eta"),
+            "ticket_id": None,
+            "assigned_to": None,
+            "eta": None,
         }
-        trace = list(state.get("agent_trace") or [])
-        trace.append({"step": "evaluate_escalation", "should_escalate": True, "source": "sub_agent"})
+        trace.append(
+            {
+                "step": "evaluate_escalation",
+                "should_escalate": False,
+                "source": "sub_agent_unpersisted",
+                "error": response.get("error") or result.get("error"),
+            }
+        )
         return {"escalation": decision, "agent_trace": trace}
 
     messages = list(state.get("messages") or [])
@@ -493,18 +541,32 @@ async def evaluate_escalation_node(
                 reason=decision.reason,
                 category=decision.category,
             )
-            if result.ticket_id:
-                decision_dict["ticket_id"] = result.ticket_id
-            if result.priority:
-                decision_dict["priority"] = result.priority
-            if result.assigned_to:
-                decision_dict["assigned_to"] = result.assigned_to
-            if result.eta:
-                decision_dict["eta"] = str(result.eta)
-            response["content"] = result.notification_message or _handoff_message(decision_dict)
-            response["escalation_needed"] = True
-            response["escalation_reason"] = decision.reason
-            response["ticket_id"] = decision_dict.get("ticket_id")
+            durable = bool(getattr(result, "persistence_success", True)) and not getattr(result, "error", None)
+            if durable:
+                if result.ticket_id:
+                    decision_dict["ticket_id"] = result.ticket_id
+                if result.priority:
+                    decision_dict["priority"] = result.priority
+                if result.assigned_to:
+                    decision_dict["assigned_to"] = result.assigned_to
+                if result.eta:
+                    decision_dict["eta"] = str(result.eta)
+                response["content"] = result.notification_message or _handoff_message(decision_dict)
+                response["escalation_needed"] = True
+                response["escalation_reason"] = decision.reason
+                response["ticket_id"] = decision_dict.get("ticket_id")
+            else:
+                # Ticket was not durably persisted: keep the AI's answer and
+                # never claim a handoff that did not happen.
+                decision_dict["should_escalate"] = False
+                decision_dict["signals"] = []
+                decision_dict["reason"] = None
+                decision_dict["ticket_id"] = None
+                response["content"] = response.get("content") or (
+                    "I'd like to have a specialist follow up with you, but I'm having "
+                    "trouble submitting the request right now. Please try again in a moment, "
+                    "or contact the store's support team directly."
+                )
         except Exception:
             logger.exception("evaluate_escalation: escalation agent failed")
             decision_dict["should_escalate"] = False

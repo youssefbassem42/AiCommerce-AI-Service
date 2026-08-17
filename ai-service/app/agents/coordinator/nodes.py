@@ -309,6 +309,7 @@ async def execute_sub_agent_node(
         clarifying_question = getattr(result, "clarifying_question", None)
         if not isinstance(clarifying_question, str) or not clarifying_question:
             clarifying_question = None
+        serialized = _serialize_sub_agent_result(result)
         log_flow_event(
             "agent.result",
             message_id=(state.get("metadata") or {}).get("message_id"),
@@ -316,18 +317,25 @@ async def execute_sub_agent_node(
             conversation_id=state.get("conversation_id"),
             intent=state.get("intent"),
             sub_agent=sub_agent,
-            serialized=bool(_serialize_sub_agent_result(result)),
+            serialized=bool(serialized),
         )
+        response: dict[str, Any] = {
+            "content": content,
+            "intent": state.get("intent"),
+            "confidence": state.get("confidence"),
+            "sub_agent": sub_agent,
+            "needs_clarification": clarifying_question is not None,
+            "citations": [],
+            "result": serialized,
+        }
+        if getattr(result, "escalation_needed", False) or getattr(result, "ticket_id", None):
+            response["escalation_needed"] = bool(getattr(result, "escalation_needed", False))
+            response["ticket_id"] = getattr(result, "ticket_id", None)
+            response["escalation_reason"] = getattr(result, "rationale", None)
+            response["error"] = getattr(result, "error", None)
+            response["persistence_success"] = bool(getattr(result, "persistence_success", True))
         return {
-            "response": {
-                "content": content,
-                "intent": state.get("intent"),
-                "confidence": state.get("confidence"),
-                "sub_agent": sub_agent,
-                "needs_clarification": clarifying_question is not None,
-                "citations": [],
-                "result": _serialize_sub_agent_result(result),
-            },
+            "response": response,
             "error": None,
         }
     except Exception as exc:
@@ -423,6 +431,14 @@ def _serialize_sub_agent_result(result: Any) -> dict[str, Any] | None:
     if getattr(result, "escalation_needed", False) or getattr(result, "ticket_id", None):
         data["ticket_created"] = bool(getattr(result, "ticket_id", None))
         data["escalation_needed"] = bool(getattr(result, "escalation_needed", False))
+        data["ticket_id"] = getattr(result, "ticket_id", None)
+        data["escalation_reason"] = getattr(result, "rationale", None)
+        data["priority"] = getattr(result, "priority", None)
+        data["assigned_to"] = getattr(result, "assigned_to", None)
+        eta = getattr(result, "eta", None)
+        data["eta"] = eta.isoformat() if eta else None
+        data["persistence_success"] = bool(getattr(result, "persistence_success", True))
+        data["error"] = getattr(result, "error", None)
 
     if getattr(result, "clarifying_question", None):
         data["clarifying_question"] = str(result.clarifying_question)[:300]

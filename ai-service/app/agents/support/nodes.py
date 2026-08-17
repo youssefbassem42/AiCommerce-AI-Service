@@ -234,9 +234,11 @@ async def escalate_if_needed_node(
             "assigned_to": None,
             "eta": None,
             "error": None,
+            "persistence_success": True,
         }
 
     ticket_id = state.get("ticket_id")
+    persistence_success = False
     if ticket_service:
         try:
             created = await ticket_service.create_ticket(
@@ -251,8 +253,19 @@ async def escalate_if_needed_node(
                 )
             )
             ticket_id = created.ticket_id
+            persistence_success = True
         except Exception as exc:
             logger.error("Ticket creation failed: %s", exc, exc_info=True)
+            return {
+                "escalation_needed": True,
+                "escalation_reason": decision.reason,
+                "ticket_id": None,
+                "priority": decision.priority,
+                "assigned_to": None,
+                "eta": None,
+                "error": f"Ticket creation failed: {exc}",
+                "persistence_success": False,
+            }
 
     if escalation_agent:
         try:
@@ -275,6 +288,7 @@ async def escalate_if_needed_node(
                 "assigned_to": result.assigned_to,
                 "eta": result.eta,
                 "error": None,
+                "persistence_success": persistence_success,
             }
         except Exception as exc:
             logger.error("Escalation agent failed: %s", exc, exc_info=True)
@@ -286,6 +300,7 @@ async def escalate_if_needed_node(
                 "assigned_to": None,
                 "eta": None,
                 "error": f"Escalation failed: {exc}",
+                "persistence_success": persistence_success,
             }
 
     return {
@@ -296,6 +311,7 @@ async def escalate_if_needed_node(
         "assigned_to": None,
         "eta": None,
         "error": None,
+        "persistence_success": persistence_success,
     }
 
 
@@ -332,7 +348,14 @@ async def generate_response_node(
     memory = state.get("memory") or {}
 
     if state.get("escalation_needed"):
-        rationale = _escalation_message(state)
+        if state.get("persistence_success"):
+            rationale = _escalation_message(state)
+        else:
+            rationale = (
+                "I'd like to have a specialist follow up with you, but I'm having "
+                "trouble submitting the request right now. Please try again in a moment, "
+                "or contact the store's support team directly."
+            )
         return _build_response(state, steps, category, rationale)
 
     if product:

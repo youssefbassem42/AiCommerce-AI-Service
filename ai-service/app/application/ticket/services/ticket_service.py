@@ -16,6 +16,7 @@ from app.application.ticket.dto.ticket_dto import (
     TicketStatusUpdateDTO,
 )
 from app.application.ticket.services.sentiment_service import SentimentAnalysisService
+from app.core.exceptions import ConcurrencyException
 from app.domain.commerce.repositories.order_repository import OrderRepository
 from app.domain.customer.repositories.customer_repository import ICustomerRepository
 from app.domain.ticket.entities.ticket_analysis import RESOLUTION_TYPES, TicketAnalysis, TicketMessage
@@ -40,6 +41,17 @@ class TicketService:
         self._customer_repo = customer_repository
 
     async def create_ticket(self, dto: TicketCreateDTO) -> TicketDTO:
+        if dto.conversation_id:
+            existing = await self._find_open_for_conversation(dto)
+            if existing is not None:
+                logger.info(
+                    "Reusing existing open ticket %s for conversation %s (idempotent escalation)",
+                    existing.ticket_id,
+                    dto.conversation_id,
+                )
+                customer, orders, conversation = await self._enrich(dto)
+                return self._to_dto(existing, customer, orders, conversation)
+
         sentiment_result = await self._sentiment.analyze(
             SentimentAnalysisRequest(
                 messages=dto.messages,
@@ -48,6 +60,65 @@ class TicketService:
             )
         )
 
+        customer, orders, conversation = await self._enrich(dto)
+
+        now = datetime.now(UTC)
+        initial_messages = [
+            TicketMessage(
+                id=str(uuid4()),
+                sender="customer",
+                content=content,
+                created_at=now,
+            )
+            for content in (dto.messages or [])
+        ]
+        entity = TicketAnalysis(
+            id=str(uuid4()),
+            ticket_id=str(uuid4()),
+            store_id=dto.store_id,
+            customer_id=dto.customer_id,
+            sentiment=sentiment_result.sentiment,
+            category=sentiment_result.category,
+            summary=sentiment_result.summary,
+            priority=sentiment_result.priority,
+            status="open",
+            suggested_response=sentiment_result.suggested_response,
+            resolution_type="unresolved",
+            analyzed_at=now,
+            messages=initial_messages,
+            conversation_id=dto.conversation_id,
+        )
+
+        try:
+            created = await self._ticket_repo.create(entity)
+        except ConcurrencyException as e:
+            if dto.conversation_id:
+                existing = await self._find_open_for_conversation(dto)
+                if existing is not None:
+                    logger.info(
+                        "Concurrent escalation deduplicated: reusing existing ticket %s for conversation %s",
+                        existing.ticket_id,
+                        dto.conversation_id,
+                    )
+                    return self._to_dto(existing, customer, orders, conversation)
+            raise e
+
+        return self._to_dto(created, customer, orders, conversation)
+
+    async def _find_open_for_conversation(self, dto: TicketCreateDTO) -> TicketAnalysis | None:
+        try:
+            return await self._ticket_repo.find_open_by_conversation(dto.store_id, dto.conversation_id)
+        except Exception as e:
+            logger.warning(
+                "Open-ticket idempotency check failed for conversation %s: %s",
+                dto.conversation_id,
+                e,
+            )
+            return None
+
+    async def _enrich(
+        self, dto: TicketCreateDTO
+    ) -> tuple[CustomerProfileDTO | None, list[OrderDTO], ConversationSummaryDTO | None]:
         customer = None
         orders: list[OrderDTO] = []
         conversation: ConversationSummaryDTO | None = None
@@ -96,35 +167,7 @@ class TicketService:
             except Exception as e:
                 logger.warning("Failed to fetch conversation %s: %s", dto.conversation_id, e)
 
-        now = datetime.now(UTC)
-        initial_messages = [
-            TicketMessage(
-                id=str(uuid4()),
-                sender="customer",
-                content=content,
-                created_at=now,
-            )
-            for content in (dto.messages or [])
-        ]
-        entity = TicketAnalysis(
-            id=str(uuid4()),
-            ticket_id=str(uuid4()),
-            store_id=dto.store_id,
-            customer_id=dto.customer_id,
-            sentiment=sentiment_result.sentiment,
-            category=sentiment_result.category,
-            summary=sentiment_result.summary,
-            priority=sentiment_result.priority,
-            status="open",
-            suggested_response=sentiment_result.suggested_response,
-            resolution_type="unresolved",
-            analyzed_at=now,
-            messages=initial_messages,
-        )
-
-        created = await self._ticket_repo.create(entity)
-
-        return self._to_dto(created, customer, orders, conversation)
+        return customer, orders, conversation
 
     async def get_ticket(self, ticket_id: str) -> TicketDTO | None:
         entity = await self._ticket_repo.find_by_ticket_id(ticket_id)

@@ -53,3 +53,19 @@ class TicketRepository(BaseMongoRepository[TicketAnalysisDocument, TicketAnalysi
         except Exception as e:
             self._handle_db_error(e)
             raise
+
+    async def find_open_by_conversation(
+        self, store_id: str, conversation_id: str, session: Any = None
+    ) -> TicketAnalysis | None:
+        """Fetch the most recent open ticket escalated from a store conversation (idempotency lookup)."""
+        try:
+            filters = {
+                "store_id": store_id,
+                "conversation_id": conversation_id,
+                "status": {"$nin": ["resolved", "closed"]},
+            }
+            results = await self.find_many(filters, limit=1, session=session)
+            return results[0] if results else None
+        except Exception as e:
+            self._handle_db_error(e)
+            raise

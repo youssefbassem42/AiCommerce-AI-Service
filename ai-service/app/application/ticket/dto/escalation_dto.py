@@ -17,3 +17,6 @@ class EscalationResponse(BaseModel):
     rationale: str | None = None
     latency_ms: float = 0.0
     error: str | None = Field(default=None, description="Non-fatal error encountered during escalation")
+    persistence_success: bool = Field(
+        default=True, description="Whether the ticket was durably persisted before this response was emitted"
+    )

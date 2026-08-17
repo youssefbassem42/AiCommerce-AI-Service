@@ -104,7 +104,7 @@ async def notify_human_node(
 ) -> dict[str, Any]:
     ticket_id = state.get("ticket_id")
     if not ticket_service:
-        return {"ticket_id": ticket_id, "error": None}
+        return {"ticket_id": ticket_id, "error": None, "persistence_success": False}
 
     try:
         if ticket_id:
@@ -135,15 +135,21 @@ async def notify_human_node(
             )
     except Exception as exc:
         logger.error("Ticket escalation failed: %s", exc, exc_info=True)
-        return {"ticket_id": ticket_id, "error": f"Failed to escalate ticket: {exc}"}
+        return {
+            "ticket_id": ticket_id,
+            "error": f"Failed to escalate ticket: {exc}",
+            "persistence_success": False,
+        }
 
-    return {"ticket_id": ticket_id, "error": None}
+    return {"ticket_id": ticket_id, "error": None, "persistence_success": True}
 
 
 async def notify_customer_node(
     state: EscalationState,
     notification_service: TicketNotificationService | None = None,
 ) -> dict[str, Any]:
+    if not state.get("persistence_success"):
+        return {"error": "Escalation not persisted; customer notification skipped."}
     if not notification_service:
         return {"error": None}
 
@@ -175,17 +181,19 @@ async def notify_customer_node(
 
 
 async def format_escalation_response_node(state: EscalationState) -> dict[str, Any]:
+    persistence_success = bool(state.get("persistence_success"))
     response = EscalationResponse(
         query=state.get("user_query", ""),
         store_id=state.get("store_id", ""),
         customer_id=state.get("customer_id"),
-        ticket_id=state.get("ticket_id"),
+        ticket_id=state.get("ticket_id") if persistence_success else None,
         category=state.get("category"),
         priority=state.get("priority"),
         assigned_to=state.get("assigned_to"),
         eta=state.get("eta"),
         summary=state.get("summary"),
-        notification_message=state.get("notification_message"),
+        notification_message=state.get("notification_message") if persistence_success else None,
         error=state.get("error"),
+        persistence_success=persistence_success,
     )
     return {"response": response}

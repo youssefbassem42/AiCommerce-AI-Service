@@ -63,6 +63,7 @@ class TestSupportHonestMessage:
                 ticket_id="t-9",
                 priority="high",
                 assigned_to="support",
+                persistence_success=True,
             )
         )
         response = result["response"]
