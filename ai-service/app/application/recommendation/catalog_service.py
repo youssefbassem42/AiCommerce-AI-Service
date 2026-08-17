@@ -413,6 +413,9 @@ def _first_image_url(product: Product) -> str | None:
     images = list(getattr(product, "images", None) or [])
     if images and images[0].url:
         return images[0].url
+    flat = getattr(product, "image_url", None)
+    if isinstance(flat, str) and flat.strip():
+        return flat.strip()
     return None
 
 

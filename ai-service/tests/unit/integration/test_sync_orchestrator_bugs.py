@@ -214,3 +214,106 @@ class TestSyncOrchestratorBugs:
             assert entity_result.total_fetched == 0, (
                 f"total_fetched should be 0 for empty page, got {entity_result.total_fetched}"
             )
+
+
+class TestSyncFieldNormalization:
+    """Regression: recommendation cards were missing image/price/url and products
+    were never linked to categories because sync wrote a flat image_url (dropped on
+    read), ignored variants[] prices and camelCase categoryName."""
+
+    def _product_doc(self, mock_collection):
+        return mock_collection.update_one.call_args[0][1]["$set"]
+
+    async def test_product_writer_normalizes_images_and_price_from_variants(self, mock_collection, mock_collections):
+        writer = ProductWriter()
+        await writer.upsert(
+            store_id="s1",
+            organization_id="o1",
+            external_id="ext9",
+            data={
+                "title": "Gaming Laptop RTX",
+                "price": None,
+                "variants": [{"title": "Black", "price": {"amount": 999.99, "currency": "USD"}}],
+                "imageUrl": "https://cdn.example.com/laptop.jpg",
+                "productType": "Laptops",
+            },
+        )
+        doc = self._product_doc(mock_collection)
+        assert doc["price"] == {"amount": 999.99, "currency": "USD"}
+        assert doc["images"] == [
+            {"url": "https://cdn.example.com/laptop.jpg", "alt_text": "Gaming Laptop RTX", "position": 1}
+        ]
+        assert doc["image_url"] == "https://cdn.example.com/laptop.jpg"
+        assert doc["handle"] == "gaming-laptop-rtx"
+        assert doc["product_type"] == "Laptops"
+
+    async def test_product_writer_normalizes_images_array_shapes(self, mock_collection, mock_collections):
+        writer = ProductWriter()
+        await writer.upsert(
+            store_id="s1",
+            organization_id="o1",
+            external_id="ext10",
+            data={
+                "title": "Sunglasses Retro",
+                "images": [
+                    {"src": "https://cdn.example.com/a.jpg", "alt": "Front view"},
+                    "https://cdn.example.com/b.jpg",
+                ],
+            },
+        )
+        doc = self._product_doc(mock_collection)
+        assert doc["images"][0]["url"] == "https://cdn.example.com/a.jpg"
+        assert doc["images"][0]["alt_text"] == "Front view"
+        assert doc["images"][1]["url"] == "https://cdn.example.com/b.jpg"
+        assert doc["image_url"] == "https://cdn.example.com/a.jpg"
+
+    async def test_product_writer_resolves_category_from_camel_case_name(self, mock_collection, mock_collections):
+        mock_collection.find_one.return_value = {"external_id": "cat-9", "_id": "mongo-id-9"}
+        writer = ProductWriter()
+        await writer.upsert(
+            store_id="s1",
+            organization_id="o1",
+            external_id="ext11",
+            data={"title": "Teapot", "categoryName": "Home"},
+        )
+        doc = self._product_doc(mock_collection)
+        assert doc["category_id"] == "cat-9"
+        assert mock_collection.find_one.call_args.args[0] == {"store_id": "s1", "name": "Home"}
+
+    async def test_category_writer_accepts_title_and_camel_case(self, mock_collection, mock_collections):
+        writer = CategoryWriter()
+        await writer.upsert(
+            store_id="s1",
+            organization_id="o1",
+            external_id="cat-1",
+            data={"title": "Electronics", "parentId": "cat-0", "imageUrl": "https://cdn.example.com/cat.jpg"},
+        )
+        doc = mock_collection.update_one.call_args[0][1]["$set"]
+        assert doc["name"] == "Electronics"
+        assert doc["parent_id"] == "cat-0"
+        assert doc["image_url"] == "https://cdn.example.com/cat.jpg"
+        assert doc["handle"] == "electronics"
+
+    async def test_collection_entity_routes_to_category_writer(self, mock_collection, mock_collections):
+        from app.application.integration.sync.writers import DynamicEntityWriter
+
+        writer = get_writer("collection")
+        assert not isinstance(writer, DynamicEntityWriter)
+        assert writer.collection_name() == "categories"
+
+    async def test_flat_image_url_read_back_into_entity(self, mock_collection):
+        from app.infrastructure.mongodb.documents.product_document import ProductDocument
+
+        doc = ProductDocument.from_mongo_dict(
+            {
+                "store_id": "s1",
+                "organization_id": "o1",
+                "external_id": "23",
+                "title": "Sunglasses Retro",
+                "status": "active",
+                "image_url": "https://cdn.example.com/sunglasses.jpg",
+                "price": {"amount": 30.0, "currency": "USD"},
+            }
+        )
+        entity = doc.to_entity()
+        assert entity.image_url == "https://cdn.example.com/sunglasses.jpg"

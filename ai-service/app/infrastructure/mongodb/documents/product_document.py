@@ -130,6 +130,7 @@ class ProductDocument(BaseMongoDocument):
     vendor: str | None = None
     tags: list[str] = Field(default_factory=list)
     images: list[ImageModel] = Field(default_factory=list)
+    image_url: str | None = Field(default=None, description="Flat-schema fallback primary image (synced stores)")
     variants: list[VariantModel] = Field(default_factory=list)
     options: list[ProductOptionModel] = Field(default_factory=list)
     price: MoneyModel | None = Field(default=None, description="Flat-schema fallback price (stores without variants)")
@@ -160,6 +161,7 @@ class ProductDocument(BaseMongoDocument):
             vendor=self.vendor,
             tags=self.tags,
             images=[img.to_vo() for img in self.images],
+            image_url=self.image_url,
             variants=[v.to_entity() for v in self.variants],
             options=[o.to_entity() for o in self.options],
             price=self.price.to_vo() if self.price else None,
@@ -191,6 +193,7 @@ class ProductDocument(BaseMongoDocument):
             vendor=entity.vendor,
             tags=entity.tags,
             images=[ImageModel.from_vo(img) for img in entity.images],
+            image_url=entity.image_url,
             variants=[VariantModel.from_entity(v) for v in entity.variants],
             options=[ProductOptionModel.from_entity(o) for o in entity.options],
             price=MoneyModel.from_vo(entity.price) if entity.price is not None else None,

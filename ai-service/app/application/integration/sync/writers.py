@@ -60,6 +60,47 @@ def _normalize_money(value: Any) -> dict[str, Any] | None:
     return {"amount": max(0.0, amount), "currency": "USD"}
 
 
+def _normalize_images(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Coerce API image shapes (list of dicts/strings, flat image_url/imageUrl/image)
+    into the canonical ``images: [{url, alt_text, position}]`` array the read side
+    expects. A flat ``image_url`` is preserved as the primary image.
+    """
+    images: list[dict[str, Any]] = []
+
+    raw = data.get("images") or data.get("media") or []
+    if isinstance(raw, list):
+        for entry in raw:
+            if isinstance(entry, str) and entry.strip():
+                images.append({"url": entry.strip(), "position": len(images) + 1})
+            elif isinstance(entry, dict):
+                url = entry.get("url") or entry.get("src") or entry.get("imageUrl") or entry.get("image_url")
+                if isinstance(url, str) and url.strip():
+                    images.append(
+                        {
+                            "url": url.strip(),
+                            "alt_text": entry.get("alt") or entry.get("alt_text") or entry.get("altText"),
+                            "position": len(images) + 1,
+                        }
+                    )
+
+    flat = data.get("image_url") or data.get("imageUrl") or data.get("image")
+    if isinstance(flat, str) and flat.strip() and not any(img["url"] == flat.strip() for img in images):
+        images.insert(0, {"url": flat.strip(), "alt_text": data.get("title") or data.get("name"), "position": 1})
+        for idx, img in enumerate(images):
+            if idx > 0:
+                img["position"] = idx + 1
+
+    return images
+
+
+def _slugify(value: Any) -> str:
+    """Best-effort slug (e.g. 'Dell XPS 15' -> 'dell-xps-15')."""
+    if not isinstance(value, str):
+        return ""
+    slug = re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-")
+    return slug
+
+
 def _normalize_line_items(items: Any) -> list[dict[str, Any]]:
     if not isinstance(items, list):
         return []
@@ -110,23 +151,36 @@ class ProductWriter(EntityWriter):
         category_id = data.get("category_id") or data.get("categoryId")
         if not category_id:
             category_id = await self._resolve_category_id(store_id, data)
+        images = _normalize_images(data)
+        price = _normalize_money(data.get("price"))
+        if price is None:
+            variants = data.get("variants") or []
+            if variants and isinstance(variants[0], dict):
+                price = _normalize_money(variants[0].get("price"))
+        handle = (
+            data.get("handle")
+            or data.get("url")
+            or data.get("productUrl")
+            or _slugify(data.get("title") or data.get("name") or external_id)
+        )
         doc = {
             "store_id": store_id,
             "organization_id": organization_id,
             "external_id": external_id,
             "title": data.get("title") or data.get("name") or "",
             "description": data.get("description"),
-            "handle": data.get("handle"),
+            "handle": handle,
             "status": data.get("status", "active"),
-            "product_type": data.get("product_type"),
+            "product_type": data.get("product_type") or data.get("productType"),
             "vendor": data.get("vendor"),
             "tags": data.get("tags", []),
-            "price": _normalize_money(data.get("price")),
-            "compare_at_price": _normalize_money(data.get("compare_at_price")),
+            "price": price,
+            "compare_at_price": _normalize_money(data.get("compare_at_price") or data.get("compareAtPrice")),
             "sku": data.get("sku"),
             "inventory_quantity": data.get("inventory_quantity") or data.get("stockQuantity") or 0,
             "weight": data.get("weight"),
-            "image_url": data.get("image_url") or data.get("imageUrl"),
+            "image_url": images[0]["url"] if images else None,
+            "images": images,
             "category_id": category_id,
             "metadata": data.get("metadata", {}),
         }
@@ -149,7 +203,13 @@ class ProductWriter(EntityWriter):
         the category's ``external_id`` so products and categories share the
         same reference.
         """
-        name = data.get("category_name") or data.get("product_type")
+        name = (
+            data.get("category_name")
+            or data.get("categoryName")
+            or data.get("category")
+            or data.get("product_type")
+            or data.get("productType")
+        )
         if not name or not isinstance(name, str):
             return None
         collection = get_categories_collection()
@@ -248,12 +308,12 @@ class CategoryWriter(EntityWriter):
             "store_id": store_id,
             "organization_id": organization_id,
             "external_id": external_id,
-            "name": data.get("name", ""),
+            "name": data.get("name") or data.get("title") or "",
             "description": data.get("description"),
-            "handle": data.get("handle"),
-            "parent_id": data.get("parent_id"),
-            "image_url": data.get("image_url"),
-            "sort_order": data.get("sort_order", 0),
+            "handle": data.get("handle") or _slugify(data.get("name") or data.get("title")),
+            "parent_id": data.get("parent_id") or data.get("parentId"),
+            "image_url": data.get("image_url") or data.get("imageUrl"),
+            "sort_order": data.get("sort_order") or data.get("sortOrder") or 0,
             "metadata": data.get("metadata", {}),
         }
         result = await collection.update_one(
@@ -356,6 +416,11 @@ def get_writer(entity_type: str) -> EntityWriter | None:
     # DynamicEntityWriter and lands in the generic `entities` collection
     # instead of products/customers/categories/orders/inventory.
     writer = WRITER_MAP.get((entity_type or "").lower())
+    if writer is None and (entity_type or "").lower() == "collection":
+        # Shopify-style APIs expose categories as "collections": route them to
+        # the dedicated category writer so they land in `categories` instead of
+        # the generic `entities` collection.
+        writer = CategoryWriter()
     if writer is not None:
         return writer
     logger.info("No dedicated writer for '%s' — using DynamicEntityWriter.", entity_type)

@@ -38,6 +38,7 @@ class Product(AggregateRoot[str]):
     vendor: str | None = None
     tags: list[str] = Field(default_factory=list)
     images: list[Image] = Field(default_factory=list)
+    image_url: str | None = Field(default=None, description="Flat-schema fallback primary image (synced stores)")
     variants: list[Variant] = Field(default_factory=list)
     options: list[ProductOption] = Field(default_factory=list)
     price: Money | None = Field(default=None, description="Flat-schema fallback price (stores without variants)")

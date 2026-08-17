@@ -344,6 +344,10 @@ def _resolve_catalog_candidate(
     images = list(getattr(product, "images", None) or [])
     if images and images[0].url:
         candidate.image_url = images[0].url
+    else:
+        flat_image = getattr(product, "image_url", None)
+        if isinstance(flat_image, str) and flat_image.strip():
+            candidate.image_url = flat_image.strip()
     handle = getattr(product, "handle", None)
     if handle:
         candidate.product_url = handle
