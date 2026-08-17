@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AuthInfo(BaseModel):
@@ -52,6 +52,13 @@ class DiscoveredEntityInfo(BaseModel):
     pagination: PaginationInfo = Field(default_factory=PaginationInfo)
     field_mappings: list[FieldMappingInfo] = Field(default_factory=list)
     confidence: float = Field(default=0.8, ge=0.0, le=1.0)
+
+    @field_validator("list_method", "detail_method", mode="before")
+    @classmethod
+    def _default_http_method(cls, value: Any) -> Any:
+        if value is None or value == "":
+            return "GET"
+        return value
 
 
 class UnsupportedFeature(BaseModel):

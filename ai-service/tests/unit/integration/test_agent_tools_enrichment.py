@@ -122,3 +122,18 @@ def test_enrich_ignores_entities_without_list_path() -> None:
     report = _report(entity)
     enriched = _enrich_report_field_mappings(report, SPEC)
     assert enriched.entities[0].field_mappings == []
+
+
+def test_null_http_methods_coerce_to_get() -> None:
+    """REGRESSION: the LLM sometimes emits list_method/detail_method as null,
+    which made pydantic reject the whole report and forced expensive retries."""
+    entity = DiscoveredEntityInfo(
+        entity_type="product",
+        display_name="Products",
+        description="test",
+        list_path="/api/Products",
+        list_method=None,
+        detail_method=None,
+    )
+    assert entity.list_method == "GET"
+    assert entity.detail_method == "GET"

@@ -630,3 +630,110 @@ class TestSyncNowAuthModes:
             await orchestrator.sync_connection("conn1", auth_token=None, public_fallback=True)
 
         mock_caps.return_value.update_capability.assert_not_called()
+
+
+OPENAPI_SPEC_WITH_PRODUCTS = {
+    "openapi": "3.0.0",
+    "info": {"title": "E-Commerce API", "version": "1.0.0"},
+    "servers": [{"url": "https://93.184.216.34"}],
+    "paths": {
+        "/api/Products": {
+            "get": {
+                "operationId": "getProducts",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/Product"},
+                            }
+                        },
+                    }
+                },
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Product": {
+                "type": "object",
+                "required": ["id", "name", "price"],
+                "properties": {
+                    "id": {"type": "integer"},
+                    "name": {"type": "string"},
+                    "price": {"type": "number"},
+                },
+            }
+        }
+    },
+}
+
+
+class TestSyncSelfHealsEmptyMappings:
+    """REGRESSION: connections created without entity mappings (older code or
+    callers that never persisted them) must not fail forever with "No entity
+    mappings configured." — the sync derives mappings from the raw spec."""
+
+    @pytest.fixture
+    def connection(self):
+        return IntegrationConnection(
+            id="conn-stale",
+            store_id="s1",
+            organization_id="o1",
+            name="E-Commerce",
+            platform_name="ecommerce",
+            status=ConnectionStatus.INACTIVE,
+            auth_config=AuthConfig(type="apiKey", name="X-API-Key"),
+            encrypted_credentials="encrypted_key",
+            entity_mappings=[],
+            raw_spec=OPENAPI_SPEC_WITH_PRODUCTS,
+            discovered_endpoints=[{"server": "https://93.184.216.34"}],
+        )
+
+    @pytest.fixture
+    def mock_repo(self, connection):
+        repo = AsyncMock()
+        repo.find_by_id = AsyncMock(return_value=connection)
+        repo.update = AsyncMock()
+        return repo
+
+    @pytest.fixture
+    def orchestrator(self, mock_repo):
+        return SyncOrchestrator(repository=mock_repo, vector_sync_enabled=False)
+
+    @pytest.mark.asyncio
+    async def test_sync_derives_and_persists_mappings_from_raw_spec(self, orchestrator, connection, mock_repo):
+        page = PagePayload(
+            data=[{"id": 1, "name": "Shirt", "price": 19.9}],
+            page_number=1,
+            raw_response={},
+        )
+        writer = AsyncMock(spec=ProductWriter)
+        writer.upsert = AsyncMock(return_value=True)
+        with (
+            patch("app.application.integration.sync.orchestrator.get_writer", return_value=writer),
+            patch(
+                "app.application.integration.sync.orchestrator.PaginationIterator",
+                side_effect=[FakePagination(pages=[page])],
+            ),
+        ):
+            result = await orchestrator.sync_connection("conn-stale", auth_token="ecomm-token")
+
+        assert result.status == "completed"
+        assert result.error is None
+        assert len(connection.entity_mappings) == 1
+        assert connection.entity_mappings[0].entity_type == "product"
+        assert connection.entity_mappings[0].list_path == "/api/Products"
+        assert {f.source for f in connection.entity_mappings[0].field_mappings} >= {"name", "price"}
+        assert result.entity_results[0].entity_type == "product"
+        assert result.entity_results[0].total_upserted == 1
+        assert result.entity_results[0].total_fetched == 1
+        assert mock_repo.update.await_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_sync_without_raw_spec_fails_with_actionable_error(self, orchestrator, connection):
+        connection.raw_spec = None
+        result = await orchestrator.sync_connection("conn-stale", auth_token="ecomm-token")
+        assert result.status == "completed"
+        assert "No entity mappings configured" in result.error
+        assert "Re-run the full integration" in result.error

@@ -2,8 +2,13 @@ import json
 import logging
 from datetime import UTC, datetime
 
+from app.application.integration.discovery.entity_detector import EntityDetector
+from app.application.integration.discovery.schema_discovery import SchemaDiscovery
+from app.application.integration.mapping.discovery import MappingSuggestor
 from app.application.integration.mapping.engine import MappedRecord, MappingEngine
 from app.application.integration.mapping.llm_mapper import LlmEntityMapper
+from app.application.integration.openapi.parser import OpenApiParser
+from app.application.integration.openapi.resolver import RefResolver
 from app.application.integration.sync.knowledge_bridge import CommerceKnowledgeBridge
 from app.application.integration.sync.writers import EntityWriter, get_writer
 from app.domain.integration.entities.integration_connection import (
@@ -174,12 +179,33 @@ class SyncOrchestrator:
                 raise ValueError(f"Connection '{connection.id}' is not active (status: {connection.status.value}).")
 
         entity_mappings = connection.entity_mappings
+        if not entity_mappings:
+            derived = self._derive_entity_mappings(connection)
+            if derived:
+                connection.entity_mappings = derived
+                entity_mappings = derived
+                logger.info(
+                    "Self-healed connection '%s': derived %d entity mapping(s) from raw spec.",
+                    connection.id,
+                    len(derived),
+                )
+                try:
+                    await self._repository.update(connection)
+                except Exception:
+                    logger.warning(
+                        "Could not persist derived mappings for connection '%s'.",
+                        connection.id,
+                        exc_info=True,
+                    )
         if entity_types:
             entity_mappings = [em for em in entity_mappings if em.entity_type in entity_types]
         if not entity_mappings:
             logger.warning("Connection '%s' has no entity mappings configured.", connection.id)
             result.status = "completed"
-            result.error = "No entity mappings configured."
+            result.error = (
+                "No entity mappings configured on the connection and none could be derived "
+                "from its API specification. Re-run the full integration to build them."
+            )
             return
 
         base_url = self._resolve_base_url(connection)
@@ -280,6 +306,56 @@ class SyncOrchestrator:
             )
         await self._repository.update(connection)
         result.status = "completed"
+
+    def _derive_entity_mappings(self, connection: IntegrationConnection) -> list[EntityMapping]:
+        """Deterministically build entity mappings from the connection's raw spec.
+
+        Self-heals connections created without entity mappings (e.g. under older
+        code or by callers that never persisted them): syncing such a connection
+        would otherwise fail forever with "No entity mappings configured." Uses
+        the same rule-based discovery pipeline as ``parse_spec`` — no LLM call.
+        """
+        raw_spec = connection.raw_spec or {}
+        if not isinstance(raw_spec, dict) or not raw_spec.get("paths"):
+            return []
+        try:
+            parser = OpenApiParser()
+            integration_schema = parser.parse(raw_spec, connection.platform_name or "integration")
+            resolver = RefResolver(integration_schema.schemas)
+            schema_discovery = SchemaDiscovery(resolver)
+            detector = EntityDetector()
+            suggestor = MappingSuggestor()
+            mappings: list[EntityMapping] = []
+            for ds in schema_discovery.discover(integration_schema.endpoints):
+                detection = detector.detect(ds.field_names)
+                if not detection.entity_type:
+                    continue
+                fields = suggestor.suggest_mappings(
+                    external_fields=set(detection.matched_fields),
+                    entity_type=detection.entity_type,
+                )
+                if not fields:
+                    continue
+                mappings.append(
+                    EntityMapping(
+                        entity_type=detection.entity_type,
+                        list_path=ds.endpoint.path,
+                        list_method=ds.endpoint.method,
+                        detail_path=None,
+                        detail_method="GET",
+                        id_field="id",
+                        pagination=PaginationConfig(style=PaginationStyle.NONE, default_limit=20),
+                        field_mappings=fields,
+                    )
+                )
+            return mappings
+        except Exception as e:
+            logger.warning(
+                "Could not derive entity mappings from raw spec for connection '%s': %s",
+                connection.id,
+                e,
+            )
+            return []
 
     async def _persist_promo_capability(self, connection: IntegrationConnection) -> None:
         """Persist the store's promo-code capability after a successful login."""
