@@ -1,27 +1,27 @@
 """Widget bedrock streaming path: streaming-only models (Bedrock/SBG gateway)
-are answered by aggregating provider.stream() chunks instead of the
-orchestration chat (which requires provider.chat()).
+are answered by aggregating provider.stream() chunks inside the conversation
+workflow's general-answer node, while product intents keep using sub-agents.
 """
 
 import pytest
 
-from app.api.widget.router import _bedrock_streaming_chat, _is_streaming_only_provider
+from app.agents.coordinator.nodes import chat_via_streaming_provider, is_streaming_only_provider
 from app.application.dto.ai_dto import StreamingChunkDTO, UsageDTO
 
 
 def test_is_streaming_only_provider_matches_bedrock_models():
-    assert _is_streaming_only_provider("deepseek.v3.2") is True
-    assert _is_streaming_only_provider("qwen.qwen3-vl-235b-a22b") is True
-    assert _is_streaming_only_provider("us.meta.llama3-3-70b-instruct-v1:0") is True
+    assert is_streaming_only_provider("deepseek.v3.2") is True
+    assert is_streaming_only_provider("qwen.qwen3-vl-235b-a22b") is True
+    assert is_streaming_only_provider("us.meta.llama3-3-70b-instruct-v1:0") is True
 
 
 def test_is_streaming_only_provider_false_for_other_models_and_unknown():
-    assert _is_streaming_only_provider("gpt-4o-mini") is False
-    assert _is_streaming_only_provider("does-not-exist") is False
+    assert is_streaming_only_provider("gpt-4o-mini") is False
+    assert is_streaming_only_provider("does-not-exist") is False
 
 
 @pytest.mark.asyncio
-async def test_bedrock_streaming_chat_aggregates_chunks(monkeypatch):
+async def test_chat_via_streaming_provider_aggregates_chunks(monkeypatch):
     async def fake_stream(self, request):
         assert request.model == "deepseek.v3.2"
         assert request.messages[0].role == "system"
@@ -41,11 +41,11 @@ async def test_bedrock_streaming_chat_aggregates_chunks(monkeypatch):
 
     fake_provider = type("FakeProvider", (), {"stream": fake_stream})()
     monkeypatch.setattr(
-        "app.api.widget.router.LLMProviderFactory",
+        "app.agents.coordinator.nodes.LLMProviderFactory",
         lambda: type("F", (), {"get_provider": lambda self, p: fake_provider})(),
     )
 
-    response = await _bedrock_streaming_chat(
+    response = await chat_via_streaming_provider(
         model="deepseek.v3.2",
         messages=[{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hey"}],
         user_input="hello",
