@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import traceback
 from typing import Any
 
@@ -193,6 +194,35 @@ def _ensure_dict(spec: Any) -> dict:
 MAX_RETRIES = 3
 
 
+def _parse_llm_json(text: str):
+    """Parse a model response that may wrap JSON in fences or append prose.
+
+    Tries, in order: the raw text, the text with markdown fences stripped,
+    the first ``{...}`` span, and the first complete JSON value via
+    ``raw_decode`` (which ignores trailing prose). Returns the parsed value
+    or raises ``json.JSONDecodeError``.
+    """
+    candidates: list[str] = [text]
+    stripped = re.sub(r"```(?:json)?\s*", "", text).strip("` \n")
+    if stripped != text:
+        candidates.append(stripped)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end > start:
+        candidates.append(text[start : end + 1])
+    for candidate in candidates:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        try:
+            value, _ = json.JSONDecoder().raw_decode(candidate.lstrip())
+            return value
+        except json.JSONDecodeError:
+            continue
+    raise json.JSONDecodeError("No valid JSON found in model response", text, 0)
+
+
 def _response_item_fields(spec: dict, list_path: str) -> set[str]:
     """Collect the flat property names of a list endpoint's item schema.
 
@@ -373,7 +403,7 @@ async def analyze_spec_with_llm(
             )
 
             response = await provider.structured_output(request, IntegrationMappingReport)
-            raw = json.loads(response.message.content)
+            raw = _parse_llm_json(response.message.content)
             report = IntegrationMappingReport(**raw)
 
             if not report.base_url:
@@ -444,7 +474,7 @@ async def analyze_feature_gaps(
         )
 
         response = await provider.structured_output(request, FeatureAnalysis)
-        raw = json.loads(response.message.content)
+        raw = _parse_llm_json(response.message.content)
         return FeatureAnalysis(**raw)
     except Exception as e:
         logger.warning("Feature gap analysis failed: %s", e)
