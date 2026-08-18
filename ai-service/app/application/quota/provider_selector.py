@@ -182,8 +182,9 @@ class PlanFailoverProvider(BaseLLMProvider):
             yield chunk
 
     async def embeddings(self, request: EmbeddingRequest, timeout: float | None = None) -> EmbeddingResponse:
-        plan = self._plan()
-        provider = plan.allowed_providers[0] if plan and plan.allowed_providers else ai_settings.DEFAULT_PROVIDER
+        # Embeddings always run on the dedicated embedding provider (Gemini by
+        # default); chat plans/providers are not embedding-capable.
+        provider = ai_settings.EMBEDDING_PROVIDER
         return await self._factory.get_provider(provider).embeddings(request, timeout=timeout)
 
     async def health_check(self) -> HealthDTO:

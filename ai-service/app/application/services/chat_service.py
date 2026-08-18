@@ -338,7 +338,7 @@ class ChatService:
     ) -> EmbeddingResponse:
         corr_id = correlation_id or self._generate_correlation_id()
         model_info = ModelRegistry.get_model_info(request.model)
-        provider_name = model_info.provider if model_info else ai_settings.DEFAULT_PROVIDER
+        provider_name = model_info.provider if model_info else ai_settings.EMBEDDING_PROVIDER
 
         provider = self.provider_factory.get_provider(provider_name)
         start_time = time.perf_counter()

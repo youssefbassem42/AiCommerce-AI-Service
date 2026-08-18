@@ -13,6 +13,7 @@ class AISettings(BaseSettings):
 
     DEFAULT_PROVIDER: str = Field(default="openai")
     DEFAULT_MODEL: str = Field(default="gpt-4o-mini")
+    EMBEDDING_PROVIDER: str = Field(default="gemini")
     REQUEST_TIMEOUT: float = Field(default=30.0)
     MAX_RETRIES: int = Field(default=3)
 

@@ -105,11 +105,9 @@ class CommerceKnowledgeBridge:
                 self._vector_store = None
                 raise ConnectionError(f"Qdrant not available: {e}")
         if not self._llm_provider:
-            import os
-
             from app.core.ai_settings import ai_settings
 
-            embedding_provider = os.getenv("EMBEDDING_PROVIDER") or ai_settings.DEFAULT_PROVIDER
+            embedding_provider = ai_settings.EMBEDDING_PROVIDER
             factory = LLMProviderFactory()
             self._llm_provider = factory.get_provider(embedding_provider)
 

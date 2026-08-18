@@ -1,11 +1,12 @@
 """SBG gateway provider tests: payload mapping, response parsing,
-registry wiring, and streaming-only guardrails (chat/embeddings/tool
-calls raise NotImplementedError; structured output is supported).
+registry wiring, single-shot chat/structured/tool-call support, and
+embeddings guardrail (embeddings raise NotImplementedError).
 """
 
 import json
 from typing import Any
 
+import httpx
 import pytest
 
 from app.application.dto.ai_dto import ChatRequest, MessageDTO
@@ -79,14 +80,55 @@ def test_parse_response_maps_output_and_usage():
 
 
 @pytest.mark.asyncio
-async def test_streaming_only_guardrails_for_chat_embeddings_and_tool_call():
+async def test_chat_single_shot_returns_response():
     provider = BedrockProvider(api_key="test-key")
-    with pytest.raises(NotImplementedError):
-        await provider.chat(ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="hi")]))
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["model_id"] == "deepseek.v3.2"
+        return httpx.Response(
+            200,
+            json={
+                "request_id": "req-chat",
+                "model_id": "deepseek.v3.2",
+                "output_text": "Hello!",
+                "usage": {"input_tokens": 10, "output_tokens": 3, "total_tokens": 13},
+                "actual_cost_usd": "0.000010",
+            },
+        )
+
+    provider.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    response = await provider.chat(ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="hi")]))
+    assert response.provider == "bedrock"
+    assert response.message.content == "Hello!"
+    assert response.usage.prompt_tokens == 10
+
     with pytest.raises(NotImplementedError):
         await provider.embeddings(type("R", (), {"texts": ["x"]})())  # type: ignore[arg-type]
-    with pytest.raises(NotImplementedError):
-        await provider.tool_call(ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="hi")]))
+
+
+@pytest.mark.asyncio
+async def test_tool_call_injects_instruction_and_returns_json():
+    provider = BedrockProvider(api_key="test-key")
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert "tool call is required" in body["messages"][-1]["content"]
+        return httpx.Response(
+            200,
+            json={
+                "request_id": "req-tool",
+                "model_id": "deepseek.v3.2",
+                "output_text": '{"name": "get_products", "arguments": {}}',
+                "usage": {"input_tokens": 12, "output_tokens": 5, "total_tokens": 17},
+            },
+        )
+
+    provider.client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    response = await provider.tool_call(
+        ChatRequest(model="deepseek.v3.2", messages=[MessageDTO(role="user", content="list products")])
+    )
+    assert response.message.content == '{"name": "get_products", "arguments": {}}'
 
 
 @pytest.mark.asyncio

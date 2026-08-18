@@ -104,8 +104,9 @@ def _parse_response(payload: dict[str, Any], request_id: str, model: str) -> Str
 class BedrockProvider(BaseLLMProvider):
     """
     Bedrock models via the SBG gateway — single-shot JSON responses.
-    ``stream()`` and ``structured_output()`` are supported; plain
-    ``chat()``, embeddings and tool calling are not.
+    ``stream()``, ``chat()``, ``structured_output()`` and ``tool_call()``
+    are supported (each makes one request; ``stream()`` yields the full
+    text as one chunk). Embeddings are not.
     """
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None):
@@ -117,11 +118,19 @@ class BedrockProvider(BaseLLMProvider):
         )
 
     async def chat(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
-        raise NotImplementedError("Bedrock gateway provider supports streaming only")
+        """Single-shot chat: the gateway returns the full answer in one response."""
+        start_time = time.perf_counter()
+        chunk = await self._single_shot(request, timeout=timeout)
+        return ChatResponse(
+            id=chunk.id,
+            model=chunk.model,
+            provider="bedrock",
+            message=MessageDTO(role="assistant", content=chunk.content),
+            usage=chunk.usage,
+            latency_ms=(time.perf_counter() - start_time) * 1000,
+        )
 
-    async def stream(
-        self, request: ChatRequest, timeout: float | None = None
-    ) -> AsyncGenerator[StreamingChunkDTO, None]:
+    async def _single_shot(self, request: ChatRequest, timeout: float | None = None) -> StreamingChunkDTO:
         url = f"{self.base_url}{_ENDPOINT}"
         request_id = f"bedrock-{int(time.time() * 1000)}"
         try:
@@ -131,8 +140,12 @@ class BedrockProvider(BaseLLMProvider):
             payload = resp.json()
         except Exception as e:
             raise map_provider_exception("bedrock", e)
+        return _parse_response(payload, request_id, request.model)
 
-        chunk = _parse_response(payload, request_id, request.model)
+    async def stream(
+        self, request: ChatRequest, timeout: float | None = None
+    ) -> AsyncGenerator[StreamingChunkDTO, None]:
+        chunk = await self._single_shot(request, timeout=timeout)
         if chunk.content:
             yield StreamingChunkDTO(
                 id=chunk.id,
@@ -197,17 +210,7 @@ class BedrockProvider(BaseLLMProvider):
             else:
                 last_msg.content.append({"type": "text", "text": instruction})
 
-        url = f"{self.base_url}{_ENDPOINT}"
-        request_id = f"bedrock-{int(time.time() * 1000)}"
-        try:
-            resp = await self.client.post(url, json=_build_body(request_copy), timeout=timeout or DEFAULT_TIMEOUT)
-            if resp.status_code != 200:
-                raise RuntimeError(f"SBG gateway error {resp.status_code}: {resp.text[:300]}")
-            payload = resp.json()
-        except Exception as e:
-            raise map_provider_exception("bedrock", e)
-
-        chunk = _parse_response(payload, request_id, request.model)
+        chunk = await self._single_shot(request_copy, timeout=timeout)
         return ChatResponse(
             id=chunk.id,
             model=chunk.model,
@@ -218,4 +221,34 @@ class BedrockProvider(BaseLLMProvider):
         )
 
     async def tool_call(self, request: ChatRequest, timeout: float | None = None) -> ChatResponse:
-        raise NotImplementedError("Bedrock gateway provider supports streaming only")
+        """
+        The gateway exposes no native tool-calling mode; the tool-call
+        instruction is injected into the user prompt and the model returns
+        the JSON payload to execute, mirroring ``structured_output``.
+        """
+        start_time = time.perf_counter()
+        request_copy = ChatRequest(**request.model_dump())
+        request_copy.json_mode = True
+
+        instruction = (
+            "\nIf a tool call is required to fulfill the request, return ONLY a JSON "
+            'object with a "name" field (the tool name) and an "arguments" object '
+            "with the tool parameters. If no tool call is required, return a JSON "
+            'object with "name": null and "arguments": {}.'
+        )
+        if request_copy.messages:
+            last_msg = request_copy.messages[-1]
+            if isinstance(last_msg.content, str):
+                last_msg.content += instruction
+            else:
+                last_msg.content.append({"type": "text", "text": instruction})
+
+        chunk = await self._single_shot(request_copy, timeout=timeout)
+        return ChatResponse(
+            id=chunk.id,
+            model=chunk.model,
+            provider="bedrock",
+            message=MessageDTO(role="assistant", content=chunk.content),
+            usage=chunk.usage,
+            latency_ms=(time.perf_counter() - start_time) * 1000,
+        )

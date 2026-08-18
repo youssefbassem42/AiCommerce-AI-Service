@@ -73,9 +73,10 @@ E_COMMERCE_FEATURES = [
 ]
 
 
-def _select_best_provider() -> tuple[BaseLLMProvider, str]:
+async def _select_best_provider() -> tuple[BaseLLMProvider, str]:
     factory = LLMProviderFactory()
     preferred_models = [
+        ("bedrock", "openai.gpt-oss-120b-1:0", 0.0),
         ("openrouter", "openai/gpt-4o-mini", 0.15),
         ("ollama", "llama3", 0.0),
         ("deepseek", "deepseek-chat", 0.14),
@@ -86,7 +87,7 @@ def _select_best_provider() -> tuple[BaseLLMProvider, str]:
             info = ModelRegistry.get_model_info(model_name)
             if info and info.capabilities.json_mode and info.capabilities.tool_calling:
                 provider = factory.get_provider(provider_name)
-                health = provider.health_check()
+                health = await provider.health_check()
                 if health.status == "healthy":
                     return provider, model_name
         except Exception as e:
@@ -322,7 +323,7 @@ async def analyze_spec_with_llm(
     model: str | None = None,
 ) -> IntegrationMappingReport:
     if provider is None:
-        provider, model = _select_best_provider()
+        provider, model = await _select_best_provider()
     if model is None:
         model = ai_settings.DEFAULT_MODEL
 
@@ -458,7 +459,7 @@ async def create_user_friendly_error(
     model: str | None = None,
 ) -> str:
     if provider is None:
-        provider, model = _select_best_provider()
+        provider, model = await _select_best_provider()
     if model is None:
         model = ai_settings.DEFAULT_MODEL
 
