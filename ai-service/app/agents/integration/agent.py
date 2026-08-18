@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 async def _select_best_model() -> tuple[BaseLLMProvider, str]:
     factory = LLMProviderFactory()
     preferred = [
-        ("bedrock", "openai.gpt-oss-120b-1:0"),
         ("openrouter", "openai/gpt-4o-mini"),
+        ("bedrock", "openai.gpt-oss-120b-1:0"),
         ("ollama", "llama3"),
         ("deepseek", "deepseek-chat"),
         ("openai", "gpt-4o-mini"),

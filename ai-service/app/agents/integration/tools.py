@@ -77,8 +77,8 @@ E_COMMERCE_FEATURES = [
 async def _select_best_provider() -> tuple[BaseLLMProvider, str]:
     factory = LLMProviderFactory()
     preferred_models = [
-        ("bedrock", "openai.gpt-oss-120b-1:0", 0.0),
         ("openrouter", "openai/gpt-4o-mini", 0.15),
+        ("bedrock", "openai.gpt-oss-120b-1:0", 0.0),
         ("ollama", "llama3", 0.0),
         ("deepseek", "deepseek-chat", 0.14),
         ("openai", "gpt-4o-mini", 0.15),

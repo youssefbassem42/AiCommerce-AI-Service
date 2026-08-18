@@ -3,6 +3,8 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+import yaml
+
 from app.agents.integration.agent import IntegrationMappingAgent
 from app.agents.integration.schemas import AuthInfo, IntegrationMappingReport
 from app.application.integration.mapping.dto import (
@@ -25,6 +27,21 @@ from app.domain.integration.value_objects.pagination_config import PaginationCon
 from app.infrastructure.providers.base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_spec(raw_spec: Any) -> dict:
+    """Normalize a raw spec (dict, JSON string, or YAML string) to a dict."""
+    if isinstance(raw_spec, dict):
+        return raw_spec
+    if isinstance(raw_spec, str):
+        for loader in (json.loads, yaml.safe_load):
+            try:
+                parsed = loader(raw_spec)
+            except (json.JSONDecodeError, yaml.YAMLError, ValueError):
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+    return {}
 
 
 def _infer_auth_from_spec(spec: dict) -> AuthConfigDTO | None:
@@ -200,7 +217,7 @@ class IntegrationWorkflow:
         connection_name: str | None,
         capabilities: dict[str, bool] | None,
     ) -> IntegrationConnection:
-        spec_dict = raw_spec if isinstance(raw_spec, dict) else {}
+        spec_dict = _coerce_spec(raw_spec)
         auth_config = _infer_auth_from_spec(spec_dict) or _to_auth_config_dto(report.auth)
         creds = credentials or {}
 
