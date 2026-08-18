@@ -65,7 +65,7 @@ class MappingEngine:
         mapping: EntityMapping,
     ) -> MappedRecord:
         report = MappingReport()
-        result: dict[str, Any] = {}
+        result: dict[str, Any] = dict(external_item)
 
         for field_mapping in mapping.field_mappings:
             mf = self._apply_field(field_mapping, external_item)

@@ -557,6 +557,17 @@ class SyncOrchestrator:
                 if upserted:
                     entity_result.total_upserted += 1
 
+                children = item.get("children")
+                if children and isinstance(children, list):
+                    await self._process_page(
+                        page=PagePayload(data=children, page_number=0, raw_response={}),
+                        connection=connection,
+                        entity_mapping=entity_mapping,
+                        entity_result=entity_result,
+                        writer=writer,
+                        mapped_records=mapped_records,
+                    )
+
                 if mapped_records is not None:
                     mapped_records.append(dict(mapped.data))
             except Exception as e:
