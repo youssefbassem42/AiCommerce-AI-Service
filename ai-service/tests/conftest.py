@@ -79,6 +79,7 @@ def override_auth_dependencies(app) -> None:
 def admin_headers(
     role: str = "Admin",
     store_id: str = "22222222-2222-2222-2222-222222222222",
+    org_id: str | None = "33333333-3333-3333-3333-333333333333",
     store_admin_email: str | None = None,
     store_admin_password: str | None = None,
 ) -> dict[str, str]:
@@ -104,13 +105,14 @@ def admin_headers(
         EMAIL_CLAIM: "admin@example.com",
         "security_stamp": "test-security-stamp",
         "store_id": store_id,
-        "org_id": "33333333-3333-3333-3333-333333333333",
         "http://schemas.microsoft.com/ws/2008/06/identity/claims/role": role,
         "iss": auth_settings.JWT_ISSUER,
         "aud": auth_settings.JWT_AUDIENCE,
         "exp": datetime.now(UTC) + timedelta(hours=1),
         "iat": datetime.now(UTC),
     }
+    if org_id is not None:
+        payload["org_id"] = org_id
     if store_admin_email is not None:
         payload["store_admin_email"] = store_admin_email
     if store_admin_password is not None:

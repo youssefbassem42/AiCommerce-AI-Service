@@ -267,6 +267,61 @@ class TestIntegrationAPI:
         assert resp.status_code == 201
         assert resp.json()["name"] == "Test Connection"
 
+    def test_create_connection_without_org_id_claim_falls_back_to_store(
+        self, client, mock_service, override_deps
+    ):
+        mock_service.create_connection.return_value = MagicMock(
+            model_dump=MagicMock(
+                return_value={
+                    "id": "conn1",
+                    "store_id": STORE_ID,
+                    "organization_id": STORE_ID,
+                    "name": "Test Connection",
+                    "platform_name": "shopify",
+                    "status": "active",
+                    "spec_version": "3.0",
+                    "auth_config": {
+                        "type": "apiKey",
+                        "credentials_location": "header",
+                        "scheme": None,
+                        "name": "X-API-Key",
+                        "token_url": None,
+                        "flow": None,
+                    },
+                    "entity_mappings": [],
+                    "discovered_endpoints": [],
+                    "discovered_schemas": {},
+                    "last_sync_at": None,
+                    "last_sync_status": None,
+                    "error_message": None,
+                    "created_at": "2026-01-01T00:00:00",
+                    "updated_at": "2026-01-01T00:00:00",
+                }
+            )
+        )
+        with patch.object(
+            AuditMiddleware,
+            "_log_audit_entry",
+            AsyncMock(),
+        ), TestClient(
+            app,
+            raise_server_exceptions=False,
+            headers=admin_headers(store_id=STORE_ID, org_id=None),
+        ) as no_org_client:
+            resp = no_org_client.post(
+                "/api/v1/integration/connections",
+                json={
+                    "store_id": STORE_ID,
+                    "name": "Test Connection",
+                    "platform_name": "shopify",
+                    "raw_spec": OPENAPI_V3_MINIMAL,
+                    "auth_config": {"type": "apiKey", "name": "X-API-Key"},
+                },
+            )
+        assert resp.status_code == 201
+        created_dto = mock_service.create_connection.await_args.args[0]
+        assert created_dto.organization_id == STORE_ID
+
     def test_list_connections(self, client, mock_service, override_deps):
         mock_service.list_connections = AsyncMock(return_value=([], 0))
         resp = client.get("/api/v1/integration/connections?store_id=s1")

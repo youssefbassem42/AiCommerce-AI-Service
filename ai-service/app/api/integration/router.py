@@ -232,7 +232,7 @@ async def create_connection(
 ) -> ConnectionResponseSchema:
     dto = ConnectionCreateDTO(
         store_id=store_id,
-        organization_id=organization_id,
+        organization_id=organization_id or store_id,
         name=payload.name,
         platform_name=payload.platform_name,
         raw_spec=payload.raw_spec,
