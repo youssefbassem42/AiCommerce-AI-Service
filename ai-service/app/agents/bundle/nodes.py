@@ -4,7 +4,7 @@ from typing import Any
 from app.agents.bundle.state import BundleState
 from app.agents.bundle.tools import (
     build_bundle_response,
-    build_compatible_pool,
+    build_compatible_pool_relaxed,
     expand_use_case,
     find_candidates,
     get_or_create_promo,
@@ -12,7 +12,7 @@ from app.agents.bundle.tools import (
     merge_shopping_state,
     parse_budget,
     promo_capable,
-    score_bundles,
+    score_bundles_relaxed,
 )
 from app.application.recommendation.promo_service import PromoCodeService
 from app.domain.commerce.repositories import ProductRepository
@@ -79,7 +79,7 @@ async def compute_bundles_node(state: BundleState) -> dict[str, Any]:
         return {"bundles": []}
 
     try:
-        pool = build_compatible_pool(candidates, state.get("category_names"))
+        pool = build_compatible_pool_relaxed(candidates, state.get("category_names"))
         if not pool:
             return {"bundles": []}
         combinations = knapsack_bundles(
@@ -87,7 +87,7 @@ async def compute_bundles_node(state: BundleState) -> dict[str, Any]:
             budget,
             category_names=state.get("category_names"),
         )
-        scored = score_bundles(
+        scored = score_bundles_relaxed(
             combinations,
             budget,
             pool,

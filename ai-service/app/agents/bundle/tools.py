@@ -257,6 +257,32 @@ def requested_counts(desired_items: list[str]) -> Counter[str]:
     return Counter(item.lower() for item in desired_items)
 
 
+def build_compatible_pool_relaxed(
+    candidates_by_type: dict[str, list[Product]],
+    category_names: dict[str, str] | None = None,
+) -> dict[str, list[Product]]:
+    """Like ``build_compatible_pool`` but keeps zero-complementarity buckets.
+
+    Stores whose catalog has no rule matches (e.g. synced catalogs without
+    product_type/category metadata) lose every secondary bucket to the
+    complementarity filter, collapsing suggestions to single products even
+    when in-stock pairs exist. When the strict pool ends up with only the
+    primary bucket, the remaining buckets are kept (deterministically capped)
+    so cross-type pairs are still considered; the scoring layer demotes
+    unrelated pairs, so rank 1 still prefers meaningful bundles.
+    """
+    pool = build_compatible_pool(candidates_by_type, category_names)
+    if len(pool) > 1 or not candidates_by_type:
+        return pool
+    types = list(candidates_by_type)
+    for item in types[1:]:
+        if item not in pool:
+            bucket = list(candidates_by_type[item])
+            bucket.sort(key=lambda c: str(getattr(c, "id", "") or ""))
+            pool[item] = bucket[:_TOP_COMPATIBLE_PER_BUCKET]
+    return pool
+
+
 def build_compatible_pool(
     candidates_by_type: dict[str, list[Product]],
     category_names: dict[str, str] | None = None,
@@ -387,6 +413,48 @@ def _requested_coverage(
             covered += 1
             used[item] += 1
     return covered / len(requested_items)
+
+
+def score_bundles_relaxed(
+    bundles: list[list[Product]],
+    budget: float | None,
+    candidates_by_type: dict[str, list[Product]],
+    category_names: dict[str, str] | None = None,
+    requested_items: list[str] | None = None,
+) -> list[BundleCandidate]:
+    """Like ``score_bundles`` but a pair covering more requested types outranks a single.
+
+    The single-product baseline (0.5) lets one product beat an unrelated pair
+    (single 0.625 > pair 0.5 at zero complementarity), which surfaces as
+    "only one product suggested" for stores without rule matches. Re-rank:
+    within-budget candidates sort by requested-coverage first (then the
+    original score order), so a multi-item bundle that covers the shopper's
+    types wins while meaningful bundles keep their relative order.
+    """
+    scored = score_bundles(
+        bundles,
+        budget,
+        candidates_by_type,
+        category_names=category_names,
+        requested_items=requested_items,
+    )
+    if len(scored) < 2:
+        return scored
+    ranked = sorted(
+        scored,
+        key=lambda b: (
+            not b.within_budget,
+            -float(b.relevance_score),
+            -float(b.compatibility_score),
+            -float(b.score),
+            float(b.total_after_discount),
+            len(b.products),
+            "|".join(sorted(p.product_id for p in b.products)),
+        ),
+    )
+    for index, candidate in enumerate(ranked):
+        candidate.rank = index + 1
+    return ranked
 
 
 def score_bundles(
