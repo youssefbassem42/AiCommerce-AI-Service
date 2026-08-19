@@ -104,6 +104,9 @@ class BundleTrackingService:
             upsert=True,
         )
 
+        if counter_field == "copy_count":
+            await self._auto_promote(store_id, event_key)
+
         logger.info(
             "Bundle event '%s' recorded for store %s (bundle_key=%s)",
             event,
@@ -111,6 +114,44 @@ class BundleTrackingService:
             event_key,
         )
         return {"event": event, "bundle_key": event_key, "recorded": True}
+
+    async def _auto_promote(
+        self,
+        store_id: str,
+        bundle_key: str,
+        doc: dict[str, Any] | None = None,
+    ) -> bool:
+        """Promote a bundle to top once its copy count reaches the threshold.
+
+        ``track_copy_event`` historically owned this logic, but the widget
+        funnel path (``track_event`` with event=promo_copied) also increments
+        ``copy_count`` without promoting, leaving is_top false past the
+        threshold. Shared by both paths so the two never disagree. Returns
+        True when this call performed the promotion.
+        """
+        if doc is None:
+            doc = await self._tracking_collection.find_one(
+                {"store_id": store_id, "bundle_key": bundle_key},
+            )
+        if not doc or doc.get("is_top"):
+            return False
+        threshold = await self._get_threshold(store_id)
+        if doc.get("copy_count", 0) < threshold:
+            return False
+        now = datetime.now(UTC)
+        await self._tracking_collection.update_one(
+            {"_id": doc["_id"]},
+            {"$set": {"is_top": True, "promoted_at": now}},
+        )
+        await self._sync_to_dashboard(store_id)
+        logger.info(
+            "Bundle %s promoted to top for store %s (copy_count=%s, threshold=%s)",
+            bundle_key,
+            store_id,
+            doc.get("copy_count"),
+            threshold,
+        )
+        return True
 
     async def track_copy_event(
         self,
@@ -148,20 +189,12 @@ class BundleTrackingService:
 
         copy_count = result["copy_count"]
         threshold = await self._get_threshold(store_id)
-
-        if copy_count >= threshold and not result.get("is_top"):
-            await self._tracking_collection.update_one(
-                {"_id": result["_id"]},
-                {"$set": {"is_top": True, "promoted_at": now}},
-            )
-            result["is_top"] = True
-            result["promoted_at"] = now
-            await self._sync_to_dashboard(store_id)
+        promoted = await self._auto_promote(store_id, bundle_key, doc=result)
 
         return {
             "bundle_key": bundle_key,
             "copy_count": copy_count,
-            "is_top": result.get("is_top", False),
+            "is_top": result.get("is_top", False) or promoted,
             "threshold": threshold,
         }
 
