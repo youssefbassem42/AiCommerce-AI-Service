@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from app.application.integration.discovery.entity_detector import EntityDetector
 from app.application.integration.discovery.schema_discovery import SchemaDiscovery
@@ -86,6 +87,33 @@ class SyncResult:
             "total_duration_seconds": self.total_duration_seconds,
             "error": self.error,
         }
+
+
+_CANONICAL_ALIASES: dict[str, tuple[str, ...]] = {
+    "total": ("totalAmount", "total_amount", "total_price", "grand_total"),
+    "subtotal": ("subtotalAmount", "subtotal_amount", "subtotal_price", "sub_total"),
+    "tax": ("taxAmount", "tax_amount", "total_tax"),
+    "discount": ("discountAmount", "discount_amount", "total_discount"),
+    "shipping_price": ("shippingFee", "shipping_fee", "shippingAmount"),
+    "line_items": ("items",),
+}
+
+
+def _backfill_canonical_aliases(record: dict[str, Any]) -> None:
+    """Fill canonical keys from common API aliases when the canonical key is absent.
+
+    Connections whose field mappings are identity-style (e.g. ``totalAmount ->
+    totalAmount``) leave the API's camelCase keys in the record; canonical
+    readers (writers, revenue aggregation) expect ``total``/``line_items``.
+    Only writes keys that are missing, so explicit mappings always win.
+    """
+    for canonical, aliases in _CANONICAL_ALIASES.items():
+        if record.get(canonical) is not None:
+            continue
+        for alias in aliases:
+            if record.get(alias) is not None:
+                record[canonical] = record[alias]
+                break
 
 
 class SyncOrchestrator:
@@ -547,6 +575,8 @@ class SyncOrchestrator:
                 if not mapped.report.success:
                     for err in mapped.report.errors:
                         entity_result.errors.append(f"Mapping warning (record kept): {err}")
+
+                _backfill_canonical_aliases(mapped.data)
 
                 upserted = await writer.upsert(
                     store_id=connection.store_id,
